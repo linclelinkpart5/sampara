@@ -1,5 +1,7 @@
 pub mod conv;
 
+pub use conv::{FromSample, IntoSample, Duplex};
+
 /// A trait for working generically across different sample format types, both
 /// in terms of representation (integer versus float) and bitsize.
 pub trait Sample: Copy + Clone + PartialOrd + PartialEq {

@@ -12,6 +12,8 @@
 //! Note that floating point samples span the range [-1.0, 1.0). This means that
 //! `1.0f32.into_sample::<i16>()` will overflow.
 
+use crate::Sample;
+
 macro_rules! conversion_fn {
     ($Rep:ty, $s:ident to_i8 { $body:expr }) => {
         #[inline]
@@ -322,8 +324,8 @@ conversions!(u64, u64 {
     s to_f64 { super::i64::to_f64(to_i64(s)) }
 });
 
-// The following conversions assume `-1.0 <= s < 1.0` (note that +1.0 is excluded) and will
-// overflow otherwise.
+// The following conversions assume the sample value is in the range
+// [-1.0, 1.0), and will overflow otherwise.
 conversions!(f32, f32 {
     s to_i8 { (s * 128.0) as i8 }
     s to_i16 { (s * 32_768.0) as i16 }
@@ -336,8 +338,8 @@ conversions!(f32, f32 {
     s to_f64 { s as f64 }
 });
 
-// The following conversions assume `-1.0 <= s < 1.0` (note that +1.0 is excluded) and will
-// overflow otherwise.
+// The following conversions assume the sample value is in the range
+// [-1.0, 1.0), and will overflow otherwise.
 conversions!(f64, f64 {
     s to_i8 { (s * 128.0) as i8 }
     s to_i16 { (s * 32_768.0) as i16 }
@@ -349,3 +351,151 @@ conversions!(f64, f64 {
     s to_u64 { super::i64::to_u64(to_i64(s)) }
     s to_f32 { s as f32 }
 });
+
+/// Allows converting from one [`Sample`] type into another. This is analogous
+/// to [`std::convert::From`], but is intended for preserving the same
+/// represented amplitude between sample types.
+///
+/// ```rust
+/// use sampara::{Sample, FromSample};
+///
+/// fn main() {
+///     let s: i8 = FromSample::from_sample(0.0f32);
+///     assert_eq!(s, 0);
+///
+///     let s: u8 = FromSample::from_sample(0.0f32);
+///     assert_eq!(s, 128);
+///
+///     let s: f32 = FromSample::from_sample(255u8);
+///     assert_eq!(s, 0.9921875);
+/// }
+pub trait FromSample<S>
+where
+    S: Sample,
+{
+    fn from_sample(s: S) -> Self;
+}
+
+// All [`Sample`]s can be converted into themselves trivially.
+impl<S> FromSample<S> for S
+where
+    S: Sample,
+{
+    fn from_sample(s: S) -> Self {
+        s
+    }
+}
+
+macro_rules! impl_from_sample {
+    ($T:ty, $fn_name:ident from $({$U:ident: $Umod:ident})*) => {
+        $(
+            impl FromSample<$U> for $T {
+                #[inline]
+                fn from_sample(s: $U) -> Self {
+                    self::$Umod::$fn_name(s)
+                }
+            }
+        )*
+    };
+}
+
+impl_from_sample! {i8, to_i8 from
+    {i16:i16} {i32:i32} {i64:i64}
+    {u8:u8} {u16:u16} {u32:u32} {u64:u64}
+    {f32:f32} {f64:f64}
+}
+
+impl_from_sample! {i16, to_i16 from
+    {i8:i8} {i32:i32} {i64:i64}
+    {u8:u8} {u16:u16} {u32:u32} {u64:u64}
+    {f32:f32} {f64:f64}
+}
+
+impl_from_sample! {i32, to_i32 from
+    {i8:i8} {i16:i16} {i64:i64}
+    {u8:u8} {u16:u16} {u32:u32} {u64:u64}
+    {f32:f32} {f64:f64}
+}
+
+impl_from_sample! {i64, to_i64 from
+    {i8:i8} {i16:i16} {i32:i32}
+    {u8:u8} {u16:u16} {u32:u32} {u64:u64}
+    {f32:f32} {f64:f64}
+}
+
+impl_from_sample! {u8, to_u8 from
+    {i8:i8} {i16:i16} {i32:i32} {i64:i64}
+    {u16:u16} {u32:u32} {u64:u64}
+    {f32:f32} {f64:f64}
+}
+
+impl_from_sample! {u16, to_u16 from
+    {i8:i8} {i16:i16} {i32:i32} {i64:i64}
+    {u8:u8} {u32:u32} {u64:u64}
+    {f32:f32} {f64:f64}
+}
+
+impl_from_sample! {u32, to_u32 from
+    {i8:i8} {i16:i16} {i32:i32} {i64:i64}
+    {u8:u8} {u16:u16} {u64:u64}
+    {f32:f32} {f64:f64}
+}
+
+impl_from_sample! {u64, to_u64 from
+    {i8:i8} {i16:i16} {i32:i32} {i64:i64}
+    {u8:u8} {u16:u16} {u32:u32}
+    {f32:f32} {f64:f64}
+}
+
+impl_from_sample! {f32, to_f32 from
+    {i8:i8} {i16:i16} {i32:i32} {i64:i64}
+    {u8:u8} {u16:u16} {u32:u32} {u64:u64}
+    {f64:f64}
+}
+
+impl_from_sample! {f64, to_f64 from
+    {i8:i8} {i16:i16} {i32:i32} {i64:i64}
+    {u8:u8} {u16:u16} {u32:u32} {u64:u64}
+    {f32:f32}
+}
+
+/// Allows converting from one [`Sample`] type into another. This is analogous
+/// to [`std::convert::Into`], but is intended for preserving the same
+/// represented amplitude between sample types.
+///
+/// This trait has a blanket implementation for all types that implement
+/// [`FromSample`].
+///
+/// ```rust
+/// use sampara::{Sample, IntoSample};
+///
+/// fn main() {
+///     let s: i8 = 0.0f32.into_sample();
+///     assert_eq!(s, 0);
+///
+///     let s: u8 = 0.0f32.into_sample();
+///     assert_eq!(s, 128);
+///
+///     let s: f32 = 255u8.into_sample();
+///     assert_eq!(s, 0.9921875);
+/// }
+pub trait IntoSample<S>
+where
+    S: Sample,
+{
+    fn into_sample(self) -> S;
+}
+
+impl<T, U> IntoSample<U> for T
+where
+    T: Sample,
+    U: FromSample<T> + Sample,
+{
+    fn into_sample(self) -> U {
+        U::from_sample(self)
+    }
+}
+
+/// [`Sample`]s that can be converted into and from another [`Sample`] type.
+pub trait Duplex<S>: FromSample<S> + IntoSample<S> where S: Sample {}
+impl<S, T> Duplex<S> for T where S: Sample, T: FromSample<S> + IntoSample<S> {}
