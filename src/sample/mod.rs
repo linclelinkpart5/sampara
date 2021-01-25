@@ -11,8 +11,6 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq {
     /// This is normally the value that is equal distance from both the min and
     /// max ranges of the sample, i.e. the "zero amplitude" value.
     ///
-    /// # Example
-    ///
     /// ```rust
     /// use sampara::Sample;
     ///
@@ -78,8 +76,8 @@ pub trait SignedSample:
     + Add<Output = Self>
     + Sub<Output = Self>
     + Neg<Output = Self>
-{
-}
+{}
+
 macro_rules! impl_signed_sample { ($($T:ty)*) => { $( impl SignedSample for $T {} )* } }
 impl_signed_sample!(i8 i16 i32 i64 f32 f64);
 
@@ -100,21 +98,21 @@ pub trait FloatSample:
     const IDENTITY: Self;
 
     /// Calculate the square root of the sample.
+    // NOTE: An option could be to use the `num-traits` crate, but at this point
+    //       it feels like overkill.
     fn sample_sqrt(self) -> Self;
 }
 
 impl FloatSample for f32 {
     const IDENTITY: Self = 1.0;
+
     #[inline]
-    fn sample_sqrt(self) -> Self {
-        self.sqrt()
-    }
+    fn sample_sqrt(self) -> Self { self.sqrt() }
 }
 
 impl FloatSample for f64 {
     const IDENTITY: Self = 1.0;
+
     #[inline]
-    fn sample_sqrt(self) -> Self {
-        self.sqrt()
-    }
+    fn sample_sqrt(self) -> Self { self.sqrt() }
 }
