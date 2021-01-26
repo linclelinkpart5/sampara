@@ -1,6 +1,6 @@
 pub mod conv;
 
-pub use conv::{FromSample, IntoSample, Duplex};
+pub use conv::{ConvertFrom, ConvertInto, Duplex};
 
 use core::ops::{Add, Sub, Mul, Div, Neg};
 
@@ -34,6 +34,46 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq {
     /// represents the [`Sample`] type to convert to for optimal/lossless
     /// multiplication.
     type Float: FloatSample + Duplex<Self>;
+
+    /// Converts this [`Sample`] into another [`Sample`] type.
+    ///
+    /// ```rust
+    /// use sampara::Sample;
+    ///
+    /// fn main() {
+    ///     assert_eq!(0.0.into_sample::<i32>(), 0);
+    ///     assert_eq!(0.0.into_sample::<u8>(), 128);
+    ///     assert_eq!((-1.0).into_sample::<u8>(), 0);
+    /// }
+    /// ```
+    #[inline]
+    fn into_sample<S>(self) -> S
+    where
+        Self: ConvertInto<S>,
+        S: Sample,
+    {
+        self.convert_into()
+    }
+
+    /// Creates an instance of this [`Sample`] from another [`Sample`] type.
+    ///
+    /// ```rust
+    /// use sampara::Sample;
+    ///
+    /// fn main() {
+    ///     assert_eq!(f32::from_sample(128u8), 0.0);
+    ///     assert_eq!(i8::from_sample(-1.0), -128);
+    ///     assert_eq!(u16::from_sample(0.5), 49152);
+    /// }
+    /// ```
+    #[inline]
+    fn from_sample<S>(s: S) -> Self
+    where
+        Self: ConvertFrom<S>,
+        S: Sample,
+    {
+        ConvertFrom::convert_from(s)
+    }
 }
 
 /// A macro used to simplify the implementation of [`Sample`].
