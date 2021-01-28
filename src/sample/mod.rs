@@ -110,6 +110,47 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq {
     fn into_float_sample(self) -> Self::Float {
         self.into_sample()
     }
+
+    /// Adds/offsets the amplitude of this [`Sample`] by a signed amplitude.
+    ///
+    /// This value will be converted into [`Self::Signed`], then added. The
+    /// result will then be converted back into [`Self`]. This double conversion
+    /// is to correctly handle the addition of unsigned signal formats.
+    ///
+    /// ```rust
+    /// use sampara::Sample;
+    ///
+    /// fn main() {
+    ///     assert_eq!(0.25.add_amp(0.5), 0.75);
+    ///     assert_eq!(192u8.add_amp(-128), 64);
+    /// }
+    /// ```
+    #[inline]
+    fn add_amp(self, amp: Self::Signed) -> Self {
+        let self_s = self.into_signed_sample();
+        (self_s + amp).into_sample()
+    }
+
+    /// Multiplies/scales the amplitude of this [`Sample`] by a float amplitude.
+    ///
+    /// This value will be converted into [`Self::Float`], then multiplied. The
+    /// result will then be converted back into [`Self`]. This double conversion
+    /// is to correctly handle the multiplication of integer signal formats.
+    ///
+    /// ```rust
+    /// use sampara::Sample;
+    ///
+    /// fn main() {
+    ///     assert_eq!(64_i8.mul_amp(0.5), 32);
+    ///     assert_eq!(0.5.mul_amp(-2.0), -1.0);
+    ///     assert_eq!(64_u8.mul_amp(0.0), 128);
+    /// }
+    /// ```
+    #[inline]
+    fn mul_amp(self, amp: Self::Float) -> Self {
+        let self_f = self.into_float_sample();
+        (self_f * amp).into_sample()
+    }
 }
 
 /// A macro used to simplify the implementation of [`Sample`].
@@ -161,7 +202,7 @@ impl_signed_sample!(i8 i16 i32 i64 f32 f64);
 /// [-1.0, 1.0).
 ///
 /// [`Sample`]s often need to be converted to some mutual [`FloatSample`] type
-/// for scaling and modulation.
+/// for scaling.
 pub trait FloatSample:
     Sample<Signed = Self, Float = Self>
     + SignedSample
