@@ -74,6 +74,42 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq {
     {
         ConvertFrom::convert_from(s)
     }
+
+    /// Converts this [`Sample`] into its corresponding [`Self::Signed`] type.
+    ///
+    /// This is a simple wrapper around [`Sample::into_sample`] to provide
+    /// extra type inference convenience in some cases.
+    ///
+    /// ```rust
+    /// use sampara::Sample;
+    ///
+    /// fn main() {
+    ///     assert_eq!(128_u8.into_signed_sample(), 0_i8);
+    ///     assert_eq!(128_u16.into_signed_sample(), -32640_i16);
+    ///     assert_eq!((-128_i8).into_signed_sample(), -128_i8);
+    /// }
+    /// ```
+    fn into_signed_sample(self) -> Self::Signed {
+        self.into_sample()
+    }
+
+    /// Converts this [`Sample`] into its corresponding [`Self::Float`] type.
+    ///
+    /// This is a simple wrapper around [`Sample::into_sample`] to provide
+    /// extra type inference convenience in some cases.
+    ///
+    /// ```rust
+    /// use sampara::Sample;
+    ///
+    /// fn main() {
+    ///     assert_eq!(128_u8.into_float_sample(), 0.0_f32);
+    ///     assert_eq!(128_u16.into_float_sample(), -0.99609375_f32);
+    ///     assert_eq!((-128_i8).into_float_sample(), -1.0_f32);
+    /// }
+    /// ```
+    fn into_float_sample(self) -> Self::Float {
+        self.into_sample()
+    }
 }
 
 /// A macro used to simplify the implementation of [`Sample`].
