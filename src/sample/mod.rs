@@ -198,6 +198,30 @@ pub trait SignedSample:
 macro_rules! impl_signed_sample { ($($T:ty)*) => { $( impl SignedSample for $T {} )* } }
 impl_signed_sample!(i8 i16 i32 i64 f32 f64);
 
+pub trait Sqrt {
+    /// Square root.
+    ///
+    /// ```rust
+    /// use sampara::sample::Sqrt;
+    ///
+    /// fn main() {
+    ///     assert_eq!(4.0_f32.sqrt(), 2.0);
+    ///     assert_eq!(2.0_f64.sqrt(), 1.4142135623730951);
+    ///     assert!((-1.0_f64).sqrt().is_nan());
+    /// }
+    fn sqrt(self) -> Self;
+}
+
+impl Sqrt for f32 {
+    #[inline(always)]
+    fn sqrt(self) -> f32 { self.sqrt() }
+}
+
+impl Sqrt for f64 {
+    #[inline(always)]
+    fn sqrt(self) -> f64 { self.sqrt() }
+}
+
 /// Floating-point [`Sample`] types, represented as values in the interval
 /// [-1.0, 1.0).
 ///
@@ -210,26 +234,16 @@ pub trait FloatSample:
     + Div<Output = Self>
     + Duplex<f32>
     + Duplex<f64>
+    + Sqrt
 {
     /// Represents the multiplicative identity of the floating point signal.
     const IDENTITY: Self;
-
-    /// Calculate the square root of the sample.
-    // NOTE: An option could be to use the `num-traits` crate, but at this point
-    //       it feels like overkill.
-    fn sample_sqrt(self) -> Self;
 }
 
 impl FloatSample for f32 {
     const IDENTITY: Self = 1.0;
-
-    #[inline]
-    fn sample_sqrt(self) -> Self { self.sqrt() }
 }
 
 impl FloatSample for f64 {
     const IDENTITY: Self = 1.0;
-
-    #[inline]
-    fn sample_sqrt(self) -> Self { self.sqrt() }
 }
