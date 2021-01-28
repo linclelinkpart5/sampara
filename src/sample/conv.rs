@@ -352,31 +352,32 @@ conversions!(f64, f64 {
     s to_f32 { s as f32 }
 });
 
-/// Allows converting from one [`Sample`] type into another. This is analogous
-/// to [`std::convert::From`], but is intended for preserving the same
-/// represented amplitude between sample types.
-///
-/// ```rust
-/// use sampara::{Sample, ConvertFrom};
-///
-/// fn main() {
-///     let s: i8 = ConvertFrom::convert_from(0.0f32);
-///     assert_eq!(s, 0);
-///
-///     let s: u8 = ConvertFrom::convert_from(0.0f32);
-///     assert_eq!(s, 128);
-///
-///     let s: f32 = ConvertFrom::convert_from(255u8);
-///     assert_eq!(s, 0.9921875);
-/// }
+/// [`Sample`] types that can be converted from another [`Sample`] type.
 pub trait ConvertFrom<S>
 where
     S: Sample,
 {
+    /// Convert [`Self`] from another [`Sample`] type. This is analogous
+    /// to [`std::convert::From`], but is intended for preserving the same
+    /// represented amplitude between sample types.
+    ///
+    /// ```rust
+    /// use sampara::{Sample, ConvertFrom};
+    ///
+    /// fn main() {
+    ///     let s: i8 = ConvertFrom::convert_from(0.0f32);
+    ///     assert_eq!(s, 0);
+    ///
+    ///     let s: u8 = ConvertFrom::convert_from(0.0f32);
+    ///     assert_eq!(s, 128);
+    ///
+    ///     let s: f32 = ConvertFrom::convert_from(255u8);
+    ///     assert_eq!(s, 0.9921875);
+    /// }
     fn convert_from(s: S) -> Self;
 }
 
-// All [`Sample`]s can be converted into themselves trivially.
+// All [`Sample`]s can be converted from themselves trivially.
 impl<S> ConvertFrom<S> for S
 where
     S: Sample,
@@ -459,30 +460,31 @@ impl_convert_from! {f64, to_f64 from
     {f32:f32}
 }
 
-/// Allows converting from one [`Sample`] type into another. This is analogous
-/// to [`std::convert::Into`], but is intended for preserving the same
-/// represented amplitude between sample types.
-///
-/// This trait has a blanket implementation for all types that implement
-/// [`ConvertFrom`].
-///
-/// ```rust
-/// use sampara::{Sample, ConvertInto};
-///
-/// fn main() {
-///     let s: i8 = 0.0f32.convert_into();
-///     assert_eq!(s, 0);
-///
-///     let s: u8 = 0.0f32.convert_into();
-///     assert_eq!(s, 128);
-///
-///     let s: f32 = 255u8.convert_into();
-///     assert_eq!(s, 0.9921875);
-/// }
+/// [`Sample`] types that can be converted into another [`Sample`] type.
 pub trait ConvertInto<S>
 where
     S: Sample,
 {
+    /// Convert [`Self`] into another [`Sample`] type. This is analogous
+    /// to [`std::convert::Into`], but is intended for preserving the same
+    /// represented amplitude between sample types.
+    ///
+    /// This trait has a blanket implementation for all types that implement
+    /// [`ConvertFrom`].
+    ///
+    /// ```rust
+    /// use sampara::{Sample, ConvertInto};
+    ///
+    /// fn main() {
+    ///     let s: i8 = 0.0f32.convert_into();
+    ///     assert_eq!(s, 0);
+    ///
+    ///     let s: u8 = 0.0f32.convert_into();
+    ///     assert_eq!(s, 128);
+    ///
+    ///     let s: f32 = 255u8.convert_into();
+    ///     assert_eq!(s, 0.9921875);
+    /// }
     fn convert_into(self) -> S;
 }
 
