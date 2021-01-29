@@ -161,12 +161,53 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     fn map_channels<F, M>(self, mut func: M) -> F
     where
         F: Frame<N>,
-        M: FnMut(Self::Sample) -> F::Sample
+        M: FnMut(Self::Sample) -> F::Sample,
     {
         let mut out = F::EQUILIBRIUM;
 
         for (y, x) in out.channels_mut().zip(self.into_channels()) {
             *y = func(x);
+        }
+
+        out
+    }
+
+    /// Creates a new `Frame<N>` by applying a function to each pair of
+    /// [`Sample`]s in [`Self`] and another [`Frame<N>`] in channel order.
+    ///
+    /// ```rust
+    /// use sampara::frame::Frame;
+    ///
+    /// fn main() {
+    ///     let frame_a = [-10i8, -20, -30, -40];
+    ///     let frame_b = [-0.1f32, 0.2, -0.4, 0.8];
+    ///
+    ///     let o: [i8; 4] = frame_a.zip_map_channels(frame_b, |a, b| {
+    ///         if b < 0.0 { -a }
+    ///         else { (a as f32 * b) as i8 }
+    ///     });
+    ///     assert_eq!(o, [10, -4, 30, -32]);
+    ///
+    ///     let frame_a = [-10i8];
+    ///     let frame_b = [-0.1f32];
+    ///
+    ///     let o: i8 = frame_a.zip_map_channels(frame_b, |a, b| {
+    ///         if b < 0.0 { -a }
+    ///         else { (a as f32 * b) as i8 }
+    ///     });
+    ///     assert_eq!(o, 10);
+    /// }
+    /// ```
+    fn zip_map_channels<O, F, M>(self, other: O, mut func: M) -> F
+    where
+        O: Frame<N>,
+        F: Frame<N>,
+        M: FnMut(Self::Sample, O::Sample) -> F::Sample,
+    {
+        let mut out = F::EQUILIBRIUM;
+
+        for (y, (xs, xo)) in out.channels_mut().zip(self.into_channels().zip(other.into_channels())) {
+            *y = func(xs, xo);
         }
 
         out
