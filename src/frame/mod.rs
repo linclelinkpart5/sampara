@@ -145,6 +145,32 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// }
     /// ```
     fn into_channels(self) -> IntoChannels<Self::Sample, N>;
+
+    /// Creates a new `Frame<N>` by applying a function to each [`Sample`] in
+    /// [`Self`] in channel order.
+    ///
+    /// ```rust
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     let mapped: [u8; 4] = [2u8, 3, 5, 7].map_channels(|x| x + 1);
+    ///     assert_eq!(mapped, [3, 4, 6, 8]);
+    ///     assert_eq!([0.5f32].map_channels::<f32, _>(|x| x * x), 0.25);
+    /// }
+    /// ```
+    fn map_channels<F, M>(self, mut func: M) -> F
+    where
+        F: Frame<N>,
+        M: FnMut(Self::Sample) -> F::Sample
+    {
+        let mut out = F::EQUILIBRIUM;
+
+        for (y, x) in out.channels_mut().zip(self.into_channels()) {
+            *y = func(x);
+        }
+
+        out
+    }
 }
 
 impl<S, const N: usize> Frame<N> for [S; N]
