@@ -1,3 +1,5 @@
+#![feature(array_value_iter)]
+
 pub mod frame;
 pub mod sample;
 

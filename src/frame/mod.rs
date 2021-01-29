@@ -21,7 +21,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// ```
     const EQUILIBRIUM: Self;
 
-    /// Create a new [`Frame`] where `Sample` for each channel is produced by
+    /// Creates a new [`Frame`] where `Sample` for each channel is produced by
     /// repeatedly calling the provided function.
     ///
     /// The function should map each channel index to a [`Sample`] value.
@@ -40,7 +40,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     where
         F: FnMut(usize) -> Self::Sample;
 
-    /// Create a new [`Frame`] from a borrowed [`Iterator`] yielding samples
+    /// Creates a new [`Frame`] from a borrowed [`Iterator`] yielding samples
     /// for each channel.
     ///
     /// Returns [`None`] if the given [`Iterator`] does not yield enough
@@ -64,6 +64,87 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     fn from_samples<I>(samples: &mut I) -> Option<Self>
     where
         I: Iterator<Item = Self::Sample>;
+
+    /// Yields a reference to the [`Sample`] in the channel at a given index,
+    /// or [`None`] if it does not exist.
+    ///
+    /// ```rust
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     let frame = [16_u8, 32, 48, 64];
+    ///     assert_eq!(frame.channel(1), Some(&32));
+    ///     assert_eq!(frame.channel(3), Some(&64));
+    ///     assert_eq!(frame.channel(4), None);
+    /// }
+    /// ```
+    fn channel(&self, idx: usize) -> Option<&Self::Sample>;
+
+    /// Like [`Self::channel()`], but yields a mutable reference instead.
+    ///
+    /// ```rust
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     let mut frame = [16_u8, 32, 48, 64];
+    ///     *frame.channel_mut(1).unwrap() = 0;
+    ///     *frame.channel_mut(3).unwrap() = 0;
+    ///     assert_eq!(frame.channel_mut(4), None);
+    ///     assert_eq!(frame, [16, 0, 48, 0]);
+    /// }
+    /// ```
+    fn channel_mut(&mut self, idx: usize) -> Option<&mut Self::Sample>;
+
+    /// Returns an iterator that yields an immutable reference to each
+    /// [`Sample`] in [`Self`] in channel order.
+    ///
+    /// ```rust
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     let frame = [16_u8, 32, 48, 64];
+    ///     for (ch, i) in frame.channels().zip(1u8..) {
+    ///         // Need `&` here, iterating over references.
+    ///         assert_eq!(ch, &(16 * i));
+    ///     }
+    /// }
+    /// ```
+    fn channels(&self) -> Channels<'_, Self::Sample>;
+
+    /// Returns an iterator that yields a mutable reference to each
+    /// [`Sample`] in [`Self`] in channel order.
+    ///
+    /// ```rust
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     let mut frame = [16_u8, 32, 48, 64];
+    ///     for (ch, i) in frame.channels_mut().zip(1u8..) {
+    ///         // Need `&` here, iterating over references.
+    ///         assert_eq!(ch, &(16 * i));
+    ///         *ch /= 16;
+    ///     }
+    ///
+    ///     assert_eq!(frame, [1, 2, 3, 4]);
+    /// }
+    /// ```
+    fn channels_mut(&mut self) -> ChannelsMut<'_, Self::Sample>;
+
+    /// Consumes [`Self`] and returns an iterator that yields each [`Sample`]
+    /// in [`Self`] in channel order.
+    ///
+    /// ```rust
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     let frame = [16_u8, 32, 48, 64];
+    ///     for (ch, i) in frame.into_channels().zip(1u8..) {
+    ///         // Do not need `&` here, iterating over values.
+    ///         assert_eq!(ch, 16 * i);
+    ///     }
+    /// }
+    /// ```
+    fn into_channels(self) -> IntoChannels<Self::Sample, N>;
 }
 
 impl<S, const N: usize> Frame<N> for [S; N]
@@ -99,6 +180,31 @@ where
 
         Some(out)
     }
+
+    fn channel(&self, idx: usize) -> Option<&Self::Sample> {
+        self.get(idx)
+    }
+
+    fn channel_mut(&mut self, idx: usize) -> Option<&mut Self::Sample> {
+        self.get_mut(idx)
+    }
+
+    #[inline]
+    fn channels(&self) -> Channels<'_, Self::Sample> {
+        Channels(self.iter())
+    }
+
+    #[inline]
+    fn channels_mut(&mut self) -> ChannelsMut<'_, Self::Sample> {
+        ChannelsMut(self.iter_mut())
+    }
+
+    #[inline]
+    fn into_channels(self) -> IntoChannels<Self::Sample, N> {
+        // TODO: Temporary use of `new` method while this is still unstable.
+        //       Replace with more ergonomic method once it lands in rustc.
+        IntoChannels(std::array::IntoIter::new(self))
+    }
 }
 
 impl<S> Frame<1> for S
@@ -122,7 +228,130 @@ where
     {
         samples.next()
     }
+
+    fn channel(&self, idx: usize) -> Option<&Self::Sample> {
+        if idx == 0 { Some(self) }
+        else { None }
+    }
+
+    fn channel_mut(&mut self, idx: usize) -> Option<&mut Self::Sample> {
+        if idx == 0 { Some(self) }
+        else { None }
+    }
+
+    #[inline]
+    fn channels(&self) -> Channels<'_, Self::Sample> {
+        Channels(core::slice::from_ref(self).iter())
+    }
+
+    #[inline]
+    fn channels_mut(&mut self) -> ChannelsMut<'_, Self::Sample> {
+        ChannelsMut(core::slice::from_mut(self).iter_mut())
+    }
+
+    #[inline]
+    fn into_channels(self) -> IntoChannels<Self::Sample, 1> {
+        // TODO: Temporary use of `new` method while this is still unstable.
+        //       Replace with more ergonomic method once it lands in rustc.
+        IntoChannels(std::array::IntoIter::new([self]))
+    }
 }
 
 pub type Mono<S> = [S; 1];
 pub type Stereo<S> = [S; 2];
+
+/// An iterator that yields the [`Sample`] for each channel in the frame by
+/// reference.
+#[derive(Clone)]
+pub struct Channels<'a, S: Sample>(core::slice::Iter<'a, S>);
+
+impl<'a, S: Sample> Iterator for Channels<'a, S> {
+    type Item = &'a S;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
+}
+
+impl<'a, S: Sample> ExactSizeIterator for Channels<'a, S> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl<'a, S: Sample> DoubleEndedIterator for Channels<'a, S> {
+    #[inline]
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.0.next_back()
+    }
+}
+
+/// Like [`Channels`], but yields mutable references instead.
+pub struct ChannelsMut<'a, S: Sample>(core::slice::IterMut<'a, S>);
+
+impl<'a, S: Sample> Iterator for ChannelsMut<'a, S> {
+    type Item = &'a mut S;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
+}
+
+impl<'a, S: Sample> ExactSizeIterator for ChannelsMut<'a, S> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl<'a, S: Sample> DoubleEndedIterator for ChannelsMut<'a, S> {
+    #[inline]
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.0.next_back()
+    }
+}
+
+/// Like [`Channels`], but yields owned [`Sample`]s instead of references.
+#[derive(Clone)]
+pub struct IntoChannels<S: Sample, const N: usize>(std::array::IntoIter<S, N>);
+
+impl<S: Sample, const N: usize> Iterator for IntoChannels<S, N> {
+    type Item = S;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
+}
+
+impl<S: Sample, const N: usize> ExactSizeIterator for IntoChannels<S, N> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl<S: Sample, const N: usize> DoubleEndedIterator for IntoChannels<S, N> {
+    #[inline]
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.0.next_back()
+    }
+}
