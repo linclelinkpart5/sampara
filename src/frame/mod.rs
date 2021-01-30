@@ -251,6 +251,74 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     fn into_float_frame(self) -> Self::Float {
         self.map_frame(Sample::into_float_sample)
     }
+
+    /// Adds/offsets the amplitude of each channel in [`Self`] by a signed
+    /// amplitude.
+    ///
+    /// ```rust
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].add_amp(0.5), [0.75, 0.0]);
+    ///     assert_eq!([0.5, -0.25].add_amp(-0.25), [0.25, -0.5]);
+    ///     assert_eq!([128u8, 192].add_amp(-64), [64, 128]);
+    /// }
+    /// ```
+    #[inline]
+    fn add_amp(self, amp: <Self::Sample as Sample>::Signed) -> Self {
+        self.map_frame(|s| Sample::add_amp(s, amp))
+    }
+
+    /// Multiplies/scales the amplitude of each channel in [`Self`] by a float
+    /// amplitude.
+    ///
+    /// ```rust
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].mul_amp(0.5), [0.125, -0.25]);
+    ///     assert_eq!([0.5, -0.25].mul_amp(-0.25), [-0.125, 0.0625]);
+    ///     assert_eq!([128u8, 192].mul_amp(0.4), [128, 153]);
+    /// }
+    /// ```
+    #[inline]
+    fn mul_amp(self, amp: <Self::Sample as Sample>::Float) -> Self {
+        self.map_frame(|s| Sample::mul_amp(s, amp))
+    }
+
+    /// Adds/offsets the amplitude of each channel in [`Self`] with each
+    /// corresponding channel in a given [`Self::Signed`].
+    ///
+    /// ```rust
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].add_frame([0.5, 0.75]), [0.75, 0.25]);
+    ///     assert_eq!([0.5, -0.25].add_frame([-0.25, 0.5]), [0.25, 0.25]);
+    ///     assert_eq!([128u8, 192].add_frame([-64i8, -64]), [64, 128]);
+    /// }
+    /// ```
+    #[inline]
+    fn add_frame(self, amps: Self::Signed) -> Self {
+        self.zip_map_frame(amps, |a, b| Sample::add_amp(a, b))
+    }
+
+    /// Multiplies/scales the amplitude of each channel in [`Self`] with each
+    /// corresponding channel in a given [`Self::Float`].
+    ///
+    /// ```rust
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].mul_frame([0.5, 0.75]), [0.125, -0.375]);
+    ///     assert_eq!([0.5, -0.25].mul_frame([-0.25, 0.5]), [-0.125, -0.125]);
+    ///     assert_eq!([128u8, 192].mul_frame([0.4, 0.2]), [128, 140]);
+    /// }
+    /// ```
+    #[inline]
+    fn mul_frame(self, amps: Self::Float) -> Self {
+        self.zip_map_frame(amps, |a, b| Sample::mul_amp(a, b))
+    }
 }
 
 impl<S, const N: usize> Frame<N> for [S; N]
