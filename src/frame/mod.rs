@@ -161,14 +161,14 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// use sampara::Frame;
     ///
     /// fn main() {
-    ///     let mapped: [u8; 4] = [2u8, 3, 5, 7].map_channels(|x| x + 1);
+    ///     let mapped: [u8; 4] = [2u8, 3, 5, 7].map_frame(|x| x + 1);
     ///     assert_eq!(mapped, [3, 4, 6, 8]);
     ///
-    ///     let mapped: f32 = [0.5f32].map_channels(|x| x * x);
+    ///     let mapped: f32 = [0.5f32].map_frame(|x| x * x);
     ///     assert_eq!(mapped, 0.25);
     /// }
     /// ```
-    fn map_channels<F, M>(self, mut func: M) -> F
+    fn map_frame<F, M>(self, mut func: M) -> F
     where
         F: Frame<N>,
         M: FnMut(Self::Sample) -> F::Sample,
@@ -192,7 +192,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     ///     let frame_a = [-10i8, -20, -30, -40];
     ///     let frame_b = [-0.1f32, 0.2, -0.4, 0.8];
     ///
-    ///     let o: [i8; 4] = frame_a.zip_map_channels(frame_b, |a, b| {
+    ///     let o: [i8; 4] = frame_a.zip_map_frame(frame_b, |a, b| {
     ///         if b < 0.0 { -a }
     ///         else { (a as f32 * b) as i8 }
     ///     });
@@ -201,14 +201,14 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     ///     let frame_a = [-10i8];
     ///     let frame_b = [-0.1f32];
     ///
-    ///     let o: i8 = frame_a.zip_map_channels(frame_b, |a, b| {
+    ///     let o: i8 = frame_a.zip_map_frame(frame_b, |a, b| {
     ///         if b < 0.0 { -a }
     ///         else { (a as f32 * b) as i8 }
     ///     });
     ///     assert_eq!(o, 10);
     /// }
     /// ```
-    fn zip_map_channels<O, F, M>(self, other: O, mut func: M) -> F
+    fn zip_map_frame<O, F, M>(self, other: O, mut func: M) -> F
     where
         O: Frame<N>,
         F: Frame<N>,
@@ -235,7 +235,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// }
     /// ```
     fn into_signed_frame(self) -> Self::Signed {
-        self.map_channels(Sample::into_signed_sample)
+        self.map_frame(Sample::into_signed_sample)
     }
 
     /// Converts [`Self`] into its equivalent [`Self::Float`] format.
@@ -249,7 +249,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// }
     /// ```
     fn into_float_frame(self) -> Self::Float {
-        self.map_channels(Sample::into_float_sample)
+        self.map_frame(Sample::into_float_sample)
     }
 }
 
