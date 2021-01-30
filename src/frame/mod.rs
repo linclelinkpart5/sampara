@@ -7,6 +7,14 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// The [`Sample`] type stored in each channel within the frame.
     type Sample: Sample;
 
+    /// A [`Frame`] type that has the same number of channels as [`Self`], but
+    /// with the associated [`Sample::Signed`] sample format.
+    type Signed: Frame<N, Sample = <Self::Sample as Sample>::Signed>;
+
+    /// A [`Frame`] type that has the same number of channels as [`Self`], but
+    /// with the associated [`Sample::Float`] sample format.
+    type Float: Frame<N, Sample = <Self::Sample as Sample>::Float>;
+
     /// The equilibrium value for this [`Frame`] type.
     ///
     /// ```rust
@@ -155,7 +163,9 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// fn main() {
     ///     let mapped: [u8; 4] = [2u8, 3, 5, 7].map_channels(|x| x + 1);
     ///     assert_eq!(mapped, [3, 4, 6, 8]);
-    ///     assert_eq!([0.5f32].map_channels::<f32, _>(|x| x * x), 0.25);
+    ///
+    ///     let mapped: f32 = [0.5f32].map_channels(|x| x * x);
+    ///     assert_eq!(mapped, 0.25);
     /// }
     /// ```
     fn map_channels<F, M>(self, mut func: M) -> F
@@ -206,11 +216,40 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     {
         let mut out = F::EQUILIBRIUM;
 
-        for (y, (xs, xo)) in out.channels_mut().zip(self.into_channels().zip(other.into_channels())) {
+        let pairs = self.into_channels().zip(other.into_channels());
+        for (y, (xs, xo)) in out.channels_mut().zip(pairs) {
             *y = func(xs, xo);
         }
 
         out
+    }
+
+    /// Converts [`Self`] into its equivalent [`Self::Signed`] format.
+    ///
+    /// ```rust
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([128u8; 2].into_signed_frame(), [0i8; 2]);
+    ///     assert_eq!([-64i8, 64].into_signed_frame(), [-64i8, 64]);
+    /// }
+    /// ```
+    fn into_signed_frame(self) -> Self::Signed {
+        self.map_channels(Sample::into_signed_sample)
+    }
+
+    /// Converts [`Self`] into its equivalent [`Self::Float`] format.
+    ///
+    /// ```rust
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([128u8; 2].into_float_frame(), [0.0, 0.0]);
+    ///     assert_eq!([-64i8, 64].into_float_frame(), [-0.5, 0.5]);
+    /// }
+    /// ```
+    fn into_float_frame(self) -> Self::Float {
+        self.map_channels(Sample::into_float_sample)
     }
 }
 
@@ -219,6 +258,9 @@ where
     S: Sample,
 {
     type Sample = S;
+
+    type Signed = [S::Signed; N];
+    type Float = [S::Float; N];
 
     const EQUILIBRIUM: Self = [S::EQUILIBRIUM; N];
 
@@ -248,10 +290,12 @@ where
         Some(out)
     }
 
+    #[inline]
     fn channel(&self, idx: usize) -> Option<&Self::Sample> {
         self.get(idx)
     }
 
+    #[inline]
     fn channel_mut(&mut self, idx: usize) -> Option<&mut Self::Sample> {
         self.get_mut(idx)
     }
@@ -279,6 +323,9 @@ where
     S: Sample,
 {
     type Sample = S;
+
+    type Signed = S::Signed;
+    type Float = S::Float;
 
     const EQUILIBRIUM: Self = S::EQUILIBRIUM;
 
