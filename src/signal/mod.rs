@@ -22,6 +22,8 @@ pub trait Signal<const N: usize> {
         self.next().unwrap_or(<Self::Frame as Frame<N>>::EQUILIBRIUM)
     }
 
+    /// Creates a new [`Signal`] that applies a function to each [`Frame`] of
+    /// [`Self`].
     fn map<F, M, const NF: usize>(self, func: M) -> Map<Self, F, M, N, NF>
     where
         Self: Sized,
@@ -34,7 +36,13 @@ pub trait Signal<const N: usize> {
         }
     }
 
-    fn zip_map<O, F, M, const NO: usize, const NF: usize>(self, other: O, func: M) -> ZipMap<Self, O, F, M, N, NO, NF>
+    /// Creates a new [`Signal`] that applies a function to each pair of
+    /// [`Frame`]s in [`Self`] and another [`Signal`].
+    fn zip_map<O, F, M, const NO: usize, const NF: usize>(
+        self,
+        other: O,
+        func: M,
+    ) -> ZipMap<Self, O, F, M, N, NO, NF>
     where
         Self: Sized,
         O: Signal<NO>,
@@ -45,6 +53,34 @@ pub trait Signal<const N: usize> {
             signal_a: self,
             signal_b: other,
             func,
+        }
+    }
+
+    /// Creates a new [`Signal`] that yields the sum of pairs of [`Frame`]s
+    /// yielded by [`Self`] and another [`Signal`] in lockstep.
+    fn add_signal<B>(self, other: B) -> AddSignal<Self, B, N>
+    where
+        Self: Sized,
+        B: Signal<N>,
+        Self::Frame: Frame<N, Signed = <B::Frame as Frame<N>>::Signed>,
+    {
+        AddSignal {
+            signal_a: self,
+            signal_b: other,
+        }
+    }
+
+    /// Creates a new [`Signal`] that yields the product of pairs of [`Frame`]s
+    /// yielded by [`Self`] and another [`Signal`] in lockstep.
+    fn mul_signal<B>(self, other: B) -> MulSignal<Self, B, N>
+    where
+        Self: Sized,
+        B: Signal<N>,
+        Self::Frame: Frame<N, Float = <B::Frame as Frame<N>>::Float>,
+    {
+        MulSignal {
+            signal_a: self,
+            signal_b: other,
         }
     }
 }

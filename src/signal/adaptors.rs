@@ -1,4 +1,4 @@
-use crate::{Sample, Frame};
+use crate::Frame;
 use crate::signal::Signal;
 
 fn zm_helper<S, O, F, M, const N: usize, const NO: usize, const NF: usize>(
@@ -83,8 +83,8 @@ where
     B: Signal<N>,
     A::Frame: Frame<N, Signed = <B::Frame as Frame<N>>::Signed>,
 {
-    signal_a: A,
-    signal_b: B,
+    pub(super) signal_a: A,
+    pub(super) signal_b: B,
 }
 
 impl<A, B, const N: usize> Signal<N> for AddSignal<A, B, N>
@@ -97,11 +97,41 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Self::Frame> {
-        // Some(self.signal_a.next()?.add_frame(self.signal_b.next()?.into_signed_frame()))
         zm_helper(
             &mut self.signal_a,
             &mut self.signal_b,
             |a, b| a.add_frame(b.into_signed_frame()),
+        )
+    }
+}
+
+/// Multiplies together pairs of [`Frame`]s from two [`Signal`]s in lockstep and
+/// yields their product.
+#[derive(Clone)]
+pub struct MulSignal<A, B, const N: usize>
+where
+    A: Signal<N>,
+    B: Signal<N>,
+    A::Frame: Frame<N, Float = <B::Frame as Frame<N>>::Float>,
+{
+    pub(super) signal_a: A,
+    pub(super) signal_b: B,
+}
+
+impl<A, B, const N: usize> Signal<N> for MulSignal<A, B, N>
+where
+    A: Signal<N>,
+    B: Signal<N>,
+    A::Frame: Frame<N, Float = <B::Frame as Frame<N>>::Float>,
+{
+    type Frame = A::Frame;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        zm_helper(
+            &mut self.signal_a,
+            &mut self.signal_b,
+            |a, b| a.mul_frame(b.into_float_frame()),
         )
     }
 }
