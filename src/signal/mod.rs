@@ -1,6 +1,6 @@
 mod adaptors;
 
-use crate::frame::Frame;
+use crate::{Frame, Sample};
 
 pub use adaptors::*;
 
@@ -81,6 +81,64 @@ pub trait Signal<const N: usize> {
         MulSignal {
             signal_a: self,
             signal_b: other,
+        }
+    }
+
+    /// Creates a new [`Signal`] that yields each [`Frame`] of a [`Signal`]
+    /// summed with a constant [`Frame`].
+    fn add_frame<F>(self, frame: F) -> AddFrame<Self, F, N>
+    where
+        Self: Sized,
+        Self::Frame: Frame<N, Signed = F>,
+        F: Frame<N>,
+    {
+        AddFrame {
+            signal: self,
+            frame,
+        }
+    }
+
+    /// Creates a new [`Signal`] that yields each [`Frame`] of a [`Signal`]
+    /// multiplied with a constant [`Frame`].
+    fn mul_frame<F>(self, frame: F) -> MulFrame<Self, F, N>
+    where
+        Self: Sized,
+        Self::Frame: Frame<N, Float = F>,
+        F: Frame<N>,
+    {
+        MulFrame {
+            signal: self,
+            frame,
+        }
+    }
+
+    /// Creates a new [`Signal`] that yields each [`Frame`] of a [`Signal`]
+    /// with each channel summed with a constant [`Sample`].
+    fn add_amp<X>(self, amp: X) -> AddAmp<Self, X, N>
+    where
+        Self: Sized,
+        Self::Frame: Frame<N>,
+        <Self::Frame as Frame<N>>::Sample: Sample<Signed = X>,
+        X: Sample,
+    {
+        AddAmp {
+            signal: self,
+            amp,
+        }
+    }
+
+    /// Creates a new [`Signal`] that yields each [`Frame`] of a [`Signal`]
+    /// with each channel multiplied with a constant [`Sample`].
+    fn mul_amp<X>(self, amp: X) -> MulAmp<Self, X, N>
+    where
+        Self: Sized,
+        Self::Frame: Frame<N>,
+        <Self::Frame as Frame<N>>::Sample: Sample<Float = X>,
+        X: Sample,
+    {
+        MulAmp {
+            signal: self,
+            amp,
         }
     }
 }

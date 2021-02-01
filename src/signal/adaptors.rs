@@ -1,4 +1,4 @@
-use crate::Frame;
+use crate::{Frame, Sample};
 use crate::signal::Signal;
 
 fn zm_helper<S, O, F, M, const N: usize, const NO: usize, const NF: usize>(
@@ -133,5 +133,115 @@ where
             &mut self.signal_b,
             |a, b| a.mul_frame(b.into_float_frame()),
         )
+    }
+}
+
+/// Adds a constant [`Frame`] to each [`Frame`] from a [`Signal`].
+#[derive(Clone)]
+pub struct AddFrame<S, F, const N: usize>
+where
+    S: Signal<N>,
+    S::Frame: Frame<N, Signed = F>,
+    F: Frame<N>,
+{
+    pub(super) signal: S,
+    pub(super) frame: F,
+}
+
+impl<S, F, const N: usize> Signal<N> for AddFrame<S, F, N>
+where
+    S: Signal<N>,
+    S::Frame: Frame<N, Signed = F>,
+    F: Frame<N>,
+{
+    type Frame = S::Frame;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        Some(self.signal.next()?.add_frame(self.frame))
+    }
+}
+
+/// Multiplies a constant [`Frame`] to each [`Frame`] from a [`Signal`].
+#[derive(Clone)]
+pub struct MulFrame<S, F, const N: usize>
+where
+    S: Signal<N>,
+    S::Frame: Frame<N, Float = F>,
+    F: Frame<N>,
+{
+    pub(super) signal: S,
+    pub(super) frame: F,
+}
+
+impl<S, F, const N: usize> Signal<N> for MulFrame<S, F, N>
+where
+    S: Signal<N>,
+    S::Frame: Frame<N, Float = F>,
+    F: Frame<N>,
+{
+    type Frame = S::Frame;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        Some(self.signal.next()?.mul_frame(self.frame))
+    }
+}
+
+/// Adds a constant [`Sample`] to each channel in each [`Frame`] from a
+/// [`Signal`].
+#[derive(Clone)]
+pub struct AddAmp<S, X, const N: usize>
+where
+    S: Signal<N>,
+    S::Frame: Frame<N>,
+    <S::Frame as Frame<N>>::Sample: Sample<Signed = X>,
+    X: Sample,
+{
+    pub(super) signal: S,
+    pub(super) amp: X,
+}
+
+impl<S, X, const N: usize> Signal<N> for AddAmp<S, X, N>
+where
+    S: Signal<N>,
+    S::Frame: Frame<N>,
+    <S::Frame as Frame<N>>::Sample: Sample<Signed = X>,
+    X: Sample,
+{
+    type Frame = S::Frame;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        Some(self.signal.next()?.add_amp(self.amp))
+    }
+}
+
+/// Multiplies a constant [`Sample`] to each channel in each [`Frame`] from a
+/// [`Signal`].
+#[derive(Clone)]
+pub struct MulAmp<S, X, const N: usize>
+where
+    S: Signal<N>,
+    S::Frame: Frame<N>,
+    <S::Frame as Frame<N>>::Sample: Sample<Float = X>,
+    X: Sample,
+{
+    pub(super) signal: S,
+    pub(super) amp: X,
+}
+
+impl<S, X, const N: usize> Signal<N> for MulAmp<S, X, N>
+where
+    S: Signal<N>,
+    S::Frame: Frame<N>,
+    <S::Frame as Frame<N>>::Sample: Sample<Float = X>,
+    X: Sample,
+{
+    type Frame = S::Frame;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        Some(self.signal.next()?.mul_amp(self.amp))
     }
 }
