@@ -19,7 +19,7 @@ pub trait Signal<const N: usize> {
     /// Similar to [`next`], but will always yield a [`Frame`]. Yields
     /// [`Frame::EQUILIBRIUM`] if there are no more actual [`Frame`]s to yield.
     fn sig_next(&mut self) -> Self::Frame {
-        self.next().unwrap_or(<Self::Frame as Frame<N>>::EQUILIBRIUM)
+        self.next().unwrap_or(Frame::EQUILIBRIUM)
     }
 
     /// Creates a new [`Signal`] that applies a function to each [`Frame`] of
