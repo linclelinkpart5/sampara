@@ -158,6 +158,8 @@ pub trait Signal<const N: usize> {
     }
 }
 
+/// Creates a new [`Signal`] where each [`Frame`] is yielded by calling a given
+/// closure for each iteration.
 pub fn from_fn<F, G, const N: usize>(gen_fn: G) -> FromFn<F, G, N>
 where
     F: Frame<N>,
@@ -166,6 +168,8 @@ where
     FromFn(gen_fn)
 }
 
+/// Creates a new [`Signal`] where each [`Frame`] is copied from a given
+/// constant [`Frame`].
 pub fn repeat<F, const N: usize>(frame: F) -> Repeat<F, N>
 where
     F: Frame<N>,

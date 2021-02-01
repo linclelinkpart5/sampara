@@ -1,6 +1,7 @@
 use crate::Frame;
 use crate::signal::Signal;
 
+/// A [`Signal`] that yields [`Frame`]s by calling a closure for each iteration.
 pub struct FromFn<F, G, const N: usize>(pub(super) G)
 where
     F: Frame<N>,
@@ -20,6 +21,7 @@ where
     }
 }
 
+/// A [`Signal`] that yields a given [`Frame`] repeatedly forever.
 pub struct Repeat<F, const N: usize>(pub(super) F)
 where
     F: Frame<N>,
