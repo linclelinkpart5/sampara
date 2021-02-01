@@ -245,3 +245,32 @@ where
         Some(self.signal.next()?.mul_amp(self.amp))
     }
 }
+
+/// Delays a [`Signal`] a given number of [`Frame`]s by yielding
+/// [`Frame::EQUILIBRIUM`] that many times before yielding from the contained
+/// [`Signal`].
+#[derive(Clone)]
+pub struct Delay<S, const N: usize>
+where
+    S: Signal<N>,
+{
+    pub(super) signal: S,
+    pub(super) n_frames: usize,
+}
+
+impl<S, const N: usize> Signal<N> for Delay<S, N>
+where
+    S: Signal<N>,
+{
+    type Frame = S::Frame;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        if self.n_frames > 0 {
+            self.n_frames -= 1;
+            Some(Frame::EQUILIBRIUM)
+        } else {
+            self.signal.next()
+        }
+    }
+}

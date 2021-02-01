@@ -141,4 +141,17 @@ pub trait Signal<const N: usize> {
             amp,
         }
     }
+
+    /// Delays [`Self`] by a given number of frames. The delay is performed by
+    /// yielding [`Frame::EQUILIBRIUM`] that number of times before continuing
+    /// to yield frames from [`Self`].
+    fn delay(self, n_frames: usize) -> Delay<Self, N>
+    where
+        Self: Sized,
+    {
+        Delay {
+            signal: self,
+            n_frames,
+        }
+    }
 }
