@@ -1,8 +1,10 @@
 mod adaptors;
+mod generators;
 
 use crate::{Frame, Sample};
 
 pub use adaptors::*;
+pub use generators::*;
 
 /// Types that yield a sequence of [`Frame`]s, representing an audio signal.
 ///
@@ -154,4 +156,19 @@ pub trait Signal<const N: usize> {
             n_frames,
         }
     }
+}
+
+pub fn from_fn<F, G, const N: usize>(gen_fn: G) -> FromFn<F, G, N>
+where
+    F: Frame<N>,
+    G: FnMut() -> Option<F>,
+{
+    FromFn(gen_fn)
+}
+
+pub fn repeat<F, const N: usize>(frame: F) -> Repeat<F, N>
+where
+    F: Frame<N>,
+{
+    Repeat(frame)
 }
