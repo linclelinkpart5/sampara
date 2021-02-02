@@ -159,7 +159,7 @@ pub trait Signal<const N: usize> {
 }
 
 /// Creates a new [`Signal`] where each [`Frame`] is yielded by calling a given
-/// closure for each iteration.
+/// closure that produces a [`Option<Frame>`] for each iteration.
 pub fn from_fn<F, G, const N: usize>(gen_fn: G) -> FromFn<F, G, N>
 where
     F: Frame<N>,
@@ -170,9 +170,34 @@ where
 
 /// Creates a new [`Signal`] where each [`Frame`] is copied from a given
 /// constant [`Frame`].
-pub fn repeat<F, const N: usize>(frame: F) -> Repeat<F, N>
+pub fn constant<F, const N: usize>(frame: F) -> Constant<F, N>
 where
     F: Frame<N>,
 {
-    Repeat(frame)
+    Constant(frame)
+}
+
+/// Creates a new [`Signal`] that always yields [`Frame::EQUILIBRIUM`].
+pub fn equilibrium<F, const N: usize>() -> Equilibrium<F, N>
+where
+    F: Frame<N>,
+{
+    Equilibrium(Default::default())
+}
+
+/// Creates an empty [`Signal`] that yields no [`Frame`]s.
+pub fn empty<F, const N: usize>() -> Empty<F, N>
+where
+    F: Frame<N>,
+{
+    Empty(Default::default())
+}
+
+/// Creates a new [`Signal`] by wrapping an [`Iterator`] that yields [`Frame`]s.
+pub fn from_iter<I, const N: usize>(iter: I) -> FromIter<I::IntoIter, N>
+where
+    I: IntoIterator,
+    I::Item: Frame<N>,
+{
+    FromIter(iter.into_iter())
 }
