@@ -6,3 +6,4 @@ pub mod signal;
 
 pub use frame::{Frame, Mono, Stereo};
 pub use sample::{Sample, ConvertFrom, ConvertInto, Duplex};
+pub use signal::Signal;

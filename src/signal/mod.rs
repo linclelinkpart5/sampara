@@ -160,6 +160,27 @@ pub trait Signal<const N: usize> {
 
 /// Creates a new [`Signal`] where each [`Frame`] is yielded by calling a given
 /// closure that produces a [`Option<Frame>`] for each iteration.
+///
+/// ```rust
+/// use sampara::{signal, Signal};
+///
+/// fn main() {
+///     let mut state = 1;
+///     let mut signal = signal::from_fn(|| {
+///         if state < 4 {
+///             let frame = [state, state * 2, state * 3];
+///             state += 1;
+///             Some(frame)
+///         }
+///         else { None }
+///     });
+///
+///     assert_eq!(signal.next(), Some([1, 2, 3]));
+///     assert_eq!(signal.next(), Some([2, 4, 6]));
+///     assert_eq!(signal.next(), Some([3, 6, 9]));
+///     assert_eq!(signal.next(), None);
+/// }
+/// ```
 pub fn from_fn<F, G, const N: usize>(gen_fn: G) -> FromFn<F, G, N>
 where
     F: Frame<N>,
@@ -170,6 +191,19 @@ where
 
 /// Creates a new [`Signal`] where each [`Frame`] is copied from a given
 /// constant [`Frame`].
+///
+/// ```rust
+/// use sampara::{signal, Signal};
+///
+/// fn main() {
+///     let mut signal = signal::constant([1, 2, 3, 4]);
+///
+///     assert_eq!(signal.next(), Some([1, 2, 3, 4]));
+///     assert_eq!(signal.next(), Some([1, 2, 3, 4]));
+///     assert_eq!(signal.next(), Some([1, 2, 3, 4]));
+///     assert_eq!(signal.next(), Some([1, 2, 3, 4]));
+/// }
+/// ```
 pub fn constant<F, const N: usize>(frame: F) -> Constant<F, N>
 where
     F: Frame<N>,
@@ -178,6 +212,19 @@ where
 }
 
 /// Creates a new [`Signal`] that always yields [`Frame::EQUILIBRIUM`].
+///
+/// ```rust
+/// use sampara::{signal, Signal};
+///
+/// fn main() {
+///     let mut signal = signal::equilibrium();
+///
+///     assert_eq!(signal.next(), Some([0, 0]));
+///     assert_eq!(signal.next(), Some([0, 0]));
+///     assert_eq!(signal.next(), Some([0, 0]));
+///     assert_eq!(signal.next(), Some([0, 0]));
+/// }
+/// ```
 pub fn equilibrium<F, const N: usize>() -> Equilibrium<F, N>
 where
     F: Frame<N>,
@@ -186,6 +233,21 @@ where
 }
 
 /// Creates an empty [`Signal`] that yields no [`Frame`]s.
+///
+/// ```rust
+/// use sampara::{signal, Signal};
+///
+/// fn main() {
+///     // Need to have redundant number of channels, until associated consts
+///     // can be used as const generics.
+///     let mut signal = signal::empty::<[i8; 2], 2>();
+///
+///     assert_eq!(signal.next(), None);
+///     assert_eq!(signal.next(), None);
+///     assert_eq!(signal.next(), None);
+///     assert_eq!(signal.next(), None);
+/// }
+/// ```
 pub fn empty<F, const N: usize>() -> Empty<F, N>
 where
     F: Frame<N>,
@@ -194,6 +256,20 @@ where
 }
 
 /// Creates a new [`Signal`] by wrapping an [`Iterator`] that yields [`Frame`]s.
+///
+/// ```rust
+/// use sampara::{signal, Signal};
+///
+/// fn main() {
+///     let frames = vec![[0, 0], [16, -16], [32, -32]];
+///     let mut signal = signal::from_iter(frames);
+///
+///     assert_eq!(signal.next(), Some([0, 0]));
+///     assert_eq!(signal.next(), Some([16, -16]));
+///     assert_eq!(signal.next(), Some([32, -32]));
+///     assert_eq!(signal.next(), None);
+/// }
+/// ```
 pub fn from_iter<I, const N: usize>(iter: I) -> FromIter<I::IntoIter, N>
 where
     I: IntoIterator,
