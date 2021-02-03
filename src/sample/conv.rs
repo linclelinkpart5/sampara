@@ -374,6 +374,7 @@ where
     ///     let s: f32 = ConvertFrom::convert_from(255u8);
     ///     assert_eq!(s, 0.9921875);
     /// }
+    /// ```
     fn convert_from(s: S) -> Self;
 }
 
@@ -485,6 +486,7 @@ where
     ///     let s: f32 = 255u8.convert_into();
     ///     assert_eq!(s, 0.9921875);
     /// }
+    /// ```
     fn convert_into(self) -> S;
 }
 

@@ -209,6 +209,7 @@ pub trait Sqrt {
     ///     assert_eq!(2.0_f64.sqrt(), 1.4142135623730951);
     ///     assert!((-1.0_f64).sqrt().is_nan());
     /// }
+    /// ```
     fn sqrt(self) -> Self;
 }
 

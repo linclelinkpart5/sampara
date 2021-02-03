@@ -44,6 +44,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     ///     let frame = Stereo::<f32>::from_fn(|i| i as f32 * 0.5);
     ///     assert_eq!(frame, [0.0, 0.5]);
     /// }
+    /// ```
     fn from_fn<F>(func: F) -> Self
     where
         F: FnMut(usize) -> Self::Sample;
@@ -69,6 +70,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     ///     let opt_frame = <[i8; 3]>::from_samples(&mut samples);
     ///     assert_eq!(opt_frame, None);
     /// }
+    /// ```
     fn from_samples<I>(samples: &mut I) -> Option<Self>
     where
         I: Iterator<Item = Self::Sample>;
@@ -334,7 +336,7 @@ where
 
     fn from_fn<F>(mut func: F) -> Self
     where
-        F: FnMut(usize) -> Self::Sample
+        F: FnMut(usize) -> Self::Sample,
     {
         let mut out = Self::EQUILIBRIUM;
 
@@ -347,7 +349,7 @@ where
 
     fn from_samples<I>(samples: &mut I) -> Option<Self>
     where
-        I: Iterator<Item = Self::Sample>
+        I: Iterator<Item = Self::Sample>,
     {
         let mut out = Self::EQUILIBRIUM;
 
@@ -399,26 +401,32 @@ where
 
     fn from_fn<F>(mut func: F) -> Self
     where
-        F: FnMut(usize) -> Self::Sample
+        F: FnMut(usize) -> Self::Sample,
     {
         func(0)
     }
 
     fn from_samples<I>(samples: &mut I) -> Option<Self>
     where
-        I: Iterator<Item = Self::Sample>
+        I: Iterator<Item = Self::Sample>,
     {
         samples.next()
     }
 
     fn channel(&self, idx: usize) -> Option<&Self::Sample> {
-        if idx == 0 { Some(self) }
-        else { None }
+        if idx == 0 {
+            Some(self)
+        } else {
+            None
+        }
     }
 
     fn channel_mut(&mut self, idx: usize) -> Option<&mut Self::Sample> {
-        if idx == 0 { Some(self) }
-        else { None }
+        if idx == 0 {
+            Some(self)
+        } else {
+            None
+        }
     }
 
     #[inline]
