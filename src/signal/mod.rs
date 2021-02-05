@@ -323,3 +323,31 @@ where
 {
     FromIter(iter.into_iter())
 }
+
+/// Creates a new [`Signal`] by wrapping an iterable that yields [`Samples`]s.
+/// The resulting [`Signal`] will read these [`Sample`]s into [`Frame`]s of the
+/// desired size, and yield them. Any trailing [`Sample`]s that do not fully
+/// complete a [`Frame`] will be discarded.
+///
+/// ```rust
+/// use sampara::{signal, Signal};
+///
+/// fn main() {
+///     let samples = vec![1, 2, 3, 4, 5, 6, 7];
+///     let mut signal = signal::from_interleaved_iter(samples);
+///
+///     assert_eq!(signal.next(), Some([1, 2]));
+///     assert_eq!(signal.next(), Some([3, 4]));
+///     assert_eq!(signal.next(), Some([5, 6]));
+///     // Not enough remaining samples for a full frame, so they are discarded.
+///     assert_eq!(signal.next(), None);
+/// }
+/// ```
+pub fn from_interleaved_iter<F, I, const N: usize>(iter: I) -> FromInterleavedIter<F, I::IntoIter, N>
+where
+    F: Frame<N, Sample = I::Item>,
+    I: IntoIterator,
+    I::Item: Sample,
+{
+    FromInterleavedIter(iter.into_iter(), Default::default())
+}

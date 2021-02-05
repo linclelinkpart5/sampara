@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::Frame;
+use crate::{Frame, Sample};
 use crate::signal::Signal;
 
 /// A [`Signal`] that yields [`Frame`]s by calling a closure for each iteration.
@@ -97,5 +97,31 @@ where
     #[inline]
     fn next(&mut self) -> Option<Self::Frame> {
         self.0.next()
+    }
+}
+
+/// A [`Signal`] that is powered by an underlying [`Iterator`] that yields
+/// [`Frame`]s.
+pub struct FromInterleavedIter<F, I, const N: usize>(
+    pub(super) I,
+    pub(super) PhantomData<F>,
+)
+where
+    F: Frame<N, Sample = I::Item>,
+    I: Iterator,
+    I::Item: Sample,
+;
+
+impl<F, I, const N: usize> Signal<N> for FromInterleavedIter<F, I, N>
+where
+    F: Frame<N, Sample = I::Item>,
+    I: Iterator,
+    I::Item: Sample,
+{
+    type Frame = F;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        F::from_samples(&mut self.0)
     }
 }
