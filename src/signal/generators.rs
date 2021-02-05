@@ -81,13 +81,13 @@ where
 
 /// A [`Signal`] that is powered by an underlying [`Iterator`] that yields
 /// [`Frame`]s.
-pub struct FromIter<I, const N: usize>(pub(super) I)
+pub struct FromFrames<I, const N: usize>(pub(super) I)
 where
     I: Iterator,
     I::Item: Frame<N>,
 ;
 
-impl<I, const N: usize> Signal<N> for FromIter<I, N>
+impl<I, const N: usize> Signal<N> for FromFrames<I, N>
 where
     I: Iterator,
     I::Item: Frame<N>,
@@ -101,8 +101,8 @@ where
 }
 
 /// A [`Signal`] that is powered by an underlying [`Iterator`] that yields
-/// [`Frame`]s.
-pub struct FromInterleavedIter<F, I, const N: usize>(
+/// [`Sample`]s.
+pub struct FromSamples<F, I, const N: usize>(
     pub(super) I,
     pub(super) PhantomData<F>,
 )
@@ -112,7 +112,7 @@ where
     I::Item: Sample,
 ;
 
-impl<F, I, const N: usize> Signal<N> for FromInterleavedIter<F, I, N>
+impl<F, I, const N: usize> Signal<N> for FromSamples<F, I, N>
 where
     F: Frame<N, Sample = I::Item>,
     I: Iterator,

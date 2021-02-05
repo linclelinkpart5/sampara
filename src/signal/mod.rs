@@ -176,7 +176,7 @@ pub trait Signal<const N: usize> {
     ///
     /// fn main() {
     ///     let mut max: Option<i32> = None;
-    ///     let mut signal = signal::from_iter(vec![2i32, 3, 1])
+    ///     let mut signal = signal::from_frames(vec![2i32, 3, 1])
     ///         .inspect(|&f| {
     ///             if let Some(m) = max {
     ///                 max.replace(m.max(f));
@@ -308,7 +308,7 @@ where
 ///
 /// fn main() {
 ///     let frames = vec![[0, 0], [16, -16], [32, -32]];
-///     let mut signal = signal::from_iter(frames);
+///     let mut signal = signal::from_frames(frames);
 ///
 ///     assert_eq!(signal.next(), Some([0, 0]));
 ///     assert_eq!(signal.next(), Some([16, -16]));
@@ -316,15 +316,16 @@ where
 ///     assert_eq!(signal.next(), None);
 /// }
 /// ```
-pub fn from_iter<I, const N: usize>(iter: I) -> FromIter<I::IntoIter, N>
+pub fn from_frames<I, const N: usize>(iter: I) -> FromFrames<I::IntoIter, N>
 where
     I: IntoIterator,
     I::Item: Frame<N>,
 {
-    FromIter(iter.into_iter())
+    FromFrames(iter.into_iter())
 }
 
 /// Creates a new [`Signal`] by wrapping an iterable that yields [`Samples`]s.
+/// These [`Sample`]s are assumed to be interleaved, and in channel order.
 /// The resulting [`Signal`] will read these [`Sample`]s into [`Frame`]s of the
 /// desired size, and yield them. Any trailing [`Sample`]s that do not fully
 /// complete a [`Frame`] will be discarded.
@@ -334,7 +335,7 @@ where
 ///
 /// fn main() {
 ///     let samples = vec![1, 2, 3, 4, 5, 6, 7];
-///     let mut signal = signal::from_interleaved_iter(samples);
+///     let mut signal = signal::from_samples(samples);
 ///
 ///     assert_eq!(signal.next(), Some([1, 2]));
 ///     assert_eq!(signal.next(), Some([3, 4]));
@@ -343,11 +344,11 @@ where
 ///     assert_eq!(signal.next(), None);
 /// }
 /// ```
-pub fn from_interleaved_iter<F, I, const N: usize>(iter: I) -> FromInterleavedIter<F, I::IntoIter, N>
+pub fn from_samples<F, I, const N: usize>(iter: I) -> FromSamples<F, I::IntoIter, N>
 where
     F: Frame<N, Sample = I::Item>,
     I: IntoIterator,
     I::Item: Sample,
 {
-    FromInterleavedIter(iter.into_iter(), Default::default())
+    FromSamples(iter.into_iter(), Default::default())
 }
