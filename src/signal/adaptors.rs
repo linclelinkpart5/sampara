@@ -274,3 +274,31 @@ where
         }
     }
 }
+
+/// Creates a new [`Signal`] that calls a function with each [`Frame`], and then
+/// yields the [`Frame`].
+#[derive(Clone)]
+pub struct Inspect<S, F, const N: usize>
+where
+    S: Signal<N>,
+    F: FnMut(&S::Frame),
+{
+    pub(super) signal: S,
+    pub(super) func: F,
+}
+
+impl<S, F, const N: usize> Signal<N> for Inspect<S, F, N>
+where
+    S: Signal<N>,
+    F: FnMut(&S::Frame),
+{
+    type Frame = S::Frame;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        self.signal.next().map(|f| {
+            (self.func)(&f);
+            f
+        })
+    }
+}

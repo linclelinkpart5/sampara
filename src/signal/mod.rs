@@ -24,6 +24,17 @@ pub trait Signal<const N: usize> {
         self.next().unwrap_or(Frame::EQUILIBRIUM)
     }
 
+    /// Borrows this [`Signal`] rather than consuming it.
+    ///
+    /// This is useful for applying adaptors while still retaining ownership of
+    /// the original [`Signal`].
+    fn by_ref(&mut self) -> &mut Self
+    where
+        Self: Sized,
+    {
+        self
+    }
+
     /// Creates a new [`Signal`] that applies a function to each [`Frame`] of
     /// [`Self`].
     fn map<F, M, const NF: usize>(self, func: M) -> Map<Self, F, M, N, NF>
@@ -156,6 +167,41 @@ pub trait Signal<const N: usize> {
             n_frames,
         }
     }
+
+    /// Calls an inspection function on each [`Frame`] yielded by this
+    /// [`Signal`], and then passes the [`Frame`] through.
+    ///
+    /// ```rust
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let mut max: Option<i32> = None;
+    ///     let mut signal = signal::from_iter(vec![2i32, 3, 1])
+    ///         .inspect(|&f| {
+    ///             if let Some(m) = max {
+    ///                 max.replace(m.max(f));
+    ///             } else {
+    ///                 max = Some(f);
+    ///             }
+    ///         });
+    ///
+    ///     assert_eq!(signal.next(), Some(2));
+    ///     assert_eq!(signal.next(), Some(3));
+    ///     assert_eq!(signal.next(), Some(1));
+    ///     assert_eq!(signal.next(), None);
+    ///     assert_eq!(max, Some(3));
+    /// }
+    /// ```
+    fn inspect<F>(self, func: F) -> Inspect<Self, F, N>
+    where
+        Self: Sized,
+        F: FnMut(&Self::Frame),
+    {
+        Inspect {
+            signal: self,
+            func,
+        }
+    }
 }
 
 /// Creates a new [`Signal`] where each [`Frame`] is yielded by calling a given
@@ -255,7 +301,7 @@ where
     Empty(Default::default())
 }
 
-/// Creates a new [`Signal`] by wrapping an [`Iterator`] that yields [`Frame`]s.
+/// Creates a new [`Signal`] by wrapping an iterable that yields [`Frame`]s.
 ///
 /// ```rust
 /// use sampara::{signal, Signal};
