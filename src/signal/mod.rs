@@ -1,10 +1,12 @@
 mod adaptors;
 mod generators;
+mod iterators;
 
 use crate::{Frame, Sample};
 
 pub use adaptors::*;
 pub use generators::*;
+pub use iterators::*;
 
 /// Types that yield a sequence of [`Frame`]s, representing an audio signal.
 ///
