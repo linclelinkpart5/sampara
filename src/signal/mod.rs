@@ -30,6 +30,18 @@ pub trait Signal<const N: usize> {
     ///
     /// This is useful for applying adaptors while still retaining ownership of
     /// the original [`Signal`].
+    ///
+    /// ```rust
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let mut signal = signal::from_frames(vec![0, 1, 2, 3]);
+    ///     assert_eq!(signal.next(), Some(0));
+    ///     assert_eq!(signal.by_ref().add_amp(10).next(), Some(11));
+    ///     assert_eq!(signal.by_ref().mul_amp(2.5_f32).next(), Some(5));
+    ///     assert_eq!(signal.next(), Some(3));
+    /// }
+    /// ```
     fn by_ref(&mut self) -> &mut Self
     where
         Self: Sized,
@@ -203,6 +215,17 @@ pub trait Signal<const N: usize> {
             signal: self,
             func,
         }
+    }
+}
+
+impl<S, const N: usize> Signal<N> for &mut S
+where
+    S: Signal<N>,
+{
+    type Frame = S::Frame;
+
+    fn next(&mut self) -> Option<Self::Frame> {
+        (**self).next()
     }
 }
 
