@@ -2,7 +2,7 @@ pub mod conv;
 
 pub use conv::{ConvertFrom, ConvertInto, Duplex};
 
-use core::ops::{Add, Sub, Mul, Div, Neg};
+use num_traits::{Float, Signed};
 
 /// A trait for working generically across different sample format types, both
 /// in terms of representation (integral versus floating-point) and bitsize.
@@ -190,9 +190,7 @@ impl_sample! {
 /// for addition.
 pub trait SignedSample:
     Sample<Signed = Self>
-    + Add<Output = Self>
-    + Sub<Output = Self>
-    + Neg<Output = Self>
+    + Signed
 {}
 
 macro_rules! impl_signed_sample { ($($T:ty)*) => { $( impl SignedSample for $T {} )* } }
@@ -231,20 +229,11 @@ impl Sqrt for f64 {
 pub trait FloatSample:
     Sample<Signed = Self, Float = Self>
     + SignedSample
-    + Mul<Output = Self>
-    + Div<Output = Self>
     + Duplex<f32>
     + Duplex<f64>
-    + Sqrt
-{
-    /// Represents the multiplicative identity of the floating point signal.
-    const IDENTITY: Self;
-}
+    + Float
+{}
 
-impl FloatSample for f32 {
-    const IDENTITY: Self = 1.0;
-}
+impl FloatSample for f32 {}
 
-impl FloatSample for f64 {
-    const IDENTITY: Self = 1.0;
-}
+impl FloatSample for f64 {}
