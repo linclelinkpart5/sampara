@@ -1,6 +1,65 @@
 use crate::{Frame, Duplex, ConvertFrom, ConvertInto};
 use crate::sample::FloatSample;
 
+/// Biquad filter kinds that use `K`, `K^2`, and `K/Q`.
+#[derive(Clone, Copy)]
+enum NormKind {
+    LowPass,
+    HighPass,
+    BandPass,
+    Notch,
+}
+
+impl NormKind {
+    fn params<X>(self, norm_freq: X, q_factor: X) -> Coefficients<X>
+    where
+        X: FloatSample + From<f64>,
+    {
+        let one: X = X::one();
+        let two: X = X::one() + X::one();
+        let pi: X = std::f64::consts::PI.into();
+
+        let k = (pi * norm_freq).tan();
+        let k_sq = k * k;
+        let k_by_q = k / q_factor;
+        let pinv_norm = one + k_by_q + k_sq;
+        let ninv_norm = one - k_by_q + k_sq;
+        let k_sq_m1 = k_sq - one;
+        let k_sq_p1 = k_sq + one;
+
+        match self {
+            Self::LowPass => Coefficients {
+                b0: pinv_norm / k_sq,
+                b1: two * k_sq_m1 / k_sq,
+                b2: ninv_norm / k_sq,
+                a1: two,
+                a2: one,
+            },
+            Self::HighPass => Coefficients {
+                b0: pinv_norm,
+                b1: two * k_sq_m1,
+                b2: ninv_norm,
+                a1: -two,
+                a2: one,
+            },
+            Self::BandPass => Coefficients {
+                b0: pinv_norm / k_by_q,
+                b1: two * k_sq_m1 / k_by_q,
+                b2: ninv_norm / k_by_q,
+                a1: X::zero(),
+                a2: -one,
+            },
+            Self::Notch => Coefficients {
+                b0: pinv_norm / k_sq_p1,
+                b1: two * k_sq_m1 / k_sq_p1,
+                b2: ninv_norm / k_sq_p1,
+                a1: two * k_sq_m1 / k_sq_p1,
+                a2: one,
+            },
+        }
+    }
+}
+
 /// Coefficients for a digital biquad filter.
 /// It is assumed that the `a0` coefficient is always normalized to 1.0,
 /// and thus not included.
@@ -17,6 +76,46 @@ where
     // Transfer function denominator coefficients.
     pub a1: X,
     pub a2: X,
+}
+
+impl<X> Coefficients<X>
+where
+    X: FloatSample + From<f64>,
+{
+    pub fn allpass(norm_freq: X, q_factor: X) -> Self {
+        let one: X = 1.0.into();
+        let two: X = 2.0.into();
+
+        let alpha = norm_freq.sin() / two * q_factor;
+        let cs = norm_freq.cos();
+
+        let b0 = one / (one - alpha);
+        let b1 = -two * cs * b0;
+
+        Self {
+            b0,
+            b1,
+            b2: one,
+            a1: b1,
+            a2: (one + alpha) * b0,
+        }
+    }
+
+    pub fn lowpass(norm_freq: X, q_factor: X) -> Self {
+        NormKind::LowPass.params(norm_freq, q_factor)
+    }
+
+    pub fn highpass(norm_freq: X, q_factor: X) -> Self {
+        NormKind::HighPass.params(norm_freq, q_factor)
+    }
+
+    pub fn bandpass(norm_freq: X, q_factor: X) -> Self {
+        NormKind::BandPass.params(norm_freq, q_factor)
+    }
+
+    pub fn notch(norm_freq: X, q_factor: X) -> Self {
+        NormKind::Notch.params(norm_freq, q_factor)
+    }
 }
 
 /// An implementation of a digital biquad filter, using the Direct Form 2
