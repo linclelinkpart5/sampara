@@ -1,63 +1,14 @@
 use crate::{Frame, Duplex, ConvertFrom, ConvertInto};
 use crate::sample::FloatSample;
 
-/// Biquad filter kinds that use `K`, `K^2`, and `K/Q`.
-#[derive(Clone, Copy)]
-enum NormKind {
-    LowPass,
-    HighPass,
-    BandPass,
+enum Kind {
+    Lowpass,
+    Highpass,
+    Bandpass,
     Notch,
-}
-
-impl NormKind {
-    fn params<X>(self, norm_freq: X, q_factor: X) -> Coefficients<X>
-    where
-        X: FloatSample + From<f64>,
-    {
-        let one: X = X::one();
-        let two: X = X::one() + X::one();
-        let pi: X = std::f64::consts::PI.into();
-
-        let k = (pi * norm_freq).tan();
-        let k_sq = k * k;
-        let k_by_q = k / q_factor;
-        let pinv_norm = one + k_by_q + k_sq;
-        let ninv_norm = one - k_by_q + k_sq;
-        let k_sq_m1 = k_sq - one;
-        let k_sq_p1 = k_sq + one;
-
-        match self {
-            Self::LowPass => Coefficients {
-                b0: pinv_norm / k_sq,
-                b1: two * k_sq_m1 / k_sq,
-                b2: ninv_norm / k_sq,
-                a1: two,
-                a2: one,
-            },
-            Self::HighPass => Coefficients {
-                b0: pinv_norm,
-                b1: two * k_sq_m1,
-                b2: ninv_norm,
-                a1: -two,
-                a2: one,
-            },
-            Self::BandPass => Coefficients {
-                b0: pinv_norm / k_by_q,
-                b1: two * k_sq_m1 / k_by_q,
-                b2: ninv_norm / k_by_q,
-                a1: X::zero(),
-                a2: -one,
-            },
-            Self::Notch => Coefficients {
-                b0: pinv_norm / k_sq_p1,
-                b1: two * k_sq_m1 / k_sq_p1,
-                b2: ninv_norm / k_sq_p1,
-                a1: two * k_sq_m1 / k_sq_p1,
-                a2: one,
-            },
-        }
-    }
+    Peak,
+    Lowshelf,
+    Highshelf,
 }
 
 /// Coefficients for a digital biquad filter.
@@ -82,39 +33,139 @@ impl<X> Coefficients<X>
 where
     X: FloatSample + From<f64>,
 {
-    pub fn allpass(norm_freq: X, q_factor: X) -> Self {
-        let one: X = 1.0.into();
+    fn from_kind(kind: Kind, norm_freq: X, q_factor: X, peak_gain: X) -> Self {
+        let one: X = X::one();
         let two: X = 2.0.into();
+        let ten: X = 10.0.into();
+        let pi: X = std::f64::consts::PI.into();
 
-        let alpha = norm_freq.sin() / two * q_factor;
-        let cs = norm_freq.cos();
+        let v = ten.powf(peak_gain.abs() / 20.0.into());
+        let k = (pi * norm_freq).tan();
+        let k_sq = k * k;
+        let k_by_q = k / q_factor;
 
-        let b0 = one / (one - alpha);
-        let b1 = -two * cs * b0;
+        let b0: X;
+        let b1: X;
+        let b2: X;
+        let a1: X;
+        let a2: X;
 
-        Self {
-            b0,
-            b1,
-            b2: one,
-            a1: b1,
-            a2: (one + alpha) * b0,
-        }
-    }
+        match kind {
+            Kind::Lowpass => {
+                let norm = one / (one + k_by_q + k_sq);
 
-    pub fn lowpass(norm_freq: X, q_factor: X) -> Self {
-        NormKind::LowPass.params(norm_freq, q_factor)
-    }
+                b0 = k_sq * norm;
+                b1 = two * b0;
+                b2 = b0;
+                a1 = two * (k_sq - one) * norm;
+                a2 = (one - k_by_q + k_sq) * norm;
+            },
 
-    pub fn highpass(norm_freq: X, q_factor: X) -> Self {
-        NormKind::HighPass.params(norm_freq, q_factor)
-    }
+            Kind::Highpass => {
+                let norm = one / (one + k_by_q + k_sq);
 
-    pub fn bandpass(norm_freq: X, q_factor: X) -> Self {
-        NormKind::BandPass.params(norm_freq, q_factor)
-    }
+                b0 = one * norm;
+                b1 = -two * b0;
+                b2 = b0;
+                a1 = two * (k_sq - one) * norm;
+                a2 = (one - k_by_q + k_sq) * norm;
+            },
 
-    pub fn notch(norm_freq: X, q_factor: X) -> Self {
-        NormKind::Notch.params(norm_freq, q_factor)
+            Kind::Bandpass => {
+                let norm = one / (one + k_by_q + k_sq);
+
+                b0 = k_by_q * norm;
+                b1 = X::zero();
+                b2 = -b0;
+                a1 = two * (k_sq - one) * norm;
+                a2 = (one - k_by_q + k_sq) * norm;
+            },
+
+            Kind::Notch => {
+                let norm = one / (one + k_by_q + k_sq);
+
+                b0 = (one + k_sq) * norm;
+                b1 = two * (k_sq - one) * norm;
+                b2 = b0;
+                a1 = b1;
+                a2 = (one - k_by_q + k_sq) * norm;
+            },
+
+            Kind::Peak => {
+                // Peak boost.
+                if peak_gain >= X::zero() {
+                    let norm = one / (one + k_by_q + k_sq);
+
+                    b0 = (one + v * k_by_q + k_sq) * norm;
+                    b1 = two * (k_sq - one) * norm;
+                    b2 = (one - v * k_by_q + k_sq) * norm;
+                    a1 = b1;
+                    a2 = (one - k_by_q + k_sq) * norm;
+                }
+                // Peak cut.
+                else {
+                    let norm = one / (one + v * k_by_q + k_sq);
+
+                    b0 = (one + k_by_q + k_sq) * norm;
+                    b1 = two * (k_sq - one) * norm;
+                    b2 = (one - k_by_q + k_sq) * norm;
+                    a1 = b1;
+                    a2 = (one - v * k_by_q + k_sq) * norm;
+                }
+            },
+            Kind::Lowshelf => {
+                let sqrt2: X = std::f64::consts::SQRT_2.into();
+                let sqrt2v: X = sqrt2 * v.sqrt();
+
+                // Boost shelf.
+                if peak_gain >= X::zero() {
+                    let norm = one / (one + sqrt2 * k + k_sq);
+
+                    b0 = (one + sqrt2v * k + v * k_sq) * norm;
+                    b1 = two * (v * k_sq - one) * norm;
+                    b2 = (one - sqrt2v * k + v * k_sq) * norm;
+                    a1 = two * (k_sq - one) * norm;
+                    a2 = (one - sqrt2 * k + k_sq) * norm;
+                }
+                // Cut shelf.
+                else {
+                    let norm = one / (one + sqrt2v * k + v * k_sq);
+
+                    b0 = (one + sqrt2 * k + k_sq) * norm;
+                    b1 = two * (k_sq - one) * norm;
+                    b2 = (one - sqrt2 * k + k_sq) * norm;
+                    a1 = two * (v * k_sq - one) * norm;
+                    a2 = (one - sqrt2v * k + v * k_sq) * norm;
+                }
+            },
+            Kind::Highshelf => {
+                let sqrt2: X = std::f64::consts::SQRT_2.into();
+                let sqrt2v: X = sqrt2 * v.sqrt();
+
+                // Boost shelf.
+                if peak_gain >= X::zero() {
+                    let norm = one / (one + sqrt2 * k + k_sq);
+
+                    b0 = (v + sqrt2v * k + k_sq) * norm;
+                    b1 = two * (k_sq - v) * norm;
+                    b2 = (v - sqrt2v * k + k_sq) * norm;
+                    a1 = two * (k_sq - one) * norm;
+                    a2 = (one - sqrt2 * k + k_sq) * norm;
+                }
+                // Cut shelf.
+                else {
+                    let norm = one / (v + sqrt2v * k + k_sq);
+
+                    b0 = (one + sqrt2 * k + k_sq) * norm;
+                    b1 = two * (k_sq - one) * norm;
+                    b2 = (one - sqrt2 * k + k_sq) * norm;
+                    a1 = two * (k_sq - v) * norm;
+                    a2 = (v - sqrt2v * k + k_sq) * norm;
+                }
+            },
+        };
+
+        Coefficients { b0, b1, b2, a1, a2 }
     }
 }
 
