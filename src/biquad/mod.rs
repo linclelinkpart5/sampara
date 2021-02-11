@@ -223,14 +223,8 @@ where
     /// use sampara::biquad::{Kind, Params, Biquad};
     ///
     /// fn main() {
-    ///     // Notch filter (norm_freq = 0.25, q_factor = 0.7071).
-    ///     let params = Params {
-    ///         b0: 0.5857841106784856_f64,
-    ///         b1: -1.0e-16,
-    ///         b2: 0.5857841106784856,
-    ///         a1: -1.0e-16,
-    ///         a2: 0.17156822135697122,
-    ///     };
+    ///     // Notch filter.
+    ///     let params = Params::from_kind(Kind::Notch, 0.25, 0.7071);
     ///
     ///     let inputs = &[
     ///         [-57,  61], [ 50,  13], [  5,  91], [-16,  -7],
