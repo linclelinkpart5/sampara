@@ -58,7 +58,7 @@ impl<P> Kind<P>
 where
     P: Param,
 {
-    fn into_params(self, norm_freq: P, q_factor: P) -> Coefficients<P> {
+    fn into_params(self, norm_freq: P, q_factor: P) -> Params<P> {
         let omega = P::TWO * P::PI * norm_freq;
         let (omega_s, omega_c) = omega.sin_cos();
         let alpha = omega_s / (P::TWO * q_factor);
@@ -151,7 +151,7 @@ where
 
         let norm = a0.recip();
 
-        Coefficients {
+        Params {
             b0: b0 * norm,
             b1: b1 * norm,
             b2: b2 * norm,
@@ -165,7 +165,7 @@ where
 /// It is assumed that the `a0` coefficient is always normalized to 1.0,
 /// and thus not included.
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub struct Coefficients<X>
+pub struct Params<X>
 where
     X: Param,
 {
@@ -179,7 +179,7 @@ where
     pub a2: X,
 }
 
-impl<X> Coefficients<X>
+impl<X> Params<X>
 where
     X: Param,
 {
@@ -195,7 +195,7 @@ where
     F: Frame<N>,
     F::Sample: FloatSample + Param,
 {
-    coeff: Coefficients<F::Sample>,
+    params: Params<F::Sample>,
 
     // Since biquad filters are second-order, we require two historical buffers.
     // This state is updated each time the filter is applied to a frame.
@@ -208,9 +208,9 @@ where
     F: Frame<N>,
     F::Sample: FloatSample + Param,
 {
-    pub fn new(coeff: Coefficients<F::Sample>) -> Self {
+    pub fn new(params: Params<F::Sample>) -> Self {
         Self {
-            coeff,
+            params,
             t0: Frame::EQUILIBRIUM,
             t1: Frame::EQUILIBRIUM,
         }
@@ -220,25 +220,43 @@ where
     /// `Frame` from an input `Frame`.
     ///
     /// ```rust
-    /// use sampara::biquad::{Coefficients, Biquad};
+    /// use sampara::biquad::{Kind, Params, Biquad};
     ///
     /// fn main() {
-    ///     // Notch boost filter.
-    ///     let co = Coefficients {
-    ///         b0: 1.0469127398708575_f64,
-    ///         b1: -0.27732002669854483,
-    ///         b2: 0.8588151488168104,
-    ///         a1: -0.27732002669854483,
-    ///         a2: 0.9057278886876682,
+    ///     // Notch filter (norm_freq = 0.25, q_factor = 0.7071).
+    ///     let params = Params {
+    ///         b0: 0.5857841106784856_f64,
+    ///         b1: -1.0e-16,
+    ///         b2: 0.5857841106784856,
+    ///         a1: -1.0e-16,
+    ///         a2: 0.17156822135697122,
     ///     };
+    ///
+    ///     let inputs = &[
+    ///         [-57,  61], [ 50,  13], [  5,  91], [-16,  -7],
+    ///         [ 74, -36], [ 85, -37], [-48,  19], [-64,  -8],
+    ///         [  1,  77], [ 28,  45], [ 83,  47], [-34, -92],
+    ///         [ 16,   4], [ 74,  45], [-89,   5], [-63, -53],
+    ///     ];
+    ///
+    ///     let expected = &[
+    ///         [-33,  35], [ 29,   7], [-24,  82], [ 14,   2],
+    ///         [ 50,  17], [ 37, -26], [  6, -13], [  5, -21],
+    ///         [-28,  58], [-22,  25], [ 54,  62], [  0, -31],
+    ///         [ 48,  19], [ 23, -22], [-51,   1], [  2,   0],
+    ///     ];
     ///
     ///     // Note that this type argument defines the format of the temporary
     ///     // values, as well as the number of channels required for input
     ///     // `Frame`s.
-    ///     let mut b = Biquad::<[f64; 2], 2>::new(co);
+    ///     let mut biquad = Biquad::<[f64; 2], 2>::new(params);
     ///
-    ///     assert_eq!(b.apply([32i8, -64]), [33, -67]);
-    ///     assert_eq!(b.apply([0.1f32, -0.3]), [0.107943736, -0.32057875]);
+    ///     let mut produced = vec![];
+    ///     for &input in inputs.iter() {
+    ///         produced.push(biquad.apply(input));
+    ///     }
+    ///
+    ///     assert_eq!(&produced, expected);
     /// }
     /// ```
     pub fn apply<I>(&mut self, input: I) -> I
@@ -250,17 +268,17 @@ where
         let input: F = input.map_frame(ConvertInto::convert_into);
 
         // Calculate scaled inputs.
-        let input_by_b0 = input.mul_amp(self.coeff.b0).into_signed_frame();
-        let input_by_b1 = input.mul_amp(self.coeff.b1).into_signed_frame();
-        let input_by_b2 = input.mul_amp(self.coeff.b2);
+        let input_by_b0 = input.mul_amp(self.params.b0).into_signed_frame();
+        let input_by_b1 = input.mul_amp(self.params.b1).into_signed_frame();
+        let input_by_b2 = input.mul_amp(self.params.b2);
 
         // This is the new filtered `Frame`.
         let output: F = self.t0.add_frame(input_by_b0);
 
         // Calculate scaled outputs.
         // NOTE: Negative signs on the scaling factors for these.
-        let output_by_neg_a1 = output.mul_amp(-self.coeff.a1).into_signed_frame();
-        let output_by_neg_a2 = output.mul_amp(-self.coeff.a2).into_signed_frame();
+        let output_by_neg_a1 = output.mul_amp(-self.params.a1).into_signed_frame();
+        let output_by_neg_a2 = output.mul_amp(-self.params.a2).into_signed_frame();
 
         // Update buffers.
         self.t0 = self.t1.add_frame(input_by_b1).add_frame(output_by_neg_a1);
