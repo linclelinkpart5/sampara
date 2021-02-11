@@ -1,6 +1,4 @@
-#![feature(array_value_iter)]
-
-// #[cfg(feature = "biquad")]
+#[cfg(feature = "biquad")]
 pub mod biquad;
 pub mod frame;
 pub mod sample;
