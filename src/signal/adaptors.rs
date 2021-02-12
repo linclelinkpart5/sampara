@@ -1,5 +1,7 @@
 use crate::{Frame, Sample};
 use crate::signal::Signal;
+#[cfg(feature = "biquad")]
+use crate::{Duplex, biquad::{Param, Filter as BQFilter}, sample::FloatSample};
 
 fn zm_helper<S, O, F, M, const N: usize, const NO: usize, const NF: usize>(
     signal_a: &mut S,
@@ -300,5 +302,31 @@ where
             (self.func)(&f);
             f
         })
+    }
+}
+
+#[cfg(feature = "biquad")]
+pub struct Biquad<S, P, const N: usize>
+where
+    S: Signal<N>,
+    P: Param + FloatSample,
+    <S::Frame as Frame<N>>::Sample: Duplex<P>,
+{
+    pub(super) signal: S,
+    pub(super) filter: BQFilter<P, N>,
+}
+
+#[cfg(feature = "biquad")]
+impl<S, P, const N: usize> Signal<N> for Biquad<S, P, N>
+where
+    S: Signal<N>,
+    P: Param + FloatSample,
+    <S::Frame as Frame<N>>::Sample: Duplex<P>,
+{
+    type Frame = S::Frame;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        Some(self.filter.apply(self.signal.next()?))
     }
 }

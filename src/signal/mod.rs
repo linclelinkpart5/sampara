@@ -3,6 +3,8 @@ mod generators;
 mod iterators;
 
 use crate::{Frame, Sample};
+#[cfg(feature = "biquad")]
+use crate::{Duplex, biquad::{Param, Params}, sample::FloatSample};
 
 pub use adaptors::*;
 pub use generators::*;
@@ -214,6 +216,54 @@ pub trait Signal<const N: usize> {
         Inspect {
             signal: self,
             func,
+        }
+    }
+
+    /// Performs biquad filtering on this [`Signal`] and yields filtered
+    /// [`Frame`]s in the same format as the original [`Signal`].
+    ///
+    /// ```rust
+    /// use sampara::{signal, Signal};
+    /// use sampara::biquad::{Kind, Params};
+    ///
+    /// fn main() {
+    ///     // Notch filter.
+    ///     let params = Params::from_kind(Kind::Notch, 0.25, 0.7071);
+    ///
+    ///     let input_signal = signal::from_frames(vec![
+    ///         [-57,  61], [ 50,  13], [  5,  91], [-16,  -7],
+    ///         [ 74, -36], [ 85, -37], [-48,  19], [-64,  -8],
+    ///         [  1,  77], [ 28,  45], [ 83,  47], [-34, -92],
+    ///         [ 16,   4], [ 74,  45], [-89,   5], [-63, -53],
+    ///     ]);
+    ///
+    ///     let expected = &[
+    ///         [-33,  35], [ 29,   7], [-24,  82], [ 14,   2],
+    ///         [ 50,  17], [ 37, -26], [  6, -13], [  5, -21],
+    ///         [-28,  58], [-22,  25], [ 54,  62], [  0, -31],
+    ///         [ 48,  19], [ 23, -22], [-51,   1], [  2,   0],
+    ///     ];
+    ///
+    ///     let mut filtered_signal = input_signal.biquad(params);
+    ///
+    ///     let mut produced = vec![];
+    ///     while let Some(filtered_frame) = filtered_signal.next() {
+    ///         produced.push(filtered_frame);
+    ///     }
+    ///
+    ///     assert_eq!(&produced, expected);
+    /// }
+    /// ```
+    #[cfg(feature = "biquad")]
+    fn biquad<P>(self, params: Params<P>) -> Biquad<Self, P, N>
+    where
+        Self: Sized,
+        P: Param + FloatSample,
+        <Self::Frame as Frame<N>>::Sample: Duplex<P>,
+    {
+        Biquad {
+            signal: self,
+            filter: params.into(),
         }
     }
 }

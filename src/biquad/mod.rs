@@ -190,25 +190,23 @@ where
 
 /// An implementation of a digital biquad filter, using the Direct Form 2
 /// Transposed (DF2T) representation.
-pub struct Biquad<F, const N: usize>
+pub struct Filter<P, const N: usize>
 where
-    F: Frame<N>,
-    F::Sample: FloatSample + Param,
+    P: FloatSample + Param,
 {
-    params: Params<F::Sample>,
+    params: Params<P>,
 
     // Since biquad filters are second-order, we require two historical buffers.
     // This state is updated each time the filter is applied to a frame.
-    t0: F,
-    t1: F,
+    t0: [P; N],
+    t1: [P; N],
 }
 
-impl<F, const N: usize> Biquad<F, N>
+impl<P, const N: usize> Filter<P, N>
 where
-    F: Frame<N>,
-    F::Sample: FloatSample + Param,
+    P: FloatSample + Param,
 {
-    pub fn new(params: Params<F::Sample>) -> Self {
+    pub fn new(params: Params<P>) -> Self {
         Self {
             params,
             t0: Frame::EQUILIBRIUM,
@@ -220,7 +218,7 @@ where
     /// `Frame` from an input `Frame`.
     ///
     /// ```rust
-    /// use sampara::biquad::{Kind, Params, Biquad};
+    /// use sampara::biquad::{Kind, Params, Filter};
     ///
     /// fn main() {
     ///     // Notch filter.
@@ -243,11 +241,11 @@ where
     ///     // Note that this type argument defines the format of the temporary
     ///     // values, as well as the number of channels required for input
     ///     // `Frame`s.
-    ///     let mut biquad = Biquad::<[f64; 2], 2>::new(params);
+    ///     let mut filter = Filter::<f64, 2>::new(params);
     ///
     ///     let mut produced = vec![];
     ///     for &input in inputs.iter() {
-    ///         produced.push(biquad.apply(input));
+    ///         produced.push(filter.apply(input));
     ///     }
     ///
     ///     assert_eq!(&produced, expected);
@@ -256,10 +254,10 @@ where
     pub fn apply<I>(&mut self, input: I) -> I
     where
         I: Frame<N>,
-        I::Sample: Duplex<F::Sample>,
+        I::Sample: Duplex<P>,
     {
         // Convert into floating point representation.
-        let input: F = input.map_frame(ConvertInto::convert_into);
+        let input: [P; N] = input.map_frame(ConvertInto::convert_into);
 
         // Calculate scaled inputs.
         let input_by_b0 = input.mul_amp(self.params.b0).into_signed_frame();
@@ -267,7 +265,7 @@ where
         let input_by_b2 = input.mul_amp(self.params.b2);
 
         // This is the new filtered `Frame`.
-        let output: F = self.t0.add_frame(input_by_b0);
+        let output: [P; N] = self.t0.add_frame(input_by_b0);
 
         // Calculate scaled outputs.
         // NOTE: Negative signs on the scaling factors for these.
@@ -280,5 +278,14 @@ where
 
         // Convert back into the original `Frame` format.
         output.map_frame(ConvertFrom::convert_from)
+    }
+}
+
+impl<P, const N: usize> From<Params<P>> for Filter<P, N>
+where
+    P: FloatSample + Param,
+{
+    fn from(params: Params<P>) -> Self {
+        Self::new(params)
     }
 }
