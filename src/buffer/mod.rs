@@ -184,6 +184,44 @@ where
             _marker: PhantomData,
         }
     }
+
+    /// Decomposes a [`Fixed`] ring buffer into a head index and inner buffer.
+    ///
+    /// ```rust
+    /// use sampara::buffer::Fixed;
+    ///
+    /// fn main() {
+    ///     let mut buffer = Fixed::from([0, 1, 2]);
+    ///     buffer.push(6);
+    ///     buffer.push(7);
+    ///
+    ///     assert_eq!(buffer.into_raw_parts(), (2, [6, 7, 2]));
+    /// }
+    /// ```
+    #[inline]
+    pub fn into_raw_parts(self) -> (usize, B) {
+        let Self { head, buffer, _marker } = self;
+        (head, buffer)
+    }
+
+    /// Decomposes a [`Fixed`] ring buffer into an inner buffer.
+    ///
+    /// ```rust
+    /// use sampara::buffer::Fixed;
+    ///
+    /// fn main() {
+    ///     let mut buffer = Fixed::from([0, 1, 2]);
+    ///     buffer.push(6);
+    ///     buffer.push(7);
+    ///
+    ///     assert_eq!(buffer.into_inner(), [6, 7, 2]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn into_inner(self) -> B {
+        let (_, buffer) = self.into_raw_parts();
+        buffer
+    }
 }
 
 impl<E, B> From<B> for Fixed<E, B>
@@ -205,5 +243,25 @@ where
     /// ```
     fn from(buffer: B) -> Self {
         Self::from_raw_parts(0, buffer)
+    }
+}
+
+impl<E, B> AsRef<[E]> for Fixed<E, B>
+where
+    E: Copy + PartialEq,
+    B: AsRef<[E]> + AsMut<[E]>,
+{
+    fn as_ref(&self) -> &[E] {
+        self.buffer.as_ref()
+    }
+}
+
+impl<E, B> AsMut<[E]> for Fixed<E, B>
+where
+    E: Copy + PartialEq,
+    B: AsRef<[E]> + AsMut<[E]>,
+{
+    fn as_mut(&mut self) -> &mut [E] {
+        self.buffer.as_mut()
     }
 }
