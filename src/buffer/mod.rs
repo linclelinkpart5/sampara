@@ -1,199 +1,137 @@
-pub trait Buffer {
-    /// The type contained within the buffer.
-    type Element;
+use std::marker::PhantomData;
 
-    /// Borrows the buffer as a slice.
-    fn as_slice(&self) -> &[Self::Element];
-}
-
-pub trait BufferMut: Buffer {
-    /// Borrows the buffer as a mutable slice.
-    fn as_slice_mut(&mut self) -> &mut [Self::Element];
-}
-
-impl<'a, T> Buffer for &'a [T] {
-    type Element = T;
-
-    #[inline]
-    fn as_slice(&self) -> &[Self::Element] {
-        self
-    }
-}
-
-impl<'a, T> Buffer for &'a mut [T] {
-    type Element = T;
-
-    #[inline]
-    fn as_slice(&self) -> &[Self::Element] {
-        self
-    }
-}
-
-impl<'a, T> BufferMut for &'a mut [T] {
-    #[inline]
-    fn as_slice_mut(&mut self) -> &mut [Self::Element] {
-        self
-    }
-}
-
-impl<T, const N: usize> Buffer for [T; N] {
-    type Element = T;
-
-    #[inline]
-    fn as_slice(&self) -> &[Self::Element] {
-        &self[..]
-    }
-}
-
-impl<T, const N: usize> BufferMut for [T; N] {
-    #[inline]
-    fn as_slice_mut(&mut self) -> &mut [Self::Element] {
-        &mut self[..]
-    }
-}
-
-impl<'a, T, const N: usize> Buffer for &'a [T; N] {
-    type Element = T;
-
-    #[inline]
-    fn as_slice(&self) -> &[Self::Element] {
-        &self[..]
-    }
-}
-
-impl<'a, T, const N: usize> Buffer for &'a mut [T; N] {
-    type Element = T;
-
-    #[inline]
-    fn as_slice(&self) -> &[Self::Element] {
-        &self[..]
-    }
-}
-
-impl<'a, T, const N: usize> BufferMut for &'a mut [T; N] {
-    #[inline]
-    fn as_slice_mut(&mut self) -> &mut [Self::Element] {
-        &mut self[..]
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub struct Const<E, const N: usize>
+pub struct Fixed<E, B>
 where
     E: Copy + PartialEq,
+    B: AsRef<[E]> + AsMut<[E]>,
 {
-    curr_idx: usize,
-    data: [E; N],
+    head: usize,
+    buffer: B,
+    _marker: PhantomData<E>,
 }
 
-impl<E, const N: usize> Const<E, N>
+impl<E, B> Fixed<E, B>
 where
     E: Copy + PartialEq,
+    B: AsRef<[E]> + AsMut<[E]>,
 {
-    pub fn new(initial: [E; N]) -> Self {
-        Self { data: initial, curr_idx: 0 }
-    }
-
-    #[inline(always)]
-    pub fn len(&self) -> usize {
-        N
+    /// Returns the maximum number of elements this buffer can contain.
+    ///
+    /// ```rust
+    /// use sampara::buffer::Fixed;
+    ///
+    /// fn main() {
+    ///     let buffer = Fixed::from([1, 2, 3, 4]);
+    ///     assert_eq!(buffer.capacity(), 4);
+    /// }
+    #[inline]
+    pub fn capacity(&self) -> usize {
+        self.buffer.as_ref().len()
     }
 
     /// Pushes a new element onto the rear of the buffer, and pops off and
     /// returns the replaced element from the front.
     ///
-    /// If the buffer has a constant length of 0, this always returns the
-    /// element that was just attempted to be pushed.
-    ///
     /// ```rust
-    /// use sampara::buffer::Const;
+    /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
-    ///     let mut buffer = Const::new([1, 2, 3]);
+    ///     let mut buffer = Fixed::from([1, 2, 3]);
     ///     assert_eq!(buffer.push(4), 1);
     ///     assert_eq!(buffer.push(5), 2);
     ///     assert_eq!(buffer.push(6), 3);
     ///     assert_eq!(buffer.push(7), 4);
     ///     assert_eq!(buffer.push(8), 5);
     ///     assert_eq!(buffer.push(9), 6);
-    ///
-    ///     // An empty `Const` buffer always returns the element that was just
-    ///     // attempted to be pushed.
-    ///     let mut empty = Const::new([0; 0]);
-    ///     assert_eq!(empty.push(27), 27);
-    ///     assert_eq!(empty.push(42), 42);
-    ///     assert_eq!(empty.push(69), 69);
     /// }
     /// ```
     pub fn push(&mut self, item: E) -> E {
-        if N == 0 {
-            // Buffer has zero length, just re-return the passed-in element.
+        if self.capacity() == 0 {
+            // Buffer has zero capacity, just re-return the passed-in element.
             return item;
         }
 
-        let mut next_idx = self.curr_idx + 1;
-        if next_idx >= N {
-            next_idx = 0;
+        let mut next_head = self.head + 1;
+        if next_head >= self.capacity() {
+            next_head = 0;
         }
 
         // Bounds checking can be skipped safely since the length is constant.
         let old_item = unsafe {
-            std::mem::replace(self.data.get_unchecked_mut(self.curr_idx), item)
+            std::mem::replace(self.buffer.as_mut().get_unchecked_mut(self.head), item)
         };
-        self.curr_idx = next_idx;
+        self.head = next_head;
         old_item
     }
 
-    /// Returns a view of two front and rear slices that make up the buffer as
-    /// slices.
+    /// Returns a reference to the element at the given index.
     ///
-    /// These two slices chained together represent all elements within the
-    /// buffer in order.
-    ///
-    /// The first slice is always aligned contiguously behind the second slice.
+    /// If the index is out of range it will be looped around the length of the
+    /// buffer.
     ///
     /// ```rust
-    /// use sampara::buffer::Const;
+    /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
-    ///     let mut buffer = Const::new([0; 4]);
-    ///     assert_eq!(buffer.slices(), (&[0, 0, 0, 0][..], &[][..]));
-    ///     buffer.push(1);
-    ///     buffer.push(2);
-    ///     assert_eq!(buffer.slices(), (&[0, 0][..], &[1, 2][..]));
-    ///     buffer.push(3);
-    ///     buffer.push(4);
-    ///     assert_eq!(buffer.slices(), (&[1, 2, 3, 4][..], &[][..]));
+    ///     let buffer = Fixed::from([0, 1, 2]);
+    ///     assert_eq!(buffer.get(0), &0);
+    ///     assert_eq!(buffer.get(1), &1);
+    ///     assert_eq!(buffer.get(2), &2);
+    ///     assert_eq!(buffer.get(3), &0);
+    ///     assert_eq!(buffer.get(4), &1);
+    ///     assert_eq!(buffer.get(5), &2);
     /// }
     /// ```
     #[inline]
-    pub fn slices(&self) -> (&[E], &[E]) {
-        let (end, start) = self.data.split_at(self.curr_idx);
-        (start, end)
+    pub fn get(&self, index: usize) -> &E {
+        let wrapped_index = (self.head + index) % self.capacity();
+        &self.buffer.as_ref()[wrapped_index]
     }
 
-    /// Same as `.slices`, but returns mutable slices instead.
+    /// Similar to [`get`], but returns a mutable reference instead.
     ///
     /// ```rust
-    /// use sampara::buffer::Const;
+    /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
-    ///     let mut buffer = Const::new([0; 4]);
-    ///
-    ///     let (mut front, mut rear) = buffer.slices_mut();
-    ///     *front.get_mut(2).unwrap() = 9;
-    ///     assert_eq!((front, rear), (&mut [0, 0, 9, 0][..], &mut [][..]));
-    ///
-    ///     buffer.push(1);
-    ///     buffer.push(2);
-    ///     let (mut front, mut rear) = buffer.slices_mut();
-    ///     *rear.get_mut(0).unwrap() = 8;
-    ///     assert_eq!((front, rear), (&mut [9, 0][..], &mut [8, 2][..]));
+    ///     let mut buffer = Fixed::from([0, 1, 2]);
+    ///     assert_eq!(buffer.get_mut(0), &mut 0);
+    ///     assert_eq!(buffer.get_mut(1), &mut 1);
+    ///     assert_eq!(buffer.get_mut(2), &mut 2);
+    ///     assert_eq!(buffer.get_mut(3), &mut 0);
+    ///     assert_eq!(buffer.get_mut(4), &mut 1);
+    ///     assert_eq!(buffer.get_mut(5), &mut 2);
     /// }
     /// ```
     #[inline]
-    pub fn slices_mut(&mut self) -> (&mut [E], &mut [E]) {
-        let (end, start) = self.data.split_at_mut(self.curr_idx);
-        (start, end)
+    pub fn get_mut(&mut self, index: usize) -> &mut E {
+        let wrapped_index = (self.head + index) % self.capacity();
+        &mut self.buffer.as_mut()[wrapped_index]
+    }
+
+    /// Constructs a [`Fixed`] ring buffer from a given inner buffer and
+    /// starting index.
+    ///
+    /// This method should only be used if you require specifying a first index.
+    /// For most use cases, it is better to use [`Fixed::from`] instead.
+    #[inline]
+    pub fn from_raw_parts(head: usize, buffer: B) -> Self {
+        let wrapped_head = head.checked_rem(buffer.as_ref().len()).unwrap_or(0);
+
+        Self {
+            head: wrapped_head,
+            buffer,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<E, B> From<B> for Fixed<E, B>
+where
+    E: Copy + PartialEq,
+    B: AsRef<[E]> + AsMut<[E]>,
+{
+    fn from(buffer: B) -> Self {
+        Self::from_raw_parts(0, buffer)
     }
 }
