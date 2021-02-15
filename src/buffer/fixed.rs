@@ -350,18 +350,12 @@ where
     }
 }
 
-pub struct Iter<'a, E>
-where
-    E: Copy + PartialEq,
-{
+pub struct Iter<'a, E> {
     head: SliceIter<'a, E>,
     tail: SliceIter<'a, E>,
 }
 
-impl<'a, E> Iterator for Iter<'a, E>
-where
-    E: Copy + PartialEq,
-{
+impl<'a, E> Iterator for Iter<'a, E> {
     type Item = &'a E;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -374,41 +368,26 @@ where
     }
 }
 
-impl<'a, E> ExactSizeIterator for Iter<'a, E>
-where
-    E: Copy + PartialEq,
-{
+impl<'a, E> ExactSizeIterator for Iter<'a, E> {
     fn len(&self) -> usize {
         self.head.len() + self.tail.len()
     }
 }
 
-impl<'a, E> DoubleEndedIterator for Iter<'a, E>
-where
-    E: Copy + PartialEq,
-{
+impl<'a, E> DoubleEndedIterator for Iter<'a, E> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.tail.next_back().or_else(|| self.head.next_back())
     }
 }
 
-impl<'a, E> FusedIterator for Iter<'a, E>
-where
-    E: Copy + PartialEq,
-{}
+impl<'a, E> FusedIterator for Iter<'a, E> {}
 
-pub struct IterMut<'a, E>
-where
-    E: Copy + PartialEq,
-{
+pub struct IterMut<'a, E> {
     head: SliceIterMut<'a, E>,
     tail: SliceIterMut<'a, E>,
 }
 
-impl<'a, E> Iterator for IterMut<'a, E>
-where
-    E: Copy + PartialEq,
-{
+impl<'a, E> Iterator for IterMut<'a, E> {
     type Item = &'a mut E;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -421,28 +400,19 @@ where
     }
 }
 
-impl<'a, E> ExactSizeIterator for IterMut<'a, E>
-where
-    E: Copy + PartialEq,
-{
+impl<'a, E> ExactSizeIterator for IterMut<'a, E> {
     fn len(&self) -> usize {
         self.head.len() + self.tail.len()
     }
 }
 
-impl<'a, E> DoubleEndedIterator for IterMut<'a, E>
-where
-    E: Copy + PartialEq,
-{
+impl<'a, E> DoubleEndedIterator for IterMut<'a, E> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.tail.next_back().or_else(|| self.head.next_back())
     }
 }
 
-impl<'a, E> FusedIterator for IterMut<'a, E>
-where
-    E: Copy + PartialEq,
-{}
+impl<'a, E> FusedIterator for IterMut<'a, E> {}
 
 #[cfg(test)]
 mod tests {
