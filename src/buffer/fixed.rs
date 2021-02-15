@@ -64,14 +64,14 @@ where
     ///
     /// fn main() {
     ///     let mut buffer = Fixed::from([1, 2, 3]);
-    ///     buffer.reset(0);
+    ///     buffer.fill(0);
     ///     assert_eq!(buffer.push(4), 0);
     ///     assert_eq!(buffer.push(5), 0);
     ///     assert_eq!(buffer.push(6), 0);
     ///     assert_eq!(buffer.push(7), 4);
     /// }
     /// ```
-    pub fn reset(&mut self, item: E) {
+    pub fn fill(&mut self, item: E) {
         for e in self.buffer.as_mut().iter_mut() {
             *e = item;
         }
@@ -88,7 +88,7 @@ where
     /// fn main() {
     ///     let mut buffer = Fixed::from([0, 0, 0]);
     ///     let mut counter = 0;
-    ///     buffer.reset_with(|| {
+    ///     buffer.fill_with(|| {
     ///         counter += 11;
     ///         counter
     ///     });
@@ -98,7 +98,7 @@ where
     ///     assert_eq!(buffer.push(7), 4);
     /// }
     /// ```
-    pub fn reset_with<F>(&mut self, mut func: F)
+    pub fn fill_with<F>(&mut self, mut func: F)
     where
         F: FnMut() -> E,
     {
