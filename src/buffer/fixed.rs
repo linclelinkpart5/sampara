@@ -56,6 +56,59 @@ where
     E: Copy + PartialEq,
     B: AsRef<[E]> + AsMut<[E]>,
 {
+    /// Sets all values of this buffer to a given value, and sets the head
+    /// index to 0.
+    ///
+    /// ```rust
+    /// use sampara::buffer::Fixed;
+    ///
+    /// fn main() {
+    ///     let mut buffer = Fixed::from([1, 2, 3]);
+    ///     buffer.reset(0);
+    ///     assert_eq!(buffer.push(4), 0);
+    ///     assert_eq!(buffer.push(5), 0);
+    ///     assert_eq!(buffer.push(6), 0);
+    ///     assert_eq!(buffer.push(7), 4);
+    /// }
+    /// ```
+    pub fn reset(&mut self, item: E) {
+        for e in self.buffer.as_mut().iter_mut() {
+            *e = item;
+        }
+
+        self.head = 0;
+    }
+
+    /// Sets all values of this buffer using a given closure, and sets the head
+    /// index to 0.
+    ///
+    /// ```rust
+    /// use sampara::buffer::Fixed;
+    ///
+    /// fn main() {
+    ///     let mut buffer = Fixed::from([0, 0, 0]);
+    ///     let mut counter = 0;
+    ///     buffer.reset_with(|| {
+    ///         counter += 11;
+    ///         counter
+    ///     });
+    ///     assert_eq!(buffer.push(4), 11);
+    ///     assert_eq!(buffer.push(5), 22);
+    ///     assert_eq!(buffer.push(6), 33);
+    ///     assert_eq!(buffer.push(7), 4);
+    /// }
+    /// ```
+    pub fn reset_with<F>(&mut self, mut func: F)
+    where
+        F: FnMut() -> E,
+    {
+        for e in self.buffer.as_mut().iter_mut() {
+            *e = func();
+        }
+
+        self.head = 0;
+    }
+
     /// Returns the maximum number of elements this buffer can contain.
     ///
     /// ```rust
