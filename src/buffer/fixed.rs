@@ -41,6 +41,7 @@ use std::slice::{Iter as SliceIter, IterMut as SliceIterMut};
 ///     let buffer = Fixed::from(vec![9, 10, 11]);
 /// }
 /// ```
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Fixed<E, B>
 where
     E: Copy + PartialEq,
