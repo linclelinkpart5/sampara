@@ -3,6 +3,8 @@ pub mod biquad;
 #[cfg(feature = "buffer")]
 pub mod buffer;
 pub mod frame;
+#[cfg(feature = "rms")]
+pub mod rms;
 pub mod sample;
 pub mod signal;
 
