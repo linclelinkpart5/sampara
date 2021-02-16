@@ -2,6 +2,8 @@ use std::iter::FusedIterator;
 use std::marker::PhantomData;
 use std::slice::{Iter as SliceIter, IterMut as SliceIterMut};
 
+use crate::buffer::Storage;
+
 /// A ring buffer (also known as a circular/cyclic buffer) with a fixed capacity
 /// and FIFO semantics.
 ///
@@ -42,20 +44,20 @@ use std::slice::{Iter as SliceIter, IterMut as SliceIterMut};
 /// }
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Fixed<E, B>
+pub struct Fixed<I, S>
 where
-    E: Copy + PartialEq,
-    B: AsRef<[E]> + AsMut<[E]>,
+    I: Copy + PartialEq,
+    S: Storage<I>,
 {
     head: usize,
-    buffer: B,
-    _marker: PhantomData<E>,
+    storage: S,
+    _marker: PhantomData<I>,
 }
 
-impl<E, B> Fixed<E, B>
+impl<I, S> Fixed<I, S>
 where
-    E: Copy + PartialEq,
-    B: AsRef<[E]> + AsMut<[E]>,
+    I: Copy + PartialEq,
+    S: Storage<I>,
 {
     /// Sets all values of this buffer to a given value, and sets the head
     /// index to 0.
@@ -72,8 +74,8 @@ where
     ///     assert_eq!(buffer.push(7), 4);
     /// }
     /// ```
-    pub fn fill(&mut self, item: E) {
-        for e in self.buffer.as_mut().iter_mut() {
+    pub fn fill(&mut self, item: I) {
+        for e in self.storage.as_mut().iter_mut() {
             *e = item;
         }
 
@@ -101,9 +103,9 @@ where
     /// ```
     pub fn fill_with<F>(&mut self, mut func: F)
     where
-        F: FnMut() -> E,
+        F: FnMut() -> I,
     {
-        for e in self.buffer.as_mut().iter_mut() {
+        for e in self.storage.as_mut().iter_mut() {
             *e = func();
         }
 
@@ -122,7 +124,7 @@ where
     /// ```
     #[inline]
     pub fn capacity(&self) -> usize {
-        self.buffer.as_ref().len()
+        self.storage.as_ref().len()
     }
 
     /// Pushes a new element onto the rear of the buffer, and pops off and
@@ -141,9 +143,9 @@ where
     ///     assert_eq!(buffer.push(9), 6);
     /// }
     /// ```
-    pub fn push(&mut self, item: E) -> E {
+    pub fn push(&mut self, item: I) -> I {
         if self.capacity() == 0 {
-            // Buffer has zero capacity, just re-return the passed-in element.
+            // Storage has zero capacity, just re-return the passed-in element.
             return item;
         }
 
@@ -154,7 +156,7 @@ where
 
         // Bounds checking can be skipped safely since the length is constant.
         let old_item = unsafe {
-            std::mem::replace(self.buffer.as_mut().get_unchecked_mut(self.head), item)
+            std::mem::replace(self.storage.as_mut().get_unchecked_mut(self.head), item)
         };
         self.head = next_head;
         old_item
@@ -183,9 +185,9 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn get(&self, index: usize) -> &E {
+    pub fn get(&self, index: usize) -> &I {
         let wrapped_index = self.wrapped(index);
-        &self.buffer.as_ref()[wrapped_index]
+        &self.storage.as_ref()[wrapped_index]
     }
 
     /// Similar to [`Fixed::get`], but returns a mutable reference instead.
@@ -204,12 +206,12 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn get_mut(&mut self, index: usize) -> &mut E {
+    pub fn get_mut(&mut self, index: usize) -> &mut I {
         let wrapped_index = self.wrapped(index);
-        &mut self.buffer.as_mut()[wrapped_index]
+        &mut self.storage.as_mut()[wrapped_index]
     }
 
-    /// Constructs a [`Fixed`] ring buffer from a given inner buffer and
+    /// Constructs a [`Fixed`] ring buffer from a given inner storage and
     /// starting index.
     ///
     /// This method should only be used if you require specifying a first index.
@@ -232,17 +234,17 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn from_raw_parts(head: usize, buffer: B) -> Self {
-        let wrapped_head = head.checked_rem(buffer.as_ref().len()).unwrap_or(0);
+    pub fn from_raw_parts(head: usize, storage: S) -> Self {
+        let wrapped_head = head.checked_rem(storage.as_ref().len()).unwrap_or(0);
 
         Self {
             head: wrapped_head,
-            buffer,
+            storage,
             _marker: PhantomData,
         }
     }
 
-    /// Decomposes a [`Fixed`] ring buffer into a head index and inner buffer.
+    /// Decomposes a [`Fixed`] ring buffer into a head index and inner storage.
     ///
     /// ```rust
     /// use sampara::buffer::Fixed;
@@ -256,12 +258,12 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn into_raw_parts(self) -> (usize, B) {
-        let Self { head, buffer, _marker } = self;
-        (head, buffer)
+    pub fn into_raw_parts(self) -> (usize, S) {
+        let Self { head, storage, _marker } = self;
+        (head, storage)
     }
 
-    /// Decomposes a [`Fixed`] ring buffer into an inner buffer.
+    /// Decomposes a [`Fixed`] ring buffer into an inner storage.
     ///
     /// ```rust
     /// use sampara::buffer::Fixed;
@@ -275,22 +277,22 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn into_inner(self) -> B {
-        let (_, buffer) = self.into_raw_parts();
-        buffer
+    pub fn into_inner(self) -> S {
+        let (_, storage) = self.into_raw_parts();
+        storage
     }
 
-    fn as_slices(&self) -> (&[E], &[E]) {
-        let (tail, head) = self.buffer.as_ref().split_at(self.head);
+    fn as_slices(&self) -> (&[I], &[I]) {
+        let (tail, head) = self.storage.as_ref().split_at(self.head);
         (head, tail)
     }
 
-    fn as_slices_mut(&mut self) -> (&mut [E], &mut [E]) {
-        let (tail, head) = self.buffer.as_mut().split_at_mut(self.head);
+    fn as_slices_mut(&mut self) -> (&mut [I], &mut [I]) {
+        let (tail, head) = self.storage.as_mut().split_at_mut(self.head);
         (head, tail)
     }
 
-    pub fn iter(&self) -> Iter<'_, E> {
+    pub fn iter(&self) -> Iter<'_, I> {
         let (head, tail) = self.as_slices();
 
         Iter {
@@ -299,7 +301,7 @@ where
         }
     }
 
-    pub fn iter_mut(&mut self) -> IterMut<'_, E> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, I> {
         let (head, tail) = self.as_slices_mut();
 
         IterMut {
@@ -309,12 +311,12 @@ where
     }
 }
 
-impl<E, B> From<B> for Fixed<E, B>
+impl<I, S> From<S> for Fixed<I, S>
 where
-    E: Copy + PartialEq,
-    B: AsRef<[E]> + AsMut<[E]>,
+    I: Copy + PartialEq,
+    S: Storage<I>,
 {
-    /// Constructs a [`Fixed`] ring buffer from a given inner buffer.
+    /// Constructs a [`Fixed`] ring buffer from a given inner storage.
     ///
     /// ```rust
     /// use sampara::buffer::Fixed;
@@ -326,38 +328,38 @@ where
     ///     assert_eq!(buffer.push(9), 2);
     /// }
     /// ```
-    fn from(buffer: B) -> Self {
-        Self::from_raw_parts(0, buffer)
+    fn from(storage: S) -> Self {
+        Self::from_raw_parts(0, storage)
     }
 }
 
-impl<E, B> AsRef<[E]> for Fixed<E, B>
+impl<I, S> AsRef<[I]> for Fixed<I, S>
 where
-    E: Copy + PartialEq,
-    B: AsRef<[E]> + AsMut<[E]>,
+    I: Copy + PartialEq,
+    S: Storage<I>,
 {
-    fn as_ref(&self) -> &[E] {
-        self.buffer.as_ref()
+    fn as_ref(&self) -> &[I] {
+        self.storage.as_ref()
     }
 }
 
-impl<E, B> AsMut<[E]> for Fixed<E, B>
+impl<I, S> AsMut<[I]> for Fixed<I, S>
 where
-    E: Copy + PartialEq,
-    B: AsRef<[E]> + AsMut<[E]>,
+    I: Copy + PartialEq,
+    S: Storage<I>,
 {
-    fn as_mut(&mut self) -> &mut [E] {
-        self.buffer.as_mut()
+    fn as_mut(&mut self) -> &mut [I] {
+        self.storage.as_mut()
     }
 }
 
-pub struct Iter<'a, E> {
-    head: SliceIter<'a, E>,
-    tail: SliceIter<'a, E>,
+pub struct Iter<'a, I> {
+    head: SliceIter<'a, I>,
+    tail: SliceIter<'a, I>,
 }
 
-impl<'a, E> Iterator for Iter<'a, E> {
-    type Item = &'a E;
+impl<'a, I> Iterator for Iter<'a, I> {
+    type Item = &'a I;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.head.next().or_else(|| self.tail.next())
@@ -369,27 +371,27 @@ impl<'a, E> Iterator for Iter<'a, E> {
     }
 }
 
-impl<'a, E> ExactSizeIterator for Iter<'a, E> {
+impl<'a, I> ExactSizeIterator for Iter<'a, I> {
     fn len(&self) -> usize {
         self.head.len() + self.tail.len()
     }
 }
 
-impl<'a, E> DoubleEndedIterator for Iter<'a, E> {
+impl<'a, I> DoubleEndedIterator for Iter<'a, I> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.tail.next_back().or_else(|| self.head.next_back())
     }
 }
 
-impl<'a, E> FusedIterator for Iter<'a, E> {}
+impl<'a, I> FusedIterator for Iter<'a, I> {}
 
-pub struct IterMut<'a, E> {
-    head: SliceIterMut<'a, E>,
-    tail: SliceIterMut<'a, E>,
+pub struct IterMut<'a, I> {
+    head: SliceIterMut<'a, I>,
+    tail: SliceIterMut<'a, I>,
 }
 
-impl<'a, E> Iterator for IterMut<'a, E> {
-    type Item = &'a mut E;
+impl<'a, I> Iterator for IterMut<'a, I> {
+    type Item = &'a mut I;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.head.next().or_else(|| self.tail.next())
@@ -401,19 +403,19 @@ impl<'a, E> Iterator for IterMut<'a, E> {
     }
 }
 
-impl<'a, E> ExactSizeIterator for IterMut<'a, E> {
+impl<'a, I> ExactSizeIterator for IterMut<'a, I> {
     fn len(&self) -> usize {
         self.head.len() + self.tail.len()
     }
 }
 
-impl<'a, E> DoubleEndedIterator for IterMut<'a, E> {
+impl<'a, I> DoubleEndedIterator for IterMut<'a, I> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.tail.next_back().or_else(|| self.head.next_back())
     }
 }
 
-impl<'a, E> FusedIterator for IterMut<'a, E> {}
+impl<'a, I> FusedIterator for IterMut<'a, I> {}
 
 #[cfg(test)]
 mod tests {
