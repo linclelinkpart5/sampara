@@ -1,5 +1,4 @@
 use std::iter::FusedIterator;
-use std::marker::PhantomData;
 use std::slice::{Iter as SliceIter, IterMut as SliceIterMut};
 
 use crate::buffer::Storage;
@@ -44,20 +43,17 @@ use crate::buffer::Storage;
 /// }
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Fixed<I, S>
+pub struct Fixed<S>
 where
-    I: Copy + PartialEq,
-    S: Storage<I>,
+    S: Storage,
 {
     head: usize,
     storage: S,
-    _marker: PhantomData<I>,
 }
 
-impl<I, S> Fixed<I, S>
+impl<S> Fixed<S>
 where
-    I: Copy + PartialEq,
-    S: Storage<I>,
+    S: Storage,
 {
     /// Sets all values of this buffer to a given value, and sets the head
     /// index to 0.
@@ -74,7 +70,7 @@ where
     ///     assert_eq!(buffer.push(7), 4);
     /// }
     /// ```
-    pub fn fill(&mut self, item: I) {
+    pub fn fill(&mut self, item: S::Item) {
         for e in self.storage.as_mut().iter_mut() {
             *e = item;
         }
@@ -103,7 +99,7 @@ where
     /// ```
     pub fn fill_with<F>(&mut self, mut func: F)
     where
-        F: FnMut() -> I,
+        F: FnMut() -> S::Item,
     {
         for e in self.storage.as_mut().iter_mut() {
             *e = func();
@@ -143,7 +139,7 @@ where
     ///     assert_eq!(buffer.push(9), 6);
     /// }
     /// ```
-    pub fn push(&mut self, item: I) -> I {
+    pub fn push(&mut self, item: S::Item) -> S::Item {
         if self.capacity() == 0 {
             // Storage has zero capacity, just re-return the passed-in element.
             return item;
@@ -185,7 +181,7 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn get(&self, index: usize) -> &I {
+    pub fn get(&self, index: usize) -> &S::Item {
         let wrapped_index = self.wrapped(index);
         &self.storage.as_ref()[wrapped_index]
     }
@@ -206,7 +202,7 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn get_mut(&mut self, index: usize) -> &mut I {
+    pub fn get_mut(&mut self, index: usize) -> &mut S::Item {
         let wrapped_index = self.wrapped(index);
         &mut self.storage.as_mut()[wrapped_index]
     }
@@ -240,7 +236,6 @@ where
         Self {
             head: wrapped_head,
             storage,
-            _marker: PhantomData,
         }
     }
 
@@ -259,7 +254,7 @@ where
     /// ```
     #[inline]
     pub fn into_raw_parts(self) -> (usize, S) {
-        let Self { head, storage, _marker } = self;
+        let Self { head, storage } = self;
         (head, storage)
     }
 
@@ -282,17 +277,17 @@ where
         storage
     }
 
-    fn as_slices(&self) -> (&[I], &[I]) {
+    fn as_slices(&self) -> (&[S::Item], &[S::Item]) {
         let (tail, head) = self.storage.as_ref().split_at(self.head);
         (head, tail)
     }
 
-    fn as_slices_mut(&mut self) -> (&mut [I], &mut [I]) {
+    fn as_slices_mut(&mut self) -> (&mut [S::Item], &mut [S::Item]) {
         let (tail, head) = self.storage.as_mut().split_at_mut(self.head);
         (head, tail)
     }
 
-    pub fn iter(&self) -> Iter<'_, I> {
+    pub fn iter(&self) -> Iter<'_, S::Item> {
         let (head, tail) = self.as_slices();
 
         Iter {
@@ -301,7 +296,7 @@ where
         }
     }
 
-    pub fn iter_mut(&mut self) -> IterMut<'_, I> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, S::Item> {
         let (head, tail) = self.as_slices_mut();
 
         IterMut {
@@ -311,10 +306,9 @@ where
     }
 }
 
-impl<I, S> From<S> for Fixed<I, S>
+impl<S> From<S> for Fixed<S>
 where
-    I: Copy + PartialEq,
-    S: Storage<I>,
+    S: Storage,
 {
     /// Constructs a [`Fixed`] ring buffer from a given inner storage.
     ///
@@ -333,22 +327,20 @@ where
     }
 }
 
-impl<I, S> AsRef<[I]> for Fixed<I, S>
+impl<S> AsRef<[S::Item]> for Fixed<S>
 where
-    I: Copy + PartialEq,
-    S: Storage<I>,
+    S: Storage,
 {
-    fn as_ref(&self) -> &[I] {
+    fn as_ref(&self) -> &[S::Item] {
         self.storage.as_ref()
     }
 }
 
-impl<I, S> AsMut<[I]> for Fixed<I, S>
+impl<S> AsMut<[S::Item]> for Fixed<S>
 where
-    I: Copy + PartialEq,
-    S: Storage<I>,
+    S: Storage,
 {
-    fn as_mut(&mut self) -> &mut [I] {
+    fn as_mut(&mut self) -> &mut [S::Item] {
         self.storage.as_mut()
     }
 }
