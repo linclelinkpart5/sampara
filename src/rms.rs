@@ -22,4 +22,17 @@ where
             square_sum: Frame::EQUILIBRIUM,
         }
     }
+
+    pub fn reset(&mut self) {
+        for frame_sq in self.window.iter_mut() {
+            *frame_sq = Frame::EQUILIBRIUM;
+        }
+
+        self.square_sum = Frame::EQUILIBRIUM;
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.window.capacity()
+    }
 }
