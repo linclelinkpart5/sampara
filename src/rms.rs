@@ -1,4 +1,6 @@
-use crate::Frame;
+use num_traits::Float;
+
+use crate::{Frame, Sample};
 use crate::buffer::{Fixed, Storage};
 
 #[derive(Clone)]
@@ -34,5 +36,35 @@ where
     #[inline]
     pub fn len(&self) -> usize {
         self.window.capacity()
+    }
+
+    #[inline]
+    pub fn next(&mut self, new_frame: F) -> F::Float {
+        self.next_squared(new_frame).map_frame(Float::sqrt)
+    }
+
+    #[inline]
+    pub fn next_squared(&mut self, new_frame: F) -> F::Float {
+        // Determine the square of the new frame.
+        let new_frame_square = new_frame.into_float_frame().map_frame(|s| s * s);
+        // Push back the new frame_square.
+        let removed_frame_square = self.window.push(new_frame_square);
+        // Add the new frame square and subtract the removed frame square.
+        self.square_sum =
+            self.square_sum
+                .add_frame(new_frame_square.into_signed_frame())
+                .zip_map_frame(removed_frame_square, |s, r| {
+                    let diff = s - r;
+                    // In case of floating point rounding errors, floor at
+                    // equilibrium.
+                    diff.max(Sample::EQUILIBRIUM)
+                });
+
+        self.calc_rms_squared()
+    }
+
+    fn calc_rms_squared(&self) -> F::Float {
+        let num_frames_f = Sample::from_sample(self.window.capacity() as f32);
+        self.square_sum.map_frame(|s| s / num_frames_f)
     }
 }
