@@ -40,20 +40,20 @@ where
 
     #[inline]
     pub fn next(&mut self, new_frame: F) -> F::Float {
-        self.next_squared(new_frame).map_frame(Float::sqrt)
+        self.next_squared(new_frame).apply(Float::sqrt)
     }
 
     #[inline]
     pub fn next_squared(&mut self, new_frame: F) -> F::Float {
         // Determine the square of the new frame.
-        let new_frame_square = new_frame.into_float_frame().map_frame(|s| s * s);
+        let new_frame_square = new_frame.into_float_frame().apply(|s| s * s);
         // Push back the new frame_square.
         let removed_frame_square = self.window.push(new_frame_square);
         // Add the new frame square and subtract the removed frame square.
         self.square_sum =
             self.square_sum
                 .add_frame(new_frame_square.into_signed_frame())
-                .zip_map_frame(removed_frame_square, |s, r| {
+                .zip_apply(removed_frame_square, |s, r| {
                     let diff = s - r;
                     // In case of floating point rounding errors, floor at
                     // equilibrium.
@@ -65,6 +65,6 @@ where
 
     fn calc_rms_squared(&self) -> F::Float {
         let num_frames_f = Sample::from_sample(self.window.capacity() as f32);
-        self.square_sum.map_frame(|s| s / num_frames_f)
+        self.square_sum.apply(|s| s / num_frames_f)
     }
 }

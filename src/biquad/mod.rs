@@ -257,7 +257,7 @@ where
         I::Sample: Duplex<P>,
     {
         // Convert into floating point representation.
-        let input: [P; N] = input.map_frame(ConvertInto::convert_into);
+        let input: [P; N] = input.apply(ConvertInto::convert_into);
 
         // Calculate scaled inputs.
         let input_by_b0 = input.mul_amp(self.params.b0).into_signed_frame();
@@ -277,7 +277,7 @@ where
         self.t1 = input_by_b2.add_frame(output_by_neg_a2);
 
         // Convert back into the original `Frame` format.
-        output.map_frame(ConvertFrom::convert_from)
+        output.apply(ConvertFrom::convert_from)
     }
 }
 

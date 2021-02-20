@@ -159,18 +159,21 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// Creates a new `Frame<N>` by applying a function to each [`Sample`] in
     /// [`Self`] in channel order.
     ///
+    /// This would ideally be called `map`, but that name conflicts with an
+    /// unstable method on arrays in the Rust stdlib.
+    ///
     /// ```rust
     /// use sampara::Frame;
     ///
     /// fn main() {
-    ///     let mapped: [u8; 4] = [2u8, 3, 5, 7].map_frame(|x| x + 1);
+    ///     let mapped: [u8; 4] = [2u8, 3, 5, 7].apply(|x| x + 1);
     ///     assert_eq!(mapped, [3, 4, 6, 8]);
     ///
-    ///     let mapped: f32 = [0.5f32].map_frame(|x| x * x);
+    ///     let mapped: f32 = [0.5f32].apply(|x| x * x);
     ///     assert_eq!(mapped, 0.25);
     /// }
     /// ```
-    fn map_frame<F, M>(self, mut func: M) -> F
+    fn apply<F, M>(self, mut func: M) -> F
     where
         F: Frame<N>,
         M: FnMut(Self::Sample) -> F::Sample,
@@ -184,6 +187,31 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
         out
     }
 
+    /// Mutates [`Self`] in-place by applying a function to each [`Sample`] in
+    /// [`Self`] in channel order.
+    ///
+    /// ```rust
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     let mut frame = [2u8, 3, 5, 7];
+    ///     frame.transform(|x| x + 1);
+    ///     assert_eq!(frame, [3, 4, 6, 8]);
+    ///
+    ///     let mut frame = 0.5f32;
+    ///     frame.transform(|x| x * x);
+    ///     assert_eq!(frame, 0.25);
+    /// }
+    /// ```
+    fn transform<M>(&mut self, mut func: M)
+    where
+        M: FnMut(Self::Sample) -> Self::Sample,
+    {
+        for x in self.channels_mut() {
+            *x = func(*x);
+        }
+    }
+
     /// Creates a new `Frame<N>` by applying a function to each pair of
     /// [`Sample`]s in [`Self`] and another [`Frame<N>`] in channel order.
     ///
@@ -194,7 +222,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     ///     let frame_a = [-10i8, -20, -30, -40];
     ///     let frame_b = [-0.1f32, 0.2, -0.4, 0.8];
     ///
-    ///     let o: [i8; 4] = frame_a.zip_map_frame(frame_b, |a, b| {
+    ///     let o: [i8; 4] = frame_a.zip_apply(frame_b, |a, b| {
     ///         if b < 0.0 { -a }
     ///         else { (a as f32 * b) as i8 }
     ///     });
@@ -203,14 +231,14 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     ///     let frame_a = [-10i8];
     ///     let frame_b = [-0.1f32];
     ///
-    ///     let o: i8 = frame_a.zip_map_frame(frame_b, |a, b| {
+    ///     let o: i8 = frame_a.zip_apply(frame_b, |a, b| {
     ///         if b < 0.0 { -a }
     ///         else { (a as f32 * b) as i8 }
     ///     });
     ///     assert_eq!(o, 10);
     /// }
     /// ```
-    fn zip_map_frame<O, F, M>(self, other: O, mut func: M) -> F
+    fn zip_apply<O, F, M>(self, other: O, mut func: M) -> F
     where
         O: Frame<N>,
         F: Frame<N>,
@@ -237,7 +265,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// }
     /// ```
     fn into_signed_frame(self) -> Self::Signed {
-        self.map_frame(Sample::into_signed_sample)
+        self.apply(Sample::into_signed_sample)
     }
 
     /// Converts [`Self`] into its equivalent [`Self::Float`] format.
@@ -251,7 +279,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// }
     /// ```
     fn into_float_frame(self) -> Self::Float {
-        self.map_frame(Sample::into_float_sample)
+        self.apply(Sample::into_float_sample)
     }
 
     /// Adds/offsets the amplitude of each channel in [`Self`] by a signed
@@ -268,7 +296,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// ```
     #[inline]
     fn add_amp(self, amp: <Self::Sample as Sample>::Signed) -> Self {
-        self.map_frame(|s| Sample::add_amp(s, amp))
+        self.apply(|s| Sample::add_amp(s, amp))
     }
 
     /// Multiplies/scales the amplitude of each channel in [`Self`] by a float
@@ -285,7 +313,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// ```
     #[inline]
     fn mul_amp(self, amp: <Self::Sample as Sample>::Float) -> Self {
-        self.map_frame(|s| Sample::mul_amp(s, amp))
+        self.apply(|s| Sample::mul_amp(s, amp))
     }
 
     /// Adds/offsets the amplitude of each channel in [`Self`] with each
@@ -302,7 +330,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// ```
     #[inline]
     fn add_frame(self, amps: Self::Signed) -> Self {
-        self.zip_map_frame(amps, |a, b| Sample::add_amp(a, b))
+        self.zip_apply(amps, |a, b| Sample::add_amp(a, b))
     }
 
     /// Multiplies/scales the amplitude of each channel in [`Self`] with each
@@ -319,7 +347,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// ```
     #[inline]
     fn mul_frame(self, amps: Self::Float) -> Self {
-        self.zip_map_frame(amps, |a, b| Sample::mul_amp(a, b))
+        self.zip_apply(amps, |a, b| Sample::mul_amp(a, b))
     }
 }
 
