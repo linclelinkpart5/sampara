@@ -71,10 +71,7 @@ where
     /// }
     /// ```
     pub fn fill(&mut self, item: S::Item) {
-        for e in self.storage.as_mut().iter_mut() {
-            *e = item;
-        }
-
+        self.storage.as_mut().fill(item);
         self.head = 0;
     }
 
@@ -97,14 +94,11 @@ where
     ///     assert_eq!(buffer.push(7), 4);
     /// }
     /// ```
-    pub fn fill_with<F>(&mut self, mut func: F)
+    pub fn fill_with<F>(&mut self, func: F)
     where
         F: FnMut() -> S::Item,
     {
-        for e in self.storage.as_mut().iter_mut() {
-            *e = func();
-        }
-
+        self.storage.as_mut().fill_with(func);
         self.head = 0;
     }
 
@@ -159,7 +153,7 @@ where
     }
 
     fn wrapped(&self, index: usize) -> usize {
-        (self.head + index) % self.capacity()
+        (self.head + index).checked_rem(self.capacity()).unwrap()
     }
 
     /// Returns a reference to the element at the given index.
@@ -287,6 +281,24 @@ where
         (head, tail)
     }
 
+    /// Returns an iterator that yields references to the items in this buffer,
+    /// in order.
+    ///
+    /// ```rust
+    /// use sampara::buffer::Fixed;
+    ///
+    /// fn main() {
+    ///     let mut buffer = Fixed::from([1, 2, 3, 4]);
+    ///
+    ///     let iter = buffer.iter();
+    ///     assert_eq!(iter.collect::<Vec<_>>(), vec![&1, &2, &3, &4]);
+    ///
+    ///     buffer.push(5);
+    ///     buffer.push(6);
+    ///     let iter = buffer.iter();
+    ///     assert_eq!(iter.collect::<Vec<_>>(), vec![&3, &4, &5, &6]);
+    /// }
+    /// ```
     pub fn iter(&self) -> Iter<'_, S::Item> {
         let (head, tail) = self.as_slices();
 
@@ -296,6 +308,31 @@ where
         }
     }
 
+    /// Similar to [`iter`], but with mutable references instead.
+    ///
+    /// ```rust
+    /// use sampara::buffer::Fixed;
+    ///
+    /// fn main() {
+    ///     let mut buffer = Fixed::from([1, 2, 3, 4]);
+    ///
+    ///     for x in buffer.iter_mut() {
+    ///         *x *= 11;
+    ///     }
+    ///
+    ///     let iter = buffer.iter();
+    ///     assert_eq!(buffer.iter().collect::<Vec<_>>(), &[&11, &22, &33, &44]);
+    ///
+    ///     buffer.push(5);
+    ///     buffer.push(6);
+    ///     for x in buffer.iter_mut() {
+    ///         *x += 100;
+    ///     }
+    ///
+    ///     let iter = buffer.iter_mut();
+    ///     assert_eq!(iter.collect::<Vec<_>>(), vec![&133, &144, &105, &106]);
+    /// }
+    /// ```
     pub fn iter_mut(&mut self) -> IterMut<'_, S::Item> {
         let (head, tail) = self.as_slices_mut();
 
