@@ -3,8 +3,7 @@ use num_traits::Float;
 use crate::{Frame, Sample};
 use crate::buffer::{Fixed, Storage};
 
-/// Keeps a running RMS (root mean square) over a window of [`Frame`]s over
-/// time.
+/// Keeps a running RMS (root mean square) of a window of [`Frame`]s over time.
 #[derive(Clone)]
 pub struct Rms<F, S, const N: usize>
 where
@@ -23,18 +22,30 @@ where
     /// Creates a new [`Rms`] using a given [`Fixed`] ring buffer as a window.
     /// The initial contents of the buffer will be overwritten with
     /// equilibrium values.
+    ///
+    /// ```rust
+    /// use sampara::rms::Rms;
+    ///
+    /// fn main() {
+    ///     let mut rms = Rms::new([[0.0]; 4].into());
+    ///     rms.next([0.5]);
+    /// }
+    /// ```
     pub fn new(buffer: Fixed<S>) -> Self {
-        Self {
+        let mut new = Self {
             window: buffer,
             square_sum: Frame::EQUILIBRIUM,
-        }
+        };
+
+        new.reset();
+
+        new
     }
 
+    /// Resets [`Self`] to its zeroed-out state.
+    #[inline]
     pub fn reset(&mut self) {
-        for frame_sq in self.window.iter_mut() {
-            *frame_sq = Frame::EQUILIBRIUM;
-        }
-
+        self.window.fill(Frame::EQUILIBRIUM);
         self.square_sum = Frame::EQUILIBRIUM;
     }
 
@@ -50,10 +61,8 @@ where
 
     #[inline]
     pub fn next_squared(&mut self, new_frame: F) -> F::Float {
-        // Determine the square of the new frame.
+        // Calculate the square of the new frame and push onto the buffer.
         let new_frame_square = new_frame.into_float_frame().apply(|s| s * s);
-
-        // Push back the new frame_square.
         let removed_frame_square = self.window.push(new_frame_square);
 
         // Add the new frame square and subtract the removed frame square.
@@ -76,5 +85,13 @@ where
     fn calc_rms_squared(&self) -> F::Float {
         let num_frames_f = Sample::from_sample(self.window.capacity() as f32);
         self.square_sum.apply(|s| s / num_frames_f)
+    }
+
+    pub fn buffer(&self) -> &Fixed<S> {
+        &self.window
+    }
+
+    pub fn into_buffer(self) -> Fixed<S> {
+        self.window
     }
 }
