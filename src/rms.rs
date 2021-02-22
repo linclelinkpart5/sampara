@@ -1,39 +1,39 @@
 use num_traits::Float;
 
 use crate::{Frame, Sample};
-use crate::buffer::{Fixed, Storage};
+use crate::buffer::{Fixed, Buffer};
 
 /// Keeps a running RMS (root mean square) of a window of [`Frame`]s over time.
 #[derive(Clone)]
-pub struct Rms<F, S, const N: usize>
+pub struct Rms<F, B, const N: usize>
 where
     F: Frame<N>,
-    S: Storage<Item = F::Float>,
+    B: Buffer<Item = F::Float>,
 {
-    window: Fixed<S>,
+    window: Fixed<B>,
     square_sum: F::Float,
 }
 
-impl<F, S, const N: usize> Rms<F, S, N>
+impl<F, B, const N: usize> Rms<F, B, N>
 where
     F: Frame<N>,
-    S: Storage<Item = F::Float>,
+    B: Buffer<Item = F::Float>,
 {
-    /// Creates a new [`Rms`] using a given [`Fixed`] ring buffer as a window.
-    /// The initial contents of the buffer will be overwritten with
+    /// Creates a new [`Rms`] using a given [`Buffer`] as a window.
+    /// The initial contents of the [`Buffer`] will be overwritten with
     /// equilibrium values.
     ///
     /// ```rust
     /// use sampara::rms::Rms;
     ///
     /// fn main() {
-    ///     let mut rms = Rms::new([[0.0]; 4].into());
+    ///     let mut rms = Rms::new([[0.0]; 4]);
     ///     rms.next([0.5]);
     /// }
     /// ```
-    pub fn new(buffer: Fixed<S>) -> Self {
+    pub fn new(buffer: B) -> Self {
         let mut new = Self {
-            window: buffer,
+            window: Fixed::from(buffer),
             square_sum: Frame::EQUILIBRIUM,
         };
 
@@ -87,11 +87,11 @@ where
         self.square_sum.apply(|s| s / num_frames_f)
     }
 
-    pub fn buffer(&self) -> &Fixed<S> {
+    pub fn buffer(&self) -> &Fixed<B> {
         &self.window
     }
 
-    pub fn into_buffer(self) -> Fixed<S> {
+    pub fn into_buffer(self) -> Fixed<B> {
         self.window
     }
 }

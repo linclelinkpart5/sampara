@@ -1,7 +1,7 @@
 use std::iter::FusedIterator;
 use std::slice::{Iter as SliceIter, IterMut as SliceIterMut};
 
-use crate::buffer::Storage;
+use crate::buffer::Buffer;
 
 /// A ring buffer (also known as a circular/cyclic buffer) with a fixed capacity
 /// and FIFO semantics.
@@ -43,17 +43,17 @@ use crate::buffer::Storage;
 /// }
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Fixed<S>
+pub struct Fixed<B>
 where
-    S: Storage,
+    B: Buffer,
 {
     head: usize,
-    storage: S,
+    storage: B,
 }
 
-impl<S> Fixed<S>
+impl<B> Fixed<B>
 where
-    S: Storage,
+    B: Buffer,
 {
     /// Sets all values of this buffer to a given value, and sets the head
     /// index to 0.
@@ -70,7 +70,7 @@ where
     ///     assert_eq!(buffer.push(7), 4);
     /// }
     /// ```
-    pub fn fill(&mut self, item: S::Item) {
+    pub fn fill(&mut self, item: B::Item) {
         self.storage.as_mut().fill(item);
         self.head = 0;
     }
@@ -96,7 +96,7 @@ where
     /// ```
     pub fn fill_with<F>(&mut self, func: F)
     where
-        F: FnMut() -> S::Item,
+        F: FnMut() -> B::Item,
     {
         self.storage.as_mut().fill_with(func);
         self.head = 0;
@@ -133,9 +133,9 @@ where
     ///     assert_eq!(buffer.push(9), 6);
     /// }
     /// ```
-    pub fn push(&mut self, item: S::Item) -> S::Item {
+    pub fn push(&mut self, item: B::Item) -> B::Item {
         if self.capacity() == 0 {
-            // Storage has zero capacity, just re-return the passed-in element.
+            // Buffer has zero capacity, just re-return the passed-in element.
             return item;
         }
 
@@ -175,7 +175,7 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn get(&self, index: usize) -> &S::Item {
+    pub fn get(&self, index: usize) -> &B::Item {
         let wrapped_index = self.wrapped(index);
         &self.storage.as_ref()[wrapped_index]
     }
@@ -196,7 +196,7 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn get_mut(&mut self, index: usize) -> &mut S::Item {
+    pub fn get_mut(&mut self, index: usize) -> &mut B::Item {
         let wrapped_index = self.wrapped(index);
         &mut self.storage.as_mut()[wrapped_index]
     }
@@ -224,7 +224,7 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn from_raw_parts(head: usize, storage: S) -> Self {
+    pub fn from_raw_parts(head: usize, storage: B) -> Self {
         let wrapped_head = head.checked_rem(storage.as_ref().len()).unwrap_or(0);
 
         Self {
@@ -247,7 +247,7 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn into_raw_parts(self) -> (usize, S) {
+    pub fn into_raw_parts(self) -> (usize, B) {
         let Self { head, storage } = self;
         (head, storage)
     }
@@ -266,17 +266,17 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn into_inner(self) -> S {
+    pub fn into_inner(self) -> B {
         let (_, storage) = self.into_raw_parts();
         storage
     }
 
-    fn as_slices(&self) -> (&[S::Item], &[S::Item]) {
+    fn as_slices(&self) -> (&[B::Item], &[B::Item]) {
         let (tail, head) = self.storage.as_ref().split_at(self.head);
         (head, tail)
     }
 
-    fn as_slices_mut(&mut self) -> (&mut [S::Item], &mut [S::Item]) {
+    fn as_slices_mut(&mut self) -> (&mut [B::Item], &mut [B::Item]) {
         let (tail, head) = self.storage.as_mut().split_at_mut(self.head);
         (head, tail)
     }
@@ -299,7 +299,7 @@ where
     ///     assert_eq!(iter.collect::<Vec<_>>(), vec![&3, &4, &5, &6]);
     /// }
     /// ```
-    pub fn iter(&self) -> Iter<'_, S::Item> {
+    pub fn iter(&self) -> Iter<'_, B::Item> {
         let (head, tail) = self.as_slices();
 
         Iter {
@@ -333,7 +333,7 @@ where
     ///     assert_eq!(iter.collect::<Vec<_>>(), vec![&133, &144, &105, &106]);
     /// }
     /// ```
-    pub fn iter_mut(&mut self) -> IterMut<'_, S::Item> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, B::Item> {
         let (head, tail) = self.as_slices_mut();
 
         IterMut {
@@ -343,9 +343,9 @@ where
     }
 }
 
-impl<S> From<S> for Fixed<S>
+impl<B> From<B> for Fixed<B>
 where
-    S: Storage,
+    B: Buffer,
 {
     /// Constructs a [`Fixed`] ring buffer from a given inner storage.
     ///
@@ -359,25 +359,25 @@ where
     ///     assert_eq!(buffer.push(9), 2);
     /// }
     /// ```
-    fn from(storage: S) -> Self {
+    fn from(storage: B) -> Self {
         Self::from_raw_parts(0, storage)
     }
 }
 
-impl<S> AsRef<[S::Item]> for Fixed<S>
+impl<B> AsRef<[B::Item]> for Fixed<B>
 where
-    S: Storage,
+    B: Buffer,
 {
-    fn as_ref(&self) -> &[S::Item] {
+    fn as_ref(&self) -> &[B::Item] {
         self.storage.as_ref()
     }
 }
 
-impl<S> AsMut<[S::Item]> for Fixed<S>
+impl<B> AsMut<[B::Item]> for Fixed<B>
 where
-    S: Storage,
+    B: Buffer,
 {
-    fn as_mut(&mut self) -> &mut [S::Item] {
+    fn as_mut(&mut self) -> &mut [B::Item] {
         self.storage.as_mut()
     }
 }
