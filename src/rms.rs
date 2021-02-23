@@ -1,6 +1,6 @@
 use num_traits::Float;
 
-use crate::{Frame, Sample};
+use crate::{Frame, Sample, sample::FloatSample};
 use crate::buffer::{Fixed, Buffer};
 
 /// Keeps a running RMS (root mean square) of a window of [`Frame`]s over time.
@@ -8,16 +8,18 @@ use crate::buffer::{Fixed, Buffer};
 pub struct Rms<F, B, const N: usize>
 where
     F: Frame<N>,
-    B: Buffer<Item = F::Float>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
 {
     window: Fixed<B>,
-    square_sum: F::Float,
+    square_sum: F,
 }
 
 impl<F, B, const N: usize> Rms<F, B, N>
 where
     F: Frame<N>,
-    B: Buffer<Item = F::Float>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
 {
     /// Creates a new [`Rms`] using a given [`Buffer`] as a window.
     /// The initial contents of the [`Buffer`] will be overwritten with
@@ -31,6 +33,7 @@ where
     ///     rms.next([0.5]);
     /// }
     /// ```
+    #[inline]
     pub fn new(buffer: B) -> Self {
         let mut new = Self {
             window: Fixed::from(buffer),
@@ -42,25 +45,113 @@ where
         new
     }
 
+    /// Similar to [`new`], but treats the passed-in buffer as already filled.
+    ///
+    /// ```rust
+    /// use sampara::rms::Rms;
+    ///
+    /// fn main() {
+    ///     let rms = Rms::from_full([[0.00], [0.25], [0.50], [0.75]]);
+    ///     assert_eq!(
+    ///         rms.into_buffer().into_inner(),
+    ///         [[0.00], [0.25], [0.50], [0.75]],
+    ///     );
+    /// }
+    /// ```
+    pub fn from_full(buffer: B) -> Self {
+        let mut square_sum: F = Frame::EQUILIBRIUM;
+
+        for frame in buffer.as_ref().iter() {
+            square_sum = square_sum.add_frame(
+                frame.into_float_frame().apply(|x| x * x)
+            );
+        }
+
+        Self {
+            window: Fixed::from(buffer),
+            square_sum,
+        }
+    }
+
     /// Resets [`Self`] to its zeroed-out state.
+    ///
+    /// ```rust
+    /// use sampara::rms::Rms;
+    ///
+    /// fn main() {
+    ///     let mut rms = Rms::new([[1.0], [2.0], [3.0], [4.0]]);
+    ///     rms.reset();
+    ///     assert_eq!(
+    ///         rms.buffer().iter().collect::<Vec<_>>(),
+    ///         [&[0.0], &[0.0], &[0.0], &[0.0]]
+    ///     );
+    /// }
+    /// ```
     #[inline]
     pub fn reset(&mut self) {
         self.window.fill(Frame::EQUILIBRIUM);
         self.square_sum = Frame::EQUILIBRIUM;
     }
 
+    /// Returns the window size of [`Self`].
+    ///
+    /// ```rust
+    /// use sampara::rms::Rms;
+    ///
+    /// fn main() {
+    ///     const LEN: usize = 99;
+    ///     let rms = Rms::new([[0.0; 2]; LEN]);
+    ///     assert_eq!(rms.len(), LEN);
+    /// }
+    /// ```
     #[inline]
     pub fn len(&self) -> usize {
         self.window.capacity()
     }
 
+    /// Adds a new [`Frame`] to the buffer and returns the RMS of the new
+    /// window's contents.
+    ///
+    /// The oldest [`Frame`] will be popped off, and the new one added.
+    ///
+    /// ```rust
+    /// use sampara::rms::Rms;
+    ///
+    /// fn main() {
+    ///     let mut rms = Rms::new([[0.0]; 4]);
+    ///     assert_eq!(rms.next([1.0]), [0.5]);
+    ///     assert_eq!(rms.next([-1.0]), [0.7071067811865476]);
+    ///     assert_eq!(rms.next([1.0]), [0.8660254037844386]);
+    ///     assert_eq!(rms.next([-1.0]), [1.0]);
+    /// }
+    /// ```
     #[inline]
-    pub fn next(&mut self, new_frame: F) -> F::Float {
+    pub fn next<I>(&mut self, new_frame: I) -> F
+    where
+        I: Frame<N, Float = F>,
+    {
         self.next_squared(new_frame).apply(Float::sqrt)
     }
 
+    /// Similar to [`next`], but skips the final square root calculation,
+    /// yielding the MS (mean square) as opposed to the RMS (root mean square).
+    ///
+    /// ```rust
+    /// use sampara::rms::Rms;
+    ///
+    /// fn main() {
+    ///     let mut rms = Rms::new([[0.0]; 4]);
+    ///     assert_eq!(rms.next_squared([1.0]), [0.25]);
+    ///     assert_eq!(rms.next_squared([-1.0]), [0.5]);
+    ///     assert_eq!(rms.next_squared([1.0]), [0.75]);
+    ///     assert_eq!(rms.next_squared([-1.0]), [1.0]);
+    /// }
+    /// ```
     #[inline]
-    pub fn next_squared(&mut self, new_frame: F) -> F::Float {
+    pub fn next_squared<I>(&mut self, new_frame: I) -> F
+    where
+        I: Frame<N, Float = F>,
+    {
         // Calculate the square of the new frame and push onto the buffer.
         let new_frame_square = new_frame.into_float_frame().apply(|s| s * s);
         let removed_frame_square = self.window.push(new_frame_square);
@@ -78,19 +169,49 @@ where
         self.calc_rms_squared()
     }
 
-    pub fn current(&self) -> F::Float {
+    /// Returns the RMS of the current contents of the buffer.
+    ///
+    /// ```rust
+    /// use sampara::rms::Rms;
+    ///
+    /// fn main() {
+    ///     let mut rms = Rms::from_full([[0.0], [1.0], [0.0], [1.0]]);
+    ///     assert_eq!(rms.current(), [0.7071067811865476]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn current(&self) -> F {
         self.calc_rms_squared().apply(Float::sqrt)
     }
 
-    fn calc_rms_squared(&self) -> F::Float {
+    /// Similar to [`current`], but skips the final square root calculation,
+    /// yielding the MS (mean square) as opposed to the RMS (root mean square).
+    ///
+    /// ```rust
+    /// use sampara::rms::Rms;
+    ///
+    /// fn main() {
+    ///     let mut rms = Rms::from_full([[0.0], [1.0], [0.0], [1.0]]);
+    ///     assert_eq!(rms.current_squared(), [0.5]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn current_squared(&self) -> F {
+        self.calc_rms_squared()
+    }
+
+    #[inline]
+    fn calc_rms_squared(&self) -> F {
         let num_frames_f = Sample::from_sample(self.window.capacity() as f32);
         self.square_sum.apply(|s| s / num_frames_f)
     }
 
+    #[inline]
     pub fn buffer(&self) -> &Fixed<B> {
         &self.window
     }
 
+    #[inline]
     pub fn into_buffer(self) -> Fixed<B> {
         self.window
     }
