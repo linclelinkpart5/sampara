@@ -53,7 +53,7 @@ where
     /// fn main() {
     ///     let rms = Rms::from_full([[0.00], [0.25], [0.50], [0.75]]);
     ///     assert_eq!(
-    ///         rms.into_buffer().into_inner(),
+    ///         rms.into_window().into_buffer(),
     ///         [[0.00], [0.25], [0.50], [0.75]],
     ///     );
     /// }
@@ -82,8 +82,8 @@ where
     ///     let mut rms = Rms::new([[1.0], [2.0], [3.0], [4.0]]);
     ///     rms.reset();
     ///     assert_eq!(
-    ///         rms.buffer().iter().collect::<Vec<_>>(),
-    ///         [&[0.0], &[0.0], &[0.0], &[0.0]]
+    ///         rms.into_window().into_buffer(),
+    ///         [[0.0], [0.0], [0.0], [0.0]],
     ///     );
     /// }
     /// ```
@@ -202,17 +202,37 @@ where
 
     #[inline]
     fn calc_rms_squared(&self) -> F {
-        let num_frames_f = Sample::from_sample(self.window.capacity() as f32);
+        let num_frames_f = Sample::from_sample(self.len() as f32);
         self.square_sum.apply(|s| s / num_frames_f)
     }
 
+    /// Returns a reference to the underlying window.
+    ///
+    /// ```rust
+    /// use sampara::rms::Rms;
+    ///
+    /// fn main() {
+    ///     let rms = Rms::from_full([0.0, 1.0, 2.0]);
+    ///     assert!(rms.window().iter().eq(&[0.0, 1.0, 2.0]));
+    /// }
+    /// ```
     #[inline]
-    pub fn buffer(&self) -> &Fixed<B> {
+    pub fn window(&self) -> &Fixed<B> {
         &self.window
     }
 
+    /// Consumes [`Self`] and yields the underlying window.
+    ///
+    /// ```rust
+    /// use sampara::rms::Rms;
+    ///
+    /// fn main() {
+    ///     let rms = Rms::from_full([0.0, 1.0, 2.0]);
+    ///     assert!(rms.into_window().iter().eq(&[0.0, 1.0, 2.0]));
+    /// }
+    /// ```
     #[inline]
-    pub fn into_buffer(self) -> Fixed<B> {
+    pub fn into_window(self) -> Fixed<B> {
         self.window
     }
 }

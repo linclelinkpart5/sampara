@@ -42,13 +42,13 @@ use crate::buffer::Buffer;
 ///     let buffer = Fixed::from(vec![9, 10, 11]);
 /// }
 /// ```
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug)]
 pub struct Fixed<B>
 where
     B: Buffer,
 {
     head: usize,
-    storage: B,
+    buffer: B,
 }
 
 impl<B> Fixed<B>
@@ -71,7 +71,7 @@ where
     /// }
     /// ```
     pub fn fill(&mut self, item: B::Item) {
-        self.storage.as_mut().fill(item);
+        self.buffer.as_mut().fill(item);
         self.head = 0;
     }
 
@@ -98,7 +98,7 @@ where
     where
         F: FnMut() -> B::Item,
     {
-        self.storage.as_mut().fill_with(func);
+        self.buffer.as_mut().fill_with(func);
         self.head = 0;
     }
 
@@ -114,7 +114,7 @@ where
     /// ```
     #[inline]
     pub fn capacity(&self) -> usize {
-        self.storage.as_ref().len()
+        self.buffer.as_ref().len()
     }
 
     /// Pushes a new element onto the rear of the buffer, and pops off and
@@ -146,7 +146,7 @@ where
 
         // Bounds checking can be skipped safely since the length is constant.
         let old_item = unsafe {
-            std::mem::replace(self.storage.as_mut().get_unchecked_mut(self.head), item)
+            std::mem::replace(self.buffer.as_mut().get_unchecked_mut(self.head), item)
         };
         self.head = next_head;
         old_item
@@ -177,7 +177,7 @@ where
     #[inline]
     pub fn get(&self, index: usize) -> &B::Item {
         let wrapped_index = self.wrapped(index);
-        &self.storage.as_ref()[wrapped_index]
+        &self.buffer.as_ref()[wrapped_index]
     }
 
     /// Similar to [`Fixed::get`], but returns a mutable reference instead.
@@ -198,10 +198,10 @@ where
     #[inline]
     pub fn get_mut(&mut self, index: usize) -> &mut B::Item {
         let wrapped_index = self.wrapped(index);
-        &mut self.storage.as_mut()[wrapped_index]
+        &mut self.buffer.as_mut()[wrapped_index]
     }
 
-    /// Constructs a [`Fixed`] ring buffer from a given inner storage and
+    /// Constructs a [`Fixed`] ring buffer from a given inner buffer and
     /// starting index.
     ///
     /// This method should only be used if you require specifying a first index.
@@ -224,16 +224,54 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn from_raw_parts(head: usize, storage: B) -> Self {
-        let wrapped_head = head.checked_rem(storage.as_ref().len()).unwrap_or(0);
+    pub fn from_raw_parts(head: usize, buffer: B) -> Self {
+        let wrapped_head = head.checked_rem(buffer.as_ref().len()).unwrap_or(0);
 
         Self {
             head: wrapped_head,
-            storage,
+            buffer,
         }
     }
 
-    /// Decomposes a [`Fixed`] ring buffer into a head index and inner storage.
+    /// Returns the head index and a reference to the inner buffer.
+    ///
+    /// ```rust
+    /// use sampara::buffer::Fixed;
+    ///
+    /// fn main() {
+    ///     let mut buffer = Fixed::from([0, 1, 2]);
+    ///     buffer.push(6);
+    ///     buffer.push(7);
+    ///
+    ///     assert_eq!(buffer.raw_parts(), (2, &[6, 7, 2]));
+    /// }
+    /// ```
+    #[inline]
+    pub fn raw_parts(&self) -> (usize, &B) {
+        let Self { head, buffer } = self;
+        (*head, buffer)
+    }
+
+    /// Returns a reference to the inner buffer.
+    ///
+    /// ```rust
+    /// use sampara::buffer::Fixed;
+    ///
+    /// fn main() {
+    ///     let mut buffer = Fixed::from([0, 1, 2]);
+    ///     buffer.push(6);
+    ///     buffer.push(7);
+    ///
+    ///     assert_eq!(buffer.buffer(), &[6, 7, 2]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn buffer(&self) -> &B {
+        let (_, buffer) = self.raw_parts();
+        buffer
+    }
+
+    /// Decomposes a [`Fixed`] ring buffer into a head index and inner buffer.
     ///
     /// ```rust
     /// use sampara::buffer::Fixed;
@@ -248,11 +286,11 @@ where
     /// ```
     #[inline]
     pub fn into_raw_parts(self) -> (usize, B) {
-        let Self { head, storage } = self;
-        (head, storage)
+        let Self { head, buffer } = self;
+        (head, buffer)
     }
 
-    /// Decomposes a [`Fixed`] ring buffer into an inner storage.
+    /// Decomposes a [`Fixed`] ring buffer into an inner buffer.
     ///
     /// ```rust
     /// use sampara::buffer::Fixed;
@@ -262,22 +300,22 @@ where
     ///     buffer.push(6);
     ///     buffer.push(7);
     ///
-    ///     assert_eq!(buffer.into_inner(), [6, 7, 2]);
+    ///     assert_eq!(buffer.into_buffer(), [6, 7, 2]);
     /// }
     /// ```
     #[inline]
-    pub fn into_inner(self) -> B {
-        let (_, storage) = self.into_raw_parts();
-        storage
+    pub fn into_buffer(self) -> B {
+        let (_, buffer) = self.into_raw_parts();
+        buffer
     }
 
     fn as_slices(&self) -> (&[B::Item], &[B::Item]) {
-        let (tail, head) = self.storage.as_ref().split_at(self.head);
+        let (tail, head) = self.buffer.as_ref().split_at(self.head);
         (head, tail)
     }
 
     fn as_slices_mut(&mut self) -> (&mut [B::Item], &mut [B::Item]) {
-        let (tail, head) = self.storage.as_mut().split_at_mut(self.head);
+        let (tail, head) = self.buffer.as_mut().split_at_mut(self.head);
         (head, tail)
     }
 
@@ -347,7 +385,7 @@ impl<B> From<B> for Fixed<B>
 where
     B: Buffer,
 {
-    /// Constructs a [`Fixed`] ring buffer from a given inner storage.
+    /// Constructs a [`Fixed`] ring buffer from a given inner buffer.
     ///
     /// ```rust
     /// use sampara::buffer::Fixed;
@@ -359,8 +397,8 @@ where
     ///     assert_eq!(buffer.push(9), 2);
     /// }
     /// ```
-    fn from(storage: B) -> Self {
-        Self::from_raw_parts(0, storage)
+    fn from(buffer: B) -> Self {
+        Self::from_raw_parts(0, buffer)
     }
 }
 
@@ -369,7 +407,7 @@ where
     B: Buffer,
 {
     fn as_ref(&self) -> &[B::Item] {
-        self.storage.as_ref()
+        self.buffer.as_ref()
     }
 }
 
@@ -378,9 +416,20 @@ where
     B: Buffer,
 {
     fn as_mut(&mut self) -> &mut [B::Item] {
-        self.storage.as_mut()
+        self.buffer.as_mut()
     }
 }
+
+// impl<BA, BB> PartialEq<Fixed<BB>> for Fixed<BA>
+// where
+//     BA: Buffer,
+//     BB: Buffer,
+//     BA::Item: PartialEq<BB::Item>,
+// {
+//     fn eq(&self, other: &Fixed<BB>) -> bool {
+//         self.iter().eq(other.iter())
+//     }
+// }
 
 pub struct Iter<'a, I> {
     head: SliceIter<'a, I>,
