@@ -1,3 +1,7 @@
+pub mod floor;
+
+pub use floor::*;
+
 use crate::Frame;
 
 /// Types that can interpolate between two [`Frame`]s.
