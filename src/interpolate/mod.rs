@@ -18,5 +18,5 @@ pub trait Interpolator<const N: usize> {
     fn interpolate(&self, x: f64) -> Self::Frame;
 
     /// To be called whenever the interpolant value steps past 1.0.
-    fn next_source_frame(&mut self, source_frame: Self::Frame);
+    fn advance(&mut self, next_frame: Self::Frame);
 }
