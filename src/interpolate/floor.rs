@@ -25,7 +25,7 @@ impl<F, const N: usize> Floor<F, N>
 where
     F: Frame<N>,
 {
-    /// Creates a new [`Floor`].
+    /// Creates a new [`Floor`] interpolator.
     pub fn new(left: F) -> Self {
         Self { left }
     }
