@@ -1,8 +1,10 @@
 pub mod floor;
 pub mod linear;
+pub mod sinc;
 
 pub use floor::*;
 pub use linear::*;
+pub use sinc::*;
 
 use crate::Frame;
 
