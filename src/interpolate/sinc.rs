@@ -1,8 +1,28 @@
 use core::f64::consts::PI;
 
+use num_traits::Float;
+
 use crate::{Duplex, Frame, Sample};
 use crate::buffer::{Buffer, Fixed};
 use crate::interpolate::Interpolator;
+
+trait SincOp {
+    fn sinc(self) -> Self;
+}
+
+impl<X> SincOp for X
+where
+    X: Float,
+{
+    #[inline]
+    fn sinc(self) -> Self {
+        if self.is_zero() {
+            Self::one()
+        } else {
+            self.sin() / self
+        }
+    }
+}
 
 /// An [`Interpolator`] that uses sinc interpolation on a window of [`Frame`]s.
 ///
@@ -56,49 +76,49 @@ where
     type Frame = F;
 
     fn interpolate(&self, x: f64) -> Self::Frame {
-        // let phil = x;
-        // let phir = 1.0 - x;
-        // let nl = self.idx;
-        // let nr = self.idx + 1;
-        // let depth = self.depth();
+        let phil = x;
+        let phir = 1.0 - x;
+        let nl = self.idx;
+        let nr = self.idx + 1;
+        let depth = self.depth();
 
-        // let rightmost = nl + depth;
-        // let leftmost = nr as isize - depth as isize;
-        // let max_depth = if rightmost >= self.frames.len() {
-        //     self.frames.len() - depth
-        // } else if leftmost < 0 {
-        //     (depth as isize + leftmost) as usize
-        // } else {
-        //     depth
-        // };
+        let rightmost = nl + depth;
+        let leftmost = nr as isize - depth as isize;
+        let max_depth = if rightmost >= self.buffer.capacity() {
+            self.buffer.capacity() - depth
+        } else if leftmost < 0 {
+            (depth as isize + leftmost) as usize
+        } else {
+            depth
+        };
 
-        // (0..max_depth).fold(Self::Frame::EQUILIBRIUM, |mut v, n| {
-        //     v = {
-        //         let a = PI * (phil + n as f64);
-        //         let first = if a == 0.0 { 1.0 } else { sin(a) / a };
-        //         let second = 0.5 + 0.5 * cos(a / depth as f64);
-        //         v.zip_map(self.frames[nl - n], |vs, r_lag| {
-        //             vs.add_amp(
-        //                 (first * second * r_lag.to_sample::<f64>())
-        //                     .to_sample::<<Self::Frame as Frame>::Sample>()
-        //                     .to_signed_sample(),
-        //             )
-        //         })
-        //     };
+        (0..max_depth).fold(Self::Frame::EQUILIBRIUM, |mut v, n| {
+            v = {
+                let a = PI * (phil + n as f64);
+                let first = a.sinc();
+                let second = 0.5 + 0.5 * (a / depth as f64).cos();
+                v.zip_apply(self.buffer[nl - n], |vs, r_lag| {
+                    Sample::add_amp(
+                        vs,
+                        (first * second * r_lag.into_sample::<f64>())
+                            .into_sample::<F::Sample>()
+                            .into_signed_sample(),
+                    )
+                })
+            };
 
-        //     let a = PI * (phir + n as f64);
-        //     let first = if a == 0.0 { 1.0 } else { sin(a) / a };
-        //     let second = 0.5 + 0.5 * cos(a / depth as f64);
-        //     v.zip_map(self.frames[nr + n], |vs, r_lag| {
-        //         vs.add_amp(
-        //             (first * second * r_lag.to_sample::<f64>())
-        //                 .to_sample::<<Self::Frame as Frame>::Sample>()
-        //                 .to_signed_sample(),
-        //         )
-        //     })
-        // })
-
-        todo!()
+            let a = PI * (phir + n as f64);
+            let first = a.sinc();
+            let second = 0.5 + 0.5 * (a / depth as f64).cos();
+            v.zip_apply(self.buffer[nr + n], |vs, r_lag| {
+                Sample::add_amp(
+                    vs,
+                    (first * second * r_lag.into_sample::<f64>())
+                        .into_sample::<F::Sample>()
+                        .into_signed_sample(),
+                )
+            })
+        })
     }
 
     fn advance(&mut self, next_frame: Self::Frame) {
