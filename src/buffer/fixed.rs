@@ -1,7 +1,14 @@
 use std::iter::FusedIterator;
 use std::slice::{Iter as SliceIter, IterMut as SliceIterMut};
 
+use core::ops::{Index, IndexMut};
+
 use crate::buffer::Buffer;
+
+enum Wrapping {
+    None,
+    Wrap,
+}
 
 /// A ring buffer (also known as a circular/cyclic buffer) with a fixed capacity
 /// and FIFO semantics.
@@ -152,52 +159,120 @@ where
         old_item
     }
 
-    fn wrapped(&self, index: usize) -> usize {
-        (self.head + index).checked_rem(self.capacity()).unwrap()
+    fn lookup(&self, index: usize, kind: Wrapping) -> Option<usize> {
+        match kind {
+            Wrapping::None if index >= self.capacity() => return None,
+            _ => {},
+        }
+
+        (self.head + index).checked_rem(self.capacity())
     }
 
-    /// Returns a reference to the element at the given index.
-    ///
-    /// If the index is out of range it will be looped around the length of the
-    /// buffer.
+    /// Returns a reference to the element at the given index, or [`None`] if
+    /// out of bounds.
     ///
     /// ```rust
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
     ///     let buffer = Fixed::from([0, 1, 2]);
-    ///     assert_eq!(buffer.get(0), &0);
-    ///     assert_eq!(buffer.get(1), &1);
-    ///     assert_eq!(buffer.get(2), &2);
-    ///     assert_eq!(buffer.get(3), &0);
-    ///     assert_eq!(buffer.get(4), &1);
-    ///     assert_eq!(buffer.get(5), &2);
+    ///     assert_eq!(buffer.get(0), Some(&0));
+    ///     assert_eq!(buffer.get(1), Some(&1));
+    ///     assert_eq!(buffer.get(2), Some(&2));
+    ///     assert_eq!(buffer.get(3), None);
+    ///     assert_eq!(buffer.get(4), None);
+    ///     assert_eq!(buffer.get(5), None);
     /// }
     /// ```
     #[inline]
-    pub fn get(&self, index: usize) -> &B::Item {
-        let wrapped_index = self.wrapped(index);
-        &self.buffer.as_ref()[wrapped_index]
+    pub fn get(&self, index: usize) -> Option<&B::Item> {
+        let wrapped_index = self.lookup(index, Wrapping::None)?;
+        self.buffer().as_ref().get(wrapped_index)
     }
 
-    /// Similar to [`Fixed::get`], but returns a mutable reference instead.
+    /// Similar to [`get`], but returns a mutable reference instead.
     ///
     /// ```rust
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
     ///     let mut buffer = Fixed::from([0, 1, 2]);
-    ///     assert_eq!(buffer.get_mut(0), &mut 0);
-    ///     assert_eq!(buffer.get_mut(1), &mut 1);
-    ///     assert_eq!(buffer.get_mut(2), &mut 2);
-    ///     assert_eq!(buffer.get_mut(3), &mut 0);
-    ///     assert_eq!(buffer.get_mut(4), &mut 1);
-    ///     assert_eq!(buffer.get_mut(5), &mut 2);
+    ///     assert_eq!(buffer.get_mut(0), Some(&mut 0));
+    ///     assert_eq!(buffer.get_mut(1), Some(&mut 1));
+    ///     assert_eq!(buffer.get_mut(2), Some(&mut 2));
+    ///     assert_eq!(buffer.get_mut(3), None);
+    ///     assert_eq!(buffer.get_mut(4), None);
+    ///     assert_eq!(buffer.get_mut(5), None);
     /// }
     /// ```
     #[inline]
-    pub fn get_mut(&mut self, index: usize) -> &mut B::Item {
-        let wrapped_index = self.wrapped(index);
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut B::Item> {
+        let wrapped_index = self.lookup(index, Wrapping::None)?;
+        self.buffer.as_mut().get_mut(wrapped_index)
+    }
+
+    /// Returns a reference to the element at the given index, wrapping around
+    /// the length of the buffer if needed.
+    ///
+    /// ```rust
+    /// use sampara::buffer::Fixed;
+    ///
+    /// fn main() {
+    ///     let buffer = Fixed::from([0, 1, 2]);
+    ///     assert_eq!(buffer.get_wrapped(0), &0);
+    ///     assert_eq!(buffer.get_wrapped(1), &1);
+    ///     assert_eq!(buffer.get_wrapped(2), &2);
+    ///     assert_eq!(buffer.get_wrapped(3), &0);
+    ///     assert_eq!(buffer.get_wrapped(4), &1);
+    ///     assert_eq!(buffer.get_wrapped(5), &2);
+    /// }
+    /// ```
+    ///
+    /// Panics if the length of the inner buffer is zero.
+    ///
+    /// ```should_panic
+    /// use sampara::buffer::Fixed;
+    ///
+    /// fn main() {
+    ///     let buffer = Fixed::from([0; 0]);
+    ///     buffer.get_wrapped(0);
+    /// }
+    /// ```
+    #[inline]
+    pub fn get_wrapped(&self, index: usize) -> &B::Item {
+        let wrapped_index = self.lookup(index, Wrapping::Wrap).unwrap();
+        &self.buffer.as_ref()[wrapped_index]
+    }
+
+    /// Similar to [`get_wrapped`], but returns a mutable reference instead.
+    ///
+    /// ```rust
+    /// use sampara::buffer::Fixed;
+    ///
+    /// fn main() {
+    ///     let mut buffer = Fixed::from([0, 1, 2]);
+    ///     assert_eq!(buffer.get_wrapped_mut(0), &mut 0);
+    ///     assert_eq!(buffer.get_wrapped_mut(1), &mut 1);
+    ///     assert_eq!(buffer.get_wrapped_mut(2), &mut 2);
+    ///     assert_eq!(buffer.get_wrapped_mut(3), &mut 0);
+    ///     assert_eq!(buffer.get_wrapped_mut(4), &mut 1);
+    ///     assert_eq!(buffer.get_wrapped_mut(5), &mut 2);
+    /// }
+    /// ```
+    ///
+    /// Panics if the length of the inner buffer is zero.
+    ///
+    /// ```should_panic
+    /// use sampara::buffer::Fixed;
+    ///
+    /// fn main() {
+    ///     let mut buffer = Fixed::from([0; 0]);
+    ///     buffer.get_wrapped_mut(0);
+    /// }
+    /// ```
+    #[inline]
+    pub fn get_wrapped_mut(&mut self, index: usize) -> &mut B::Item {
+        let wrapped_index = self.lookup(index, Wrapping::Wrap).unwrap();
         &mut self.buffer.as_mut()[wrapped_index]
     }
 
@@ -417,6 +492,28 @@ where
 {
     fn as_mut(&mut self) -> &mut [B::Item] {
         self.buffer.as_mut()
+    }
+}
+
+impl<B> Index<usize> for Fixed<B>
+where
+    B: Buffer,
+{
+    type Output = B::Item;
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        self.get_wrapped(index)
+    }
+}
+
+impl<B> IndexMut<usize> for Fixed<B>
+where
+    B: Buffer,
+{
+    #[inline]
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        self.get_wrapped_mut(index)
     }
 }
 
