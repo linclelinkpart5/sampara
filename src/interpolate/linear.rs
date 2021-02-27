@@ -3,7 +3,7 @@ use crate::interpolate::Interpolator;
 
 /// An [`Interpolator`] that linearly combines a left and a right [`Frame`].
 ///
-/// ```rust
+/// ```
 /// use sampara::interpolate::{Linear, Interpolator};
 ///
 /// fn main() {

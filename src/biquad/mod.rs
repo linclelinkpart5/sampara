@@ -217,7 +217,7 @@ where
     /// Performs a single iteration of this filter, calculating a new filtered
     /// `Frame` from an input `Frame`.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::biquad::{Kind, Params, Filter};
     ///
     /// fn main() {

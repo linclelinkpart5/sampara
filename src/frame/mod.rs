@@ -17,7 +17,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
 
     /// The equilibrium value for this [`Frame`] type.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::{Frame, Mono, Stereo};
     ///
     /// fn main() {
@@ -34,7 +34,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     ///
     /// The function should map each channel index to a [`Sample`] value.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::{Frame, Stereo};
     ///
     /// fn main() {
@@ -55,7 +55,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// Returns [`None`] if the given [`Iterator`] does not yield enough
     /// [`Sample`] values.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::{Frame, Stereo};
     ///
     /// fn main() {
@@ -78,7 +78,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// Yields a reference to the [`Sample`] in the channel at a given index,
     /// or [`None`] if it does not exist.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Frame;
     ///
     /// fn main() {
@@ -92,7 +92,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
 
     /// Like [`Self::channel()`], but yields a mutable reference instead.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Frame;
     ///
     /// fn main() {
@@ -108,7 +108,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// Returns an iterator that yields an immutable reference to each
     /// [`Sample`] in [`Self`] in channel order.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Frame;
     ///
     /// fn main() {
@@ -124,7 +124,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// Returns an iterator that yields a mutable reference to each
     /// [`Sample`] in [`Self`] in channel order.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Frame;
     ///
     /// fn main() {
@@ -143,7 +143,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// Consumes [`Self`] and returns an iterator that yields each [`Sample`]
     /// in [`Self`] in channel order.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Frame;
     ///
     /// fn main() {
@@ -162,7 +162,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// This would ideally be called `map`, but that name conflicts with an
     /// unstable method on arrays in the Rust stdlib.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Frame;
     ///
     /// fn main() {
@@ -190,7 +190,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// Mutates [`Self`] in-place by applying a function to each [`Sample`] in
     /// [`Self`] in channel order.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Frame;
     ///
     /// fn main() {
@@ -215,7 +215,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// Creates a new `Frame<N>` by applying a function to each pair of
     /// [`Sample`]s in [`Self`] and another [`Frame<N>`] in channel order.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::frame::Frame;
     ///
     /// fn main() {
@@ -256,7 +256,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
 
     /// Converts [`Self`] into its equivalent [`Self::Signed`] format.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Frame;
     ///
     /// fn main() {
@@ -270,7 +270,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
 
     /// Converts [`Self`] into its equivalent [`Self::Float`] format.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Frame;
     ///
     /// fn main() {
@@ -285,7 +285,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// Adds/offsets the amplitude of each channel in [`Self`] by a signed
     /// amplitude.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Frame;
     ///
     /// fn main() {
@@ -302,7 +302,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// Multiplies/scales the amplitude of each channel in [`Self`] by a float
     /// amplitude.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Frame;
     ///
     /// fn main() {
@@ -319,7 +319,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// Adds/offsets the amplitude of each channel in [`Self`] with each
     /// corresponding channel in a given [`Self::Signed`].
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Frame;
     ///
     /// fn main() {
@@ -336,7 +336,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     /// Multiplies/scales the amplitude of each channel in [`Self`] with each
     /// corresponding channel in a given [`Self::Float`].
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Frame;
     ///
     /// fn main() {

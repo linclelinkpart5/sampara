@@ -33,7 +33,7 @@ pub trait Signal<const N: usize> {
     /// This is useful for applying adaptors while still retaining ownership of
     /// the original [`Signal`].
     ///
-    /// ```rust
+    /// ```
     /// use sampara::{signal, Signal};
     ///
     /// fn main() {
@@ -187,7 +187,7 @@ pub trait Signal<const N: usize> {
     /// Calls an inspection function on each [`Frame`] yielded by this
     /// [`Signal`], and then passes the [`Frame`] through.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::{signal, Signal};
     ///
     /// fn main() {
@@ -222,7 +222,7 @@ pub trait Signal<const N: usize> {
     /// Performs biquad filtering on this [`Signal`] and yields filtered
     /// [`Frame`]s in the same format as the original [`Signal`].
     ///
-    /// ```rust
+    /// ```
     /// use sampara::{signal, Signal};
     /// use sampara::biquad::{Kind, Params};
     ///
@@ -282,7 +282,7 @@ where
 /// Creates a new [`Signal`] where each [`Frame`] is yielded by calling a given
 /// closure that produces a [`Option<Frame>`] for each iteration.
 ///
-/// ```rust
+/// ```
 /// use sampara::{signal, Signal};
 ///
 /// fn main() {
@@ -313,7 +313,7 @@ where
 /// Creates a new [`Signal`] where each [`Frame`] is copied from a given
 /// constant [`Frame`].
 ///
-/// ```rust
+/// ```
 /// use sampara::{signal, Signal};
 ///
 /// fn main() {
@@ -334,7 +334,7 @@ where
 
 /// Creates a new [`Signal`] that always yields [`Frame::EQUILIBRIUM`].
 ///
-/// ```rust
+/// ```
 /// use sampara::{signal, Signal};
 ///
 /// fn main() {
@@ -355,7 +355,7 @@ where
 
 /// Creates an empty [`Signal`] that yields no [`Frame`]s.
 ///
-/// ```rust
+/// ```
 /// use sampara::{signal, Signal};
 ///
 /// fn main() {
@@ -378,7 +378,7 @@ where
 
 /// Creates a new [`Signal`] by wrapping an iterable that yields [`Frame`]s.
 ///
-/// ```rust
+/// ```
 /// use sampara::{signal, Signal};
 ///
 /// fn main() {
@@ -405,7 +405,7 @@ where
 /// desired size, and yield them. Any trailing [`Sample`]s that do not fully
 /// complete a [`Frame`] will be discarded.
 ///
-/// ```rust
+/// ```
 /// use sampara::{signal, Signal};
 ///
 /// fn main() {

@@ -3,7 +3,7 @@ use crate::interpolate::Interpolator;
 
 /// An [`Interpolator`] that rounds down to the previous source [`Frame`].
 ///
-/// ```rust
+/// ```
 /// use sampara::interpolate::{Floor, Interpolator};
 ///
 /// fn main() {

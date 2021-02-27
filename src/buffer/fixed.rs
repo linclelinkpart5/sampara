@@ -30,7 +30,7 @@ enum Wrapping {
 /// * `&mut [T; N]` (for any `N`)
 /// * `Vec<T>`
 ///
-/// ```rust
+/// ```
 /// use sampara::buffer::Fixed;
 ///
 /// fn main() {
@@ -65,7 +65,7 @@ where
     /// Sets all values of this buffer to a given value, and sets the head
     /// index to 0.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
@@ -85,7 +85,7 @@ where
     /// Sets all values of this buffer using a given closure, and sets the head
     /// index to 0.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
@@ -111,7 +111,7 @@ where
 
     /// Returns the maximum number of elements this buffer can contain.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
@@ -127,7 +127,7 @@ where
     /// Pushes a new element onto the rear of the buffer, and pops off and
     /// returns the replaced element from the front.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
@@ -171,7 +171,7 @@ where
     /// Returns a reference to the element at the given index, or [`None`] if
     /// out of bounds.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
@@ -192,7 +192,7 @@ where
 
     /// Similar to [`get`], but returns a mutable reference instead.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
@@ -214,7 +214,7 @@ where
     /// Returns a reference to the element at the given index, wrapping around
     /// the length of the buffer if needed.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
@@ -246,7 +246,7 @@ where
 
     /// Similar to [`get_wrapped`], but returns a mutable reference instead.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
@@ -282,7 +282,7 @@ where
     /// This method should only be used if you require specifying a first index.
     /// For most use cases, it is better to use [`Fixed::from`] instead.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
@@ -310,7 +310,7 @@ where
 
     /// Returns the head index and a reference to the inner buffer.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
@@ -329,7 +329,7 @@ where
 
     /// Returns a reference to the inner buffer.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
@@ -348,7 +348,7 @@ where
 
     /// Decomposes a [`Fixed`] ring buffer into a head index and inner buffer.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
@@ -367,7 +367,7 @@ where
 
     /// Decomposes a [`Fixed`] ring buffer into an inner buffer.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
@@ -397,7 +397,7 @@ where
     /// Returns an iterator that yields references to the items in this buffer,
     /// in order.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
@@ -423,7 +423,7 @@ where
 
     /// Similar to [`iter`], but with mutable references instead.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {
@@ -462,7 +462,7 @@ where
 {
     /// Constructs a [`Fixed`] ring buffer from a given inner buffer.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::buffer::Fixed;
     ///
     /// fn main() {

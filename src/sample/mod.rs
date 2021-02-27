@@ -11,7 +11,7 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq {
     /// This is normally the value that is equal distance from both the min and
     /// max ranges of the sample, i.e. the "zero amplitude" value.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Sample;
     ///
     /// fn main() {
@@ -37,7 +37,7 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq {
 
     /// Converts this [`Sample`] into another [`Sample`] type.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Sample;
     ///
     /// fn main() {
@@ -57,7 +57,7 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq {
 
     /// Creates an instance of this [`Sample`] from another [`Sample`] type.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Sample;
     ///
     /// fn main() {
@@ -80,7 +80,7 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq {
     /// This is a simple wrapper around [`Sample::into_sample`] to provide
     /// extra type inference convenience in some cases.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Sample;
     ///
     /// fn main() {
@@ -98,7 +98,7 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq {
     /// This is a simple wrapper around [`Sample::into_sample`] to provide
     /// extra type inference convenience in some cases.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Sample;
     ///
     /// fn main() {
@@ -117,7 +117,7 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq {
     /// result will then be converted back into [`Self`]. This double conversion
     /// is to correctly handle the addition of unsigned signal formats.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Sample;
     ///
     /// fn main() {
@@ -137,7 +137,7 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq {
     /// result will then be converted back into [`Self`]. This double conversion
     /// is to correctly handle the multiplication of integer signal formats.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::Sample;
     ///
     /// fn main() {
@@ -199,7 +199,7 @@ impl_signed_sample!(i8 i16 i32 i64 f32 f64);
 pub trait Sqrt {
     /// Square root.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::sample::Sqrt;
     ///
     /// fn main() {

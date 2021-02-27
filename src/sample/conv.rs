@@ -361,7 +361,7 @@ where
     /// to [`std::convert::From`], but is intended for preserving the same
     /// represented amplitude between sample types.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::{Sample, ConvertFrom};
     ///
     /// fn main() {
@@ -473,7 +473,7 @@ where
     /// This trait has a blanket implementation for all types that implement
     /// [`ConvertFrom`].
     ///
-    /// ```rust
+    /// ```
     /// use sampara::{Sample, ConvertInto};
     ///
     /// fn main() {

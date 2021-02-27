@@ -25,7 +25,7 @@ where
     /// The initial contents of the [`Buffer`] will be overwritten with
     /// equilibrium values.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::rms::Rms;
     ///
     /// fn main() {
@@ -47,7 +47,7 @@ where
 
     /// Similar to [`new`], but treats the passed-in buffer as already filled.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::rms::Rms;
     ///
     /// fn main() {
@@ -75,7 +75,7 @@ where
 
     /// Resets [`Self`] to its zeroed-out state.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::rms::Rms;
     ///
     /// fn main() {
@@ -95,7 +95,7 @@ where
 
     /// Returns the window size of [`Self`].
     ///
-    /// ```rust
+    /// ```
     /// use sampara::rms::Rms;
     ///
     /// fn main() {
@@ -114,7 +114,7 @@ where
     ///
     /// The oldest [`Frame`] will be popped off, and the new one added.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::rms::Rms;
     ///
     /// fn main() {
@@ -136,7 +136,7 @@ where
     /// Similar to [`next`], but skips the final square root calculation,
     /// yielding the MS (mean square) as opposed to the RMS (root mean square).
     ///
-    /// ```rust
+    /// ```
     /// use sampara::rms::Rms;
     ///
     /// fn main() {
@@ -171,7 +171,7 @@ where
 
     /// Returns the RMS of the current contents of the buffer.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::rms::Rms;
     ///
     /// fn main() {
@@ -187,7 +187,7 @@ where
     /// Similar to [`current`], but skips the final square root calculation,
     /// yielding the MS (mean square) as opposed to the RMS (root mean square).
     ///
-    /// ```rust
+    /// ```
     /// use sampara::rms::Rms;
     ///
     /// fn main() {
@@ -208,7 +208,7 @@ where
 
     /// Returns a reference to the underlying window.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::rms::Rms;
     ///
     /// fn main() {
@@ -223,7 +223,7 @@ where
 
     /// Consumes [`Self`] and yields the underlying window.
     ///
-    /// ```rust
+    /// ```
     /// use sampara::rms::Rms;
     ///
     /// fn main() {
