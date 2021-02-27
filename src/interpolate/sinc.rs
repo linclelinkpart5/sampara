@@ -128,3 +128,42 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sinc_f32() {
+        let inputs_expected = [
+            (0.0f32, 1.0f32),
+            (1.0, 0.84147096),
+            (2.0, 0.45464870),
+            (3.0, 0.04704),
+            (-1.0, 0.84147096),
+            (-2.0, 0.45464870),
+            (-3.0, 0.04704),
+        ];
+
+        for (input, expected) in inputs_expected.iter() {
+            assert_eq!(input.sinc(), *expected);
+        }
+    }
+
+    #[test]
+    fn sinc_f64() {
+        let inputs_expected = [
+            (0.0f64, 1.0f64),
+            (1.0, 0.8414709848078965),
+            (2.0, 0.45464871341284085),
+            (3.0, 0.0470400026866224),
+            (-1.0, 0.8414709848078965),
+            (-2.0, 0.45464871341284085),
+            (-3.0, 0.0470400026866224),
+        ];
+
+        for (input, expected) in inputs_expected.iter() {
+            assert_eq!(input.sinc(), *expected);
+        }
+    }
+}
