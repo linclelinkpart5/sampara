@@ -254,6 +254,34 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
         out
     }
 
+    /// Mutates [`Self`] in-place by applying a function to each pair of
+    /// [`Sample`]s in [`Self`] and another [`Frame<N>`] in channel order.
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     let mut frame_a = [2u8, 3, 5, 7];
+    ///     let frame_b = [3u8, 2, 1, 0];
+    ///     frame_a.zip_transform(frame_b, |a, b| a * b + 1);
+    ///     assert_eq!(frame_a, [7, 7, 6, 1]);
+    ///
+    ///     let mut frame_a = 0.3f32;
+    ///     let frame_b = [0.4];
+    ///     frame_a.zip_transform(frame_b, |a, b| a * b + 0.5);
+    ///     assert_eq!(frame_a, 0.62);
+    /// }
+    /// ```
+    fn zip_transform<O, M>(&mut self, other: O, mut func: M)
+    where
+        O: Frame<N>,
+        M: FnMut(Self::Sample, O::Sample) -> Self::Sample,
+    {
+        for (x, o) in self.channels_mut().zip(other.into_channels()) {
+            *x = func(*x, o);
+        }
+    }
+
     /// Converts [`Self`] into its equivalent [`Self::Signed`] format.
     ///
     /// ```
