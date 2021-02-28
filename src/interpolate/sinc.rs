@@ -92,33 +92,38 @@ where
             depth
         };
 
-        (0..max_depth).fold(Self::Frame::EQUILIBRIUM, |mut v, n| {
-            v = {
-                let a = PI * (phil + n as f64);
-                let first = a.sinc();
-                let second = 0.5 + 0.5 * (a / depth as f64).cos();
-                v.zip_apply(self.buffer[nl - n], |vs, r_lag| {
-                    Sample::add_amp(
-                        vs,
-                        (first * second * r_lag.into_sample::<f64>())
-                            .into_sample::<F::Sample>()
-                            .into_signed_sample(),
-                    )
-                })
-            };
-
-            let a = PI * (phir + n as f64);
+        #[inline(always)]
+        fn factor(phi: f64, n: usize, depth: usize) -> f64 {
+            let a = PI * (phi + n as f64);
             let first = a.sinc();
             let second = 0.5 + 0.5 * (a / depth as f64).cos();
-            v.zip_apply(self.buffer[nr + n], |vs, r_lag| {
-                Sample::add_amp(
-                    vs,
-                    (first * second * r_lag.into_sample::<f64>())
-                        .into_sample::<F::Sample>()
-                        .into_signed_sample(),
-                )
-            })
-        })
+
+            first * second
+        }
+
+        let mut ret: F = Frame::EQUILIBRIUM;
+        for n in 0..max_depth {
+            let factor_l = factor(phil, n, depth);
+            let factor_r = factor(phir, n, depth);
+
+            ret.zip_transform(self.buffer[nl - n], |vs, r_lag| {
+                let add = (factor_l * r_lag.into_sample::<f64>())
+                    .into_sample::<F::Sample>()
+                    .into_signed_sample();
+
+                Sample::add_amp(vs, add)
+            });
+
+            ret.zip_transform(self.buffer[nr + n], |vs, r_lag| {
+                let add = (factor_r * r_lag.into_sample::<f64>())
+                    .into_sample::<F::Sample>()
+                    .into_signed_sample();
+
+                Sample::add_amp(vs, add)
+            });
+        }
+
+        ret
     }
 
     fn advance(&mut self, next_frame: Self::Frame) {
