@@ -28,6 +28,23 @@ where
 ///
 /// One of the better sample rate converters, although it uses significantly
 /// more computation.
+///
+/// ```
+/// use sampara::interpolate::{Sinc, Interpolator};
+///
+/// fn main() {
+///     let sinc = Sinc::new([
+///         [10, 15, 20, 25],
+///         [20, 25, 30, 35],
+///         [30, 35, 40, 45],
+///         [40, 45, 50, 55],
+///     ]);
+///     assert_eq!(sinc.interpolate(0.00), [10, 15, 20, 25]);
+///     assert_eq!(sinc.interpolate(0.25), [12, 17, 23, 28]);
+///     assert_eq!(sinc.interpolate(0.50), [15, 21, 26, 32]);
+///     assert_eq!(sinc.interpolate(0.75), [19, 24, 29, 35]);
+/// }
+/// ```
 pub struct Sinc<F, B, const N: usize>
 where
     B: Buffer<Item = F>,
