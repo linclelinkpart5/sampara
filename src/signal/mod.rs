@@ -219,6 +219,38 @@ pub trait Signal<const N: usize> {
         }
     }
 
+    /// Converts this [`Signal`] into an [`Iterator`] yielding [`Frame`]s.
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let signal = signal::from_frames(vec![2i32, 3, 1]).add_amp(5);
+    ///     let iter = signal.into_iter();
+    ///
+    ///     assert_eq!(iter.collect::<Vec<_>>(), vec![7, 8, 6]);
+    /// }
+    /// ```
+    // NOTE: This is a trait method on `Signal` as opposed to an impl of
+    // `IntoIterator`, due to trait restrictions. We cannot have a blanket
+    // `impl<S: Signal<N>, ...> IntoIterator for S`, since the `N` is
+    // unconstrained. But, `Signal` requires `N` as a const generic input due
+    // to `Frame` also requiring it. `Frame` uses `N` for defining fixed-size
+    // array types in its methods. If associated consts could be used as const
+    // generic bounds and/or fixed array sizes, then `Frame` (and thus
+    // `Signal`) could just have `N` be an associated constant and drop the
+    // const generic. Then, we could have a blanket impl of `IntoInterator`.
+    // At that point, we could even do some specialization to make things even
+    // more efficient!
+    fn into_iter(self) -> IntoIter<Self, N>
+    where
+        Self: Sized,
+    {
+        IntoIter {
+            signal: self,
+        }
+    }
+
     /// Performs biquad filtering on this [`Signal`] and yields filtered
     /// [`Frame`]s in the same format as the original [`Signal`].
     ///
@@ -278,6 +310,23 @@ where
         (**self).next()
     }
 }
+
+// NOTE: Need to wait until `N` can be embedded as an associated constant,
+//       which requires associated consts to be usable as generic array sizes.
+// impl<S, const N: usize> IntoIterator for S
+// where
+//     S: Signal<N>,
+// {
+//     type Item = S::Frame;
+//     type IntoIter: IntoIter<Self, N>;
+
+//     fn into_iter(self) -> Self::IntoIter
+//     {
+//         IntoIter {
+//             signal: self,
+//         }
+//     }
+// }
 
 /// Creates a new [`Signal`] where each [`Frame`] is yielded by calling a given
 /// closure that produces a [`Option<Frame>`] for each iteration.
