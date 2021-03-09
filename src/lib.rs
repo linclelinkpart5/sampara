@@ -3,6 +3,8 @@ pub mod biquad;
 #[cfg(feature = "buffer")]
 pub mod buffer;
 pub mod frame;
+#[cfg(feature = "generator")]
+pub mod generator;
 #[cfg(feature = "interpolate")]
 pub mod interpolate;
 #[cfg(feature = "rms")]

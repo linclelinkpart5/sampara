@@ -9,6 +9,7 @@ license = "MIT"
 [features]
 biquad = []
 buffer = []
+generator = []
 interpolate = []
 rms = ["buffer"]
 
