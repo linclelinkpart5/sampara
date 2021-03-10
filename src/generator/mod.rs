@@ -5,11 +5,10 @@ use crate::{Frame, Signal};
 ///
 /// These types are mainly used for driving oscillators and other periodic
 /// [`Signal`]s, which advance one step at a time for each output.
-pub trait Step<F, const N: usize>
-where
-    F: Frame<N, Sample = f64>
-{
-    fn step(&mut self) -> Option<F>;
+pub trait Step<const N: usize> {
+    type Step: Frame<N, Sample = f64>;
+
+    fn step(&mut self) -> Option<Self::Step>;
 }
 
 pub struct ConstHz<F, const N: usize>
@@ -51,21 +50,25 @@ where
     }
 }
 
-impl<F, const N: usize> Step<F, N> for ConstHz<F, N>
+impl<F, const N: usize> Step<N> for ConstHz<F, N>
 where
     F: Frame<N, Sample = f64>,
 {
-    fn step(&mut self) -> Option<F> {
+    type Step = F;
+
+    fn step(&mut self) -> Option<Self::Step> {
         Some(self.step)
     }
 }
 
-impl<S, const N: usize> Step<S::Frame, N> for VariableHz<S, N>
+impl<S, const N: usize> Step<N> for VariableHz<S, N>
 where
     S: Signal<N>,
     S::Frame: Frame<N, Sample = f64>,
 {
-    fn step(&mut self) -> Option<S::Frame> {
+    type Step = S::Frame;
+
+    fn step(&mut self) -> Option<Self::Step> {
         self.hzs.next().map(|f| f.mul_amp(1.0 / self.rate))
     }
 }
