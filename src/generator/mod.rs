@@ -77,12 +77,100 @@ where
 
 /// A [`Signal`] that wraps a [`Step`] and accumulates it in an automated way,
 /// wrapping it to the interval [0.0, 1.0) as needed.
+///
+/// ```
+/// use sampara::generator::Phase;
+/// use sampara::Signal;
+///
+/// fn main() {
+///     let mut phase = Phase::const_hz(44100.0, 440.0);
+///
+///     assert_eq!(phase.next(), Some(0.009977324263038548));
+///     assert_eq!(phase.next(), Some(0.019954648526077097));
+///     assert_eq!(phase.next(), Some(0.029931972789115645));
+///
+///     // [`Phase`] keeps track of the accumutated steps, and resets back to
+///     // 0.0 if it exceeds 1.0.
+///     let mut phase = Phase::const_hz(1.1, 0.5);
+///     assert_eq!(phase.next(), Some(0.45454545454545453));
+///     assert_eq!(phase.next(), Some(0.9090909090909091));
+///     assert_eq!(phase.next(), Some(0.36363636363636354));
+/// }
+/// ```
 pub struct Phase<S, const N: usize>
 where
     S: Step<N>,
 {
     stepper: S,
     accum: S::Step,
+}
+
+impl<F, const N: usize> Phase<ConstHz<F, N>, N>
+where
+    F: Frame<N, Sample = f64>,
+{
+    /// Creates a [`Phase`] with a constant [`Frame`] of frequencies.
+    ///
+    /// This [`Phase`] does not terminate, it will always return a step value.
+    ///
+    /// ```
+    /// use sampara::generator::Phase;
+    /// use sampara::Signal;
+    ///
+    /// fn main() {
+    ///     let mut phase = Phase::const_hz(4.0, [0.5, 1.0, 1.5]);
+    ///
+    ///     assert_eq!(phase.next(), Some([0.125, 0.25, 0.375]));
+    ///     assert_eq!(phase.next(), Some([0.25, 0.5, 0.75]));
+    ///     assert_eq!(phase.next(), Some([0.375, 0.75, 0.125]));
+    /// }
+    /// ```
+    pub fn const_hz(rate: f64, hz: F) -> Self {
+        Self {
+            stepper: ConstHz::new(rate, hz),
+            accum: Frame::EQUILIBRIUM,
+        }
+    }
+}
+
+impl<S, const N: usize> Phase<VariableHz<S, N>, N>
+where
+    S: Signal<N>,
+    S::Frame: Frame<N, Sample = f64>,
+{
+    /// Creates a [`Phase`] with [`Frame`]s of frequencies over time, as
+    /// yielded by a [`Signal`].
+    ///
+    /// Unlike [`const_hz`], this [`Phase`] will terminate and stop yielding
+    /// step values once the contained [`Signal`] is fully consumed.
+    ///
+    /// ```
+    /// use sampara::generator::Phase;
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let freq_signal = signal::from_frames(vec![
+    ///         [0.125, 0.250],
+    ///         [0.375, 0.500],
+    ///         [0.625, 0.750],
+    ///     ]);
+    ///
+    ///     let mut phase = Phase::variable_hz(4.0, freq_signal);
+    ///
+    ///     // Note that this [`Phase`] terminates once the contained [`Signal`]
+    ///     // is consumed.
+    ///     assert_eq!(phase.next(), Some([0.03125, 0.0625]));
+    ///     assert_eq!(phase.next(), Some([0.125, 0.1875]));
+    ///     assert_eq!(phase.next(), Some([0.28125, 0.375]));
+    ///     assert_eq!(phase.next(), None);
+    /// }
+    /// ```
+    pub fn variable_hz(rate: f64, hz_signal: S) -> Self {
+        Self {
+            stepper: VariableHz::new(rate, hz_signal),
+            accum: Frame::EQUILIBRIUM,
+        }
+    }
 }
 
 impl<S, const N: usize> Signal<N> for Phase<S, N>
