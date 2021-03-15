@@ -7,83 +7,90 @@ use crate::{Frame, Signal};
 ///
 /// These types are mainly used for driving oscillators and other periodic
 /// [`Signal`]s, which advance one step at a time for each output.
-pub trait Step<const N: usize> {
-    type Step: Frame<N, Sample = f64>;
+pub trait Delta<const N: usize>: Sized {
+    type Delta: Frame<N, Sample = f64>;
 
-    fn step(&mut self) -> Option<Self::Step>;
-}
+    fn delta(&mut self) -> Option<Self::Delta>;
 
-pub struct ConstHz<F, const N: usize>
-where
-    F: Frame<N, Sample = f64>,
-{
-    step: F,
-}
-
-impl<F, const N: usize> ConstHz<F, N>
-where
-    F: Frame<N, Sample = f64>,
-{
-    pub fn new(rate: f64, hz: F) -> Self {
-        let step = hz.apply(|x| x / rate);
-        Self { step }
-    }
-}
-
-pub struct VariableHz<S, const N: usize>
-where
-    S: Signal<N>,
-    S::Frame: Frame<N, Sample = f64>,
-{
-    hzs: S,
-    rate: f64,
-}
-
-impl<S, const N: usize> VariableHz<S, N>
-where
-    S: Signal<N>,
-    S::Frame: Frame<N, Sample = f64>,
-{
-    pub fn new(rate: f64, hz_signal: S) -> Self {
-        Self {
-            hzs: hz_signal,
-            rate,
+    fn phase(self) -> Phase<Self, N> {
+        Phase {
+            stepper: self,
+            accum: Frame::EQUILIBRIUM,
         }
     }
 }
 
-impl<F, const N: usize> Step<N> for ConstHz<F, N>
+pub struct Fixed<F, const N: usize>(F)
+where
+    F: Frame<N, Sample = f64>,
+;
+
+impl<F, const N: usize> Delta<N> for Fixed<F, N>
 where
     F: Frame<N, Sample = f64>,
 {
-    type Step = F;
+    type Delta = F;
 
-    fn step(&mut self) -> Option<Self::Step> {
-        Some(self.step)
+    fn delta(&mut self) -> Option<Self::Delta> {
+        Some(self.0)
     }
 }
 
-impl<S, const N: usize> Step<N> for VariableHz<S, N>
+enum VarInner<S, const N: usize>
 where
     S: Signal<N>,
     S::Frame: Frame<N, Sample = f64>,
 {
-    type Step = S::Frame;
+    Hzs(S, f64),
+    Deltas(S),
+}
 
-    fn step(&mut self) -> Option<Self::Step> {
-        self.hzs.next().map(|f| f.mul_amp(1.0 / self.rate))
+impl<S, const N: usize> Delta<N> for VarInner<S, N>
+where
+    S: Signal<N>,
+    S::Frame: Frame<N, Sample = f64>,
+{
+    type Delta = S::Frame;
+
+    fn delta(&mut self) -> Option<Self::Delta> {
+        match self {
+            Self::Hzs(hz_signal, rate) => {
+                hz_signal.next().map(|f| f.mul_amp(1.0 / *rate))
+            },
+            Self::Deltas(delta_signal) => {
+                delta_signal.next()
+            },
+        }
     }
 }
 
-/// A [`Signal`] that wraps a [`Step`] and accumulates it in an automated way,
+pub struct Variable<S, const N: usize>(VarInner<S, N>)
+where
+    S: Signal<N>,
+    S::Frame: Frame<N, Sample = f64>,
+;
+
+impl<S, const N: usize> Delta<N> for Variable<S, N>
+where
+    S: Signal<N>,
+    S::Frame: Frame<N, Sample = f64>,
+{
+    type Delta = S::Frame;
+
+    fn delta(&mut self) -> Option<Self::Delta> {
+        self.0.delta()
+    }
+}
+
+/// A [`Signal`] that wraps a [`Delta`] and accumulates it in an automated way,
 /// wrapping it to the interval [0.0, 1.0) as needed.
 ///
 /// ```
-/// use sampara::generator::Phase;
+/// use sampara::generator;
 /// use sampara::Signal;
 ///
 /// fn main() {
-///     let mut phase = Phase::const_hz(44100.0, 440.0);
+///     let mut phase = generator::fixed_hz(44100.0, 440.0);
 ///
 ///     assert_eq!(phase.next(), Some(0.009977324263038548));
 ///     assert_eq!(phase.next(), Some(0.019954648526077097));
@@ -91,97 +98,29 @@ where
 ///
 ///     // [`Phase`] keeps track of the accumutated steps, and resets back to
 ///     // 0.0 if it exceeds 1.0.
-///     let mut phase = Phase::const_hz(1.1, 0.5);
+///     let mut phase = generator::fixed_hz(1.1, 0.5);
 ///     assert_eq!(phase.next(), Some(0.45454545454545453));
 ///     assert_eq!(phase.next(), Some(0.9090909090909091));
 ///     assert_eq!(phase.next(), Some(0.36363636363636354));
 /// }
 /// ```
-pub struct Phase<S, const N: usize>
+pub struct Phase<D, const N: usize>
 where
-    S: Step<N>,
+    D: Delta<N>,
 {
-    stepper: S,
-    accum: S::Step,
+    stepper: D,
+    accum: D::Delta,
 }
 
-impl<F, const N: usize> Phase<ConstHz<F, N>, N>
+impl<D, const N: usize> Signal<N> for Phase<D, N>
 where
-    F: Frame<N, Sample = f64>,
+    D: Delta<N>,
 {
-    /// Creates a [`Phase`] with a constant [`Frame`] of frequencies.
-    ///
-    /// This [`Phase`] does not terminate, it will always return a step value.
-    ///
-    /// ```
-    /// use sampara::generator::Phase;
-    /// use sampara::Signal;
-    ///
-    /// fn main() {
-    ///     let mut phase = Phase::const_hz(4.0, [0.5, 1.0, 1.5]);
-    ///
-    ///     assert_eq!(phase.next(), Some([0.125, 0.25, 0.375]));
-    ///     assert_eq!(phase.next(), Some([0.25, 0.5, 0.75]));
-    ///     assert_eq!(phase.next(), Some([0.375, 0.75, 0.125]));
-    /// }
-    /// ```
-    pub fn const_hz(rate: f64, hz: F) -> Self {
-        Self {
-            stepper: ConstHz::new(rate, hz),
-            accum: Frame::EQUILIBRIUM,
-        }
-    }
-}
-
-impl<S, const N: usize> Phase<VariableHz<S, N>, N>
-where
-    S: Signal<N>,
-    S::Frame: Frame<N, Sample = f64>,
-{
-    /// Creates a [`Phase`] with [`Frame`]s of frequencies over time, as
-    /// yielded by a [`Signal`].
-    ///
-    /// Unlike [`const_hz`], this [`Phase`] will terminate and stop yielding
-    /// step values once the contained [`Signal`] is fully consumed.
-    ///
-    /// ```
-    /// use sampara::generator::Phase;
-    /// use sampara::{signal, Signal};
-    ///
-    /// fn main() {
-    ///     let freq_signal = signal::from_frames(vec![
-    ///         [0.125, 0.250],
-    ///         [0.375, 0.500],
-    ///         [0.625, 0.750],
-    ///     ]);
-    ///
-    ///     let mut phase = Phase::variable_hz(4.0, freq_signal);
-    ///
-    ///     // Note that this [`Phase`] terminates once the contained [`Signal`]
-    ///     // is consumed.
-    ///     assert_eq!(phase.next(), Some([0.03125, 0.0625]));
-    ///     assert_eq!(phase.next(), Some([0.125, 0.1875]));
-    ///     assert_eq!(phase.next(), Some([0.28125, 0.375]));
-    ///     assert_eq!(phase.next(), None);
-    /// }
-    /// ```
-    pub fn variable_hz(rate: f64, hz_signal: S) -> Self {
-        Self {
-            stepper: VariableHz::new(rate, hz_signal),
-            accum: Frame::EQUILIBRIUM,
-        }
-    }
-}
-
-impl<S, const N: usize> Signal<N> for Phase<S, N>
-where
-    S: Step<N>,
-{
-    type Frame = S::Step;
+    type Frame = D::Delta;
 
     fn next(&mut self) -> Option<Self::Frame> {
         let phase = self.accum
-            .add_frame(self.stepper.step()?.into_signed_frame())
+            .add_frame(self.stepper.delta()?.into_signed_frame())
             .apply(|x| x % 1.0);
 
         self.accum = phase;
@@ -189,19 +128,135 @@ where
     }
 }
 
-/// A sine wave [`Signal`] generator.
-pub struct Sine<S, const N: usize>
+/// Creates a [`Phase`] with a constant [`Frame`] of frequencies.
+///
+/// This [`Phase`] does not terminate, it will always return a step value.
+///
+/// ```
+/// use sampara::generator;
+/// use sampara::Signal;
+///
+/// fn main() {
+///     let mut phase = generator::fixed_hz(4.0, [0.5, 1.0, 1.5]);
+///
+///     assert_eq!(phase.next(), Some([0.125, 0.25, 0.375]));
+///     assert_eq!(phase.next(), Some([0.25, 0.5, 0.75]));
+///     assert_eq!(phase.next(), Some([0.375, 0.75, 0.125]));
+/// }
+/// ```
+pub fn fixed_hz<F, const N: usize>(rate: f64, hz: F) -> Phase<Fixed<F, N>, N>
 where
-    S: Step<N>,
+    F: Frame<N, Sample = f64>,
 {
-    phase: Phase<S, N>,
+    Fixed(hz.apply(|x| x / rate)).phase()
 }
 
-impl<S, const N: usize> Signal<N> for Sine<S, N>
+/// Creates a [`Phase`] with a constant [`Frame`] of deltas.
+///
+/// This [`Phase`] does not terminate, it will always return a step value.
+///
+/// ```
+/// use sampara::generator;
+/// use sampara::Signal;
+///
+/// fn main() {
+///     let mut phase = generator::fixed_step([0.125, 0.25, 0.375]);
+///
+///     assert_eq!(phase.next(), Some([0.125, 0.25, 0.375]));
+///     assert_eq!(phase.next(), Some([0.25, 0.5, 0.75]));
+///     assert_eq!(phase.next(), Some([0.375, 0.75, 0.125]));
+/// }
+/// ```
+pub fn fixed_step<F, const N: usize>(delta: F) -> Phase<Fixed<F, N>, N>
 where
-    S: Step<N>,
+    F: Frame<N, Sample = f64>,
 {
-    type Frame = S::Step;
+    Fixed(delta).phase()
+}
+
+/// Creates a [`Phase`] with [`Frame`]s of deltas over time, as
+/// yielded by a [`Signal`].
+///
+/// Unlike [`fixed_hz`], this [`Phase`] will terminate and stop yielding
+/// step values once the contained [`Signal`] is fully consumed.
+///
+/// ```
+/// use sampara::generator;
+/// use sampara::{signal, Signal};
+///
+/// fn main() {
+///     let freq_signal = signal::from_frames(vec![
+///         [0.125, 0.250],
+///         [0.375, 0.500],
+///         [0.625, 0.750],
+///     ]);
+///
+///     let mut phase = generator::variable_hz(4.0, freq_signal);
+///
+///     // Note that this [`Phase`] terminates once the contained [`Signal`]
+///     // is consumed.
+///     assert_eq!(phase.next(), Some([0.03125, 0.0625]));
+///     assert_eq!(phase.next(), Some([0.125, 0.1875]));
+///     assert_eq!(phase.next(), Some([0.28125, 0.375]));
+///     assert_eq!(phase.next(), None);
+/// }
+/// ```
+pub fn variable_hz<S, const N: usize>(rate: f64, hz_signal: S) -> Phase<Variable<S, N>, N>
+where
+    S: Signal<N>,
+    S::Frame: Frame<N, Sample = f64>,
+{
+    Variable(VarInner::Hzs(hz_signal, rate)).phase()
+}
+
+/// Creates a [`Phase`] with [`Frame`]s of deltas over time, as
+/// yielded by a [`Signal`].
+///
+/// Unlike [`fixed_step`], this [`Phase`] will terminate and stop yielding
+/// step values once the contained [`Signal`] is fully consumed.
+///
+/// ```
+/// use sampara::generator;
+/// use sampara::{signal, Signal};
+///
+/// fn main() {
+///     let delta_signal = signal::from_frames(vec![
+///         [0.03125, 0.0625],
+///         [0.375, 0.500],
+///         [0.625, 0.750],
+///     ]);
+///
+///     let mut phase = generator::variable_step(delta_signal);
+///
+///     // Note that this [`Phase`] terminates once the contained [`Signal`]
+///     // is consumed.
+///     assert_eq!(phase.next(), Some([0.03125, 0.0625]));
+///     assert_eq!(phase.next(), Some([0.40625, 0.5625]));
+///     assert_eq!(phase.next(), Some([0.03125, 0.3125]));
+///     assert_eq!(phase.next(), None);
+/// }
+/// ```
+pub fn variable_step<S, const N: usize>(delta_signal: S) -> Phase<Variable<S, N>, N>
+where
+    S: Signal<N>,
+    S::Frame: Frame<N, Sample = f64>,
+{
+    Variable(VarInner::Deltas(delta_signal)).phase()
+}
+
+/// A sine wave [`Signal`] generator.
+pub struct Sine<D, const N: usize>
+where
+    D: Delta<N>,
+{
+    phase: Phase<D, N>,
+}
+
+impl<D, const N: usize> Signal<N> for Sine<D, N>
+where
+    D: Delta<N>,
+{
+    type Frame = D::Delta;
 
     fn next(&mut self) -> Option<Self::Frame> {
         self.phase.next().map(|mut phase| {
@@ -212,18 +267,18 @@ where
 }
 
 /// A saw wave [`Signal`] generator.
-pub struct Saw<S, const N: usize>
+pub struct Saw<D, const N: usize>
 where
-    S: Step<N>,
+    D: Delta<N>,
 {
-    phase: Phase<S, N>,
+    phase: Phase<D, N>,
 }
 
-impl<S, const N: usize> Signal<N> for Saw<S, N>
+impl<D, const N: usize> Signal<N> for Saw<D, N>
 where
-    S: Step<N>,
+    D: Delta<N>,
 {
-    type Frame = S::Step;
+    type Frame = D::Delta;
 
     fn next(&mut self) -> Option<Self::Frame> {
         self.phase.next().map(|mut phase| {
@@ -234,18 +289,18 @@ where
 }
 
 /// A square wave [`Signal`] generator.
-pub struct Square<S, const N: usize>
+pub struct Square<D, const N: usize>
 where
-    S: Step<N>,
+    D: Delta<N>,
 {
-    phase: Phase<S, N>,
+    phase: Phase<D, N>,
 }
 
-impl<S, const N: usize> Signal<N> for Square<S, N>
+impl<D, const N: usize> Signal<N> for Square<D, N>
 where
-    S: Step<N>,
+    D: Delta<N>,
 {
-    type Frame = S::Step;
+    type Frame = D::Delta;
 
     fn next(&mut self) -> Option<Self::Frame> {
         self.phase.next().map(|mut phase| {
