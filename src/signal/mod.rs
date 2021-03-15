@@ -1,7 +1,6 @@
 mod adaptors;
 mod generators;
 mod iterators;
-pub mod phase;
 
 use crate::{Frame, Sample};
 #[cfg(feature = "biquad")]
