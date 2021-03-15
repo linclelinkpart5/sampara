@@ -220,7 +220,7 @@ mod phase {
     /// use sampara::{signal, Signal};
     ///
     /// fn main() {
-    ///     let mut phase = signal::fixed_hz(44100.0, 440.0);
+    ///     let mut phase = signal::phase_hz(44100.0, 440.0);
     ///
     ///     assert_eq!(phase.next(), Some(0.009977324263038548));
     ///     assert_eq!(phase.next(), Some(0.019954648526077097));
@@ -228,7 +228,7 @@ mod phase {
     ///
     ///     // [`Phase`] keeps track of the accumutated steps, and resets back to
     ///     // 0.0 if it exceeds 1.0.
-    ///     let mut phase = signal::fixed_hz(1.1, 0.5);
+    ///     let mut phase = signal::phase_hz(1.1, 0.5);
     ///     assert_eq!(phase.next(), Some(0.45454545454545453));
     ///     assert_eq!(phase.next(), Some(0.9090909090909091));
     ///     assert_eq!(phase.next(), Some(0.36363636363636354));
@@ -266,14 +266,14 @@ mod phase {
     /// use sampara::{signal, Signal};
     ///
     /// fn main() {
-    ///     let mut phase = signal::fixed_hz(4.0, [0.5, 1.0, 1.5]);
+    ///     let mut phase = signal::phase_hz(4.0, [0.5, 1.0, 1.5]);
     ///
     ///     assert_eq!(phase.next(), Some([0.125, 0.25, 0.375]));
     ///     assert_eq!(phase.next(), Some([0.25, 0.5, 0.75]));
     ///     assert_eq!(phase.next(), Some([0.375, 0.75, 0.125]));
     /// }
     /// ```
-    pub fn fixed_hz<F, const N: usize>(rate: f64, hz: F) -> Phase<Fixed<F, N>, N>
+    pub fn phase_hz<F, const N: usize>(rate: f64, hz: F) -> Phase<Fixed<F, N>, N>
     where
         F: Frame<N, Sample = f64>,
     {
@@ -288,14 +288,14 @@ mod phase {
     /// use sampara::{signal, Signal};
     ///
     /// fn main() {
-    ///     let mut phase = signal::fixed_step([0.125, 0.25, 0.375]);
+    ///     let mut phase = signal::phase_step([0.125, 0.25, 0.375]);
     ///
     ///     assert_eq!(phase.next(), Some([0.125, 0.25, 0.375]));
     ///     assert_eq!(phase.next(), Some([0.25, 0.5, 0.75]));
     ///     assert_eq!(phase.next(), Some([0.375, 0.75, 0.125]));
     /// }
     /// ```
-    pub fn fixed_step<F, const N: usize>(delta: F) -> Phase<Fixed<F, N>, N>
+    pub fn phase_step<F, const N: usize>(delta: F) -> Phase<Fixed<F, N>, N>
     where
         F: Frame<N, Sample = f64>,
     {
@@ -305,7 +305,7 @@ mod phase {
     /// Creates a [`Phase`] with [`Frame`]s of deltas over time, as
     /// yielded by a [`Signal`].
     ///
-    /// Unlike [`fixed_hz`], this [`Phase`] will terminate and stop yielding
+    /// Unlike [`phase_hz`], this [`Phase`] will terminate and stop yielding
     /// step values once the contained [`Signal`] is fully consumed.
     ///
     /// ```
@@ -318,7 +318,7 @@ mod phase {
     ///         [0.625, 0.750],
     ///     ]);
     ///
-    ///     let mut phase = signal::variable_hz(4.0, freq_signal);
+    ///     let mut phase = signal::phase_hzs(4.0, freq_signal);
     ///
     ///     // Note that this [`Phase`] terminates once the contained [`Signal`]
     ///     // is consumed.
@@ -328,7 +328,7 @@ mod phase {
     ///     assert_eq!(phase.next(), None);
     /// }
     /// ```
-    pub fn variable_hz<S, const N: usize>(rate: f64, hz_signal: S) -> Phase<Variable<S, N>, N>
+    pub fn phase_hzs<S, const N: usize>(rate: f64, hz_signal: S) -> Phase<Variable<S, N>, N>
     where
         S: Signal<N>,
         S::Frame: Frame<N, Sample = f64>,
@@ -339,7 +339,7 @@ mod phase {
     /// Creates a [`Phase`] with [`Frame`]s of deltas over time, as
     /// yielded by a [`Signal`].
     ///
-    /// Unlike [`fixed_step`], this [`Phase`] will terminate and stop yielding
+    /// Unlike [`phase_step`], this [`Phase`] will terminate and stop yielding
     /// step values once the contained [`Signal`] is fully consumed.
     ///
     /// ```
@@ -352,7 +352,7 @@ mod phase {
     ///         [0.625, 0.750],
     ///     ]);
     ///
-    ///     let mut phase = signal::variable_step(delta_signal);
+    ///     let mut phase = signal::phase_steps(delta_signal);
     ///
     ///     // Note that this [`Phase`] terminates once the contained [`Signal`]
     ///     // is consumed.
@@ -362,7 +362,7 @@ mod phase {
     ///     assert_eq!(phase.next(), None);
     /// }
     /// ```
-    pub fn variable_step<S, const N: usize>(delta_signal: S) -> Phase<Variable<S, N>, N>
+    pub fn phase_steps<S, const N: usize>(delta_signal: S) -> Phase<Variable<S, N>, N>
     where
         S: Signal<N>,
         S::Frame: Frame<N, Sample = f64>,
