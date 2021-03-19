@@ -219,6 +219,32 @@ pub trait Signal<const N: usize> {
         }
     }
 
+    /// Returns a new [`Signal`] that yields only the first N [`Frame`]s of
+    /// [`Self`].
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let mut signal = signal::from_frames(0u8..=99)
+    ///         .take(3);
+    ///
+    ///     assert_eq!(signal.next(), Some(0));
+    ///     assert_eq!(signal.next(), Some(1));
+    ///     assert_eq!(signal.next(), Some(2));
+    ///     assert_eq!(signal.next(), None);
+    /// }
+    /// ```
+    fn take(self, n: usize) -> Take<Self, N>
+    where
+        Self: Sized,
+    {
+        Take {
+            signal: self,
+            n,
+        }
+    }
+
     /// Converts this [`Signal`] into an [`Iterator`] yielding [`Frame`]s.
     ///
     /// ```

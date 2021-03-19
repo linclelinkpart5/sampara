@@ -305,6 +305,35 @@ where
     }
 }
 
+/// Creates a new [`Signal`] that yields the first N [`Frame`]s of a [`Signal`],
+/// and then stops.
+#[derive(Clone)]
+pub struct Take<S, const N: usize>
+where
+    S: Signal<N>,
+{
+    pub(super) signal: S,
+    pub(super) n: usize,
+}
+
+impl<S, const N: usize> Signal<N> for Take<S, N>
+where
+    S: Signal<N>,
+{
+    type Frame = S::Frame;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        if self.n > 0 {
+            self.n -= 1;
+            self.signal.next()
+        }
+        else {
+            None
+        }
+    }
+}
+
 #[cfg(feature = "biquad")]
 pub struct Biquad<S, P, const N: usize>
 where
