@@ -334,6 +334,37 @@ where
     }
 }
 
+/// Creates a new [`Signal`] that yields all of the [`Frame`]s from another
+/// [`Signal`]. If the [`Signal`] yields less than N [`Frame`]s, then this will
+/// yield [`Frame::EQUILIBRIUM`] until N total [`Frame`]s have been yielded.
+#[derive(Clone)]
+pub struct Pad<S, const N: usize>
+where
+    S: Signal<N>,
+{
+    pub(super) signal: S,
+    pub(super) n: usize,
+}
+
+impl<S, const N: usize> Signal<N> for Pad<S, N>
+where
+    S: Signal<N>,
+{
+    type Frame = S::Frame;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        let ret = match self.signal.next() {
+            None if self.n > 0 => Some(Frame::EQUILIBRIUM),
+            x => x,
+        };
+
+        self.n = self.n.saturating_sub(1);
+
+        ret
+    }
+}
+
 #[cfg(feature = "biquad")]
 pub struct Biquad<S, P, const N: usize>
 where

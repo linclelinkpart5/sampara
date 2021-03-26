@@ -245,6 +245,44 @@ pub trait Signal<const N: usize> {
         }
     }
 
+    /// Returns a new [`Signal`] that yields all the [`Frame`]s of [`Self`],
+    /// and then [`Frame::EQUILIBRIUM`] until at least N total [`Frame`]s have
+    /// been yielded.
+    ///
+    /// ```
+    /// use sampara::{signal, Signal, Frame};
+    ///
+    /// fn main() {
+    ///     let mut signal = signal::from_frames(vec![9, 8, 7])
+    ///         .pad(4);
+    ///
+    ///     assert_eq!(signal.next(), Some(9));
+    ///     assert_eq!(signal.next(), Some(8));
+    ///     assert_eq!(signal.next(), Some(7));
+    ///     assert_eq!(signal.next(), Some(Frame::EQUILIBRIUM));
+    ///     assert_eq!(signal.next(), None);
+    ///
+    ///     // Yields the full original signal if padding is less than its
+    ///     // length.
+    ///     let mut signal = signal::from_frames(vec![9, 8, 7])
+    ///         .pad(2);
+    ///
+    ///     assert_eq!(signal.next(), Some(9));
+    ///     assert_eq!(signal.next(), Some(8));
+    ///     assert_eq!(signal.next(), Some(7));
+    ///     assert_eq!(signal.next(), None);
+    /// }
+    /// ```
+    fn pad(self, n: usize) -> Pad<Self, N>
+    where
+        Self: Sized,
+    {
+        Pad {
+            signal: self,
+            n,
+        }
+    }
+
     /// Converts this [`Signal`] into an [`Iterator`] yielding [`Frame`]s.
     ///
     /// ```
