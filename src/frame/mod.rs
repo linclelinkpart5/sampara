@@ -503,6 +503,19 @@ where
     }
 }
 
+// TODO: Implement this once associated consts can be used as const generics
+//       (i.e. when `N` does not need to be specified as a const generic param)!
+// impl<A, B, const N: usize> From<A> for B
+// where
+//     A: Frame<N>,
+//     B: Frame<N>,
+//     B::Sample: ConvertFrom<A::Sample>,
+// {
+//     fn from(value: A) -> B {
+//         value.apply(ConvertInto::convert_into)
+//     }
+// }
+
 pub type Mono<S> = [S; 1];
 pub type Stereo<S> = [S; 2];
 
