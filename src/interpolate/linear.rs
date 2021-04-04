@@ -1,4 +1,4 @@
-use crate::{Duplex, Frame, Sample};
+use crate::{Duplex, Frame, Sample, Signal};
 use crate::interpolate::Interpolator;
 
 /// An [`Interpolator`] that linearly combines a left and a right [`Frame`].
@@ -51,5 +51,17 @@ where
     fn advance(&mut self, next_frame: Self::Frame) {
         self.left = self.right;
         self.right = next_frame;
+    }
+
+    fn initialize<S>(&mut self, signal: &mut S) -> Option<()>
+    where
+        S: Signal<N, Frame = F>
+    {
+        *self = Self {
+            left: signal.next()?,
+            right: signal.next()?,
+        };
+
+        Some(())
     }
 }

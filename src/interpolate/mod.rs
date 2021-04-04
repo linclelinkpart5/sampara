@@ -6,7 +6,7 @@ pub use floor::*;
 pub use linear::*;
 pub use sinc::*;
 
-use crate::Frame;
+use crate::{Frame, Signal};
 
 /// Types that can interpolate between two [`Frame`]s.
 ///
@@ -23,4 +23,9 @@ pub trait Interpolator<const N: usize> {
 
     /// To be called whenever the interpolant value steps past 1.0.
     fn advance(&mut self, next_frame: Self::Frame);
+
+    /// Fills this [`Interpolator`] with the needed [`Frame`]s from a
+    /// [`Signal`] to begin processing.
+    fn initialize<S>(&mut self, signal: &mut S) -> Option<()>
+    where S: Signal<N, Frame = Self::Frame>;
 }

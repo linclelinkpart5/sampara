@@ -1,4 +1,4 @@
-use crate::{Duplex, Frame};
+use crate::{Duplex, Frame, Signal};
 use crate::interpolate::Interpolator;
 
 /// An [`Interpolator`] that rounds down to the previous source [`Frame`].
@@ -44,5 +44,16 @@ where
 
     fn advance(&mut self, next_frame: Self::Frame) {
         self.left = next_frame;
+    }
+
+    fn initialize<S>(&mut self, signal: &mut S) -> Option<()>
+    where
+        S: Signal<N, Frame = F>
+    {
+        *self = Self {
+            left: signal.next()?,
+        };
+
+        Some(())
     }
 }

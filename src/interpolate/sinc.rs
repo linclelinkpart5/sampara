@@ -2,7 +2,7 @@ use core::f64::consts::PI;
 
 use num_traits::Float;
 
-use crate::{Duplex, Frame, Sample};
+use crate::{Duplex, Frame, Sample, Signal};
 use crate::buffer::{Buffer, Fixed};
 use crate::interpolate::Interpolator;
 
@@ -148,6 +148,17 @@ where
         if self.idx < self.depth() {
             self.idx += 1;
         }
+    }
+
+    fn initialize<S>(&mut self, signal: &mut S) -> Option<()>
+    where
+        S: Signal<N, Frame = F>
+    {
+        for b in self.buffer.iter_mut() {
+            *b = signal.next()?;
+        }
+
+        Some(())
     }
 }
 
