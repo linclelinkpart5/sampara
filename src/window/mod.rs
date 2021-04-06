@@ -30,3 +30,47 @@ impl<F: Float> WindowFunc<F> for Triangle {
         F::one() - x.abs()
     }
 }
+
+
+pub struct Iter<W, F>
+where
+    W: WindowFunc<F>,
+    F: Float,
+{
+    i: usize,
+    len: usize,
+    _marker: std::marker::PhantomData<(W, F)>,
+}
+
+impl<W, F> Iterator for Iter<W, F>
+where
+    W: WindowFunc<F>,
+    F: Float,
+{
+    type Item = F;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.i < self.len {
+            let y = match self.len {
+                0 => unreachable!(),
+
+                // TODO: Should this be zero or one?
+                1 => F::zero(),
+
+                n => {
+                    let f = F::from(2).unwrap() / F::from(n - 1).unwrap();
+
+                    let x = f * F::from(self.i).unwrap() - F::one();
+
+                    W::calc(x)
+                },
+            };
+
+            self.i += 1;
+            Some(y)
+        }
+        else {
+            None
+        }
+    }
+}
