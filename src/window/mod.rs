@@ -10,7 +10,7 @@ enum End {
     Back,
 }
 
-pub trait WindowFunc<F: Float> {
+pub trait Window<F: Float> {
     /// Given a value in the interval [-1.0, 1.0], returns the value of the
     /// window function at that point.
     fn calc(&self, x: F) -> F;
@@ -26,13 +26,13 @@ pub trait WindowFunc<F: Float> {
     where
         Self: Sized,
     {
-        Iter(IterCase::new(len, self))
+        Iter(IterImpl::new(len, self))
     }
 }
 
 pub struct Rectangle;
 
-impl<F: Float> WindowFunc<F> for Rectangle {
+impl<F: Float> Window<F> for Rectangle {
     fn calc(&self, _x: F) -> F {
         F::one()
     }
@@ -40,7 +40,7 @@ impl<F: Float> WindowFunc<F> for Rectangle {
 
 pub struct Triangle;
 
-impl<F: Float> WindowFunc<F> for Triangle {
+impl<F: Float> Window<F> for Triangle {
     fn calc(&self, x: F) -> F {
         F::one() - x.abs()
     }
@@ -49,25 +49,25 @@ impl<F: Float> WindowFunc<F> for Triangle {
 #[inline]
 fn calc_at<W, F>(i: usize, factor: F, wf: &W) -> F
 where
-    W: WindowFunc<F>,
+    W: Window<F>,
     F: Float,
 {
     let x = factor * F::from(i).unwrap() - F::one();
     wf.calc(x)
 }
 
-enum IterCase<W, F>
+enum IterImpl<W, F>
 where
-    W: WindowFunc<F>,
+    W: Window<F>,
     F: Float,
 {
     ZeroOne(OptionIntoIter<()>),
     Normal(Range<usize>, F, W),
 }
 
-impl<W, F> IterCase<W, F>
+impl<W, F> IterImpl<W, F>
 where
-    W: WindowFunc<F>,
+    W: Window<F>,
     F: Float,
 {
     fn new(len: usize, windower: W) -> Self {
@@ -81,6 +81,7 @@ where
         }
     }
 
+    #[inline]
     fn advance(&mut self, end: End) -> Option<<Self as Iterator>::Item> {
         match self {
             Self::ZeroOne(it) => {
@@ -105,9 +106,9 @@ where
     }
 }
 
-impl<W, F> Iterator for IterCase<W, F>
+impl<W, F> Iterator for IterImpl<W, F>
 where
-    W: WindowFunc<F>,
+    W: Window<F>,
     F: Float,
 {
     type Item = F;
@@ -124,9 +125,9 @@ where
     }
 }
 
-impl<W, F> ExactSizeIterator for IterCase<W, F>
+impl<W, F> ExactSizeIterator for IterImpl<W, F>
 where
-    W: WindowFunc<F>,
+    W: Window<F>,
     F: Float,
 {
     fn len(&self) -> usize {
@@ -137,9 +138,9 @@ where
     }
 }
 
-impl<W, F> DoubleEndedIterator for IterCase<W, F>
+impl<W, F> DoubleEndedIterator for IterImpl<W, F>
 where
-    W: WindowFunc<F>,
+    W: Window<F>,
     F: Float,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
@@ -147,19 +148,19 @@ where
     }
 }
 
-/// An [`Iterator`] that yields the values of a window (via a [`WindowFunc`])
+/// An [`Iterator`] that yields the values of a window (via a [`Window`])
 /// for a given number of points, evenly spaced to exactly span the interval
 /// [-1.0, 1.0].
 ///
 /// Iterating over 0 points yields no values. Iterating over 1 point yields 0.0
-/// once, regardless of the chosen [`WindowFunc`].
+/// once, regardless of the chosen [`Window`].
 ///
 /// ```
-/// use sampara::window::{WindowFunc, Triangle, Iter};
+/// use sampara::window::{Window, Triangle, Iter};
 ///
 /// fn main() {
 ///     // An odd number of points produces a value at `x = 0.0` exactly.
-///     let mut iter = Triangle.iter(5);
+///     let mut iter = Window::iter(Triangle, 5);
 ///
 ///     assert_eq!(iter.next(), Some(0.0f64));
 ///     assert_eq!(iter.next(), Some(0.5));
@@ -169,7 +170,7 @@ where
 ///     assert_eq!(iter.next(), None);
 ///
 ///     // An even number of points misses the `x = 0.0` point slightly.
-///     let mut iter = Triangle.iter(4);
+///     let mut iter = Window::iter(Triangle, 4);
 ///
 ///     assert_eq!(iter.next(), Some(0.0f64));
 ///     assert_eq!(iter.next(), Some(0.6666666666666666));
@@ -178,33 +179,33 @@ where
 ///     assert_eq!(iter.next(), None);
 ///
 ///     // Two points produce values at `x = -1.0` and `x = 1.0`.
-///     let mut iter = Triangle.iter(2);
+///     let mut iter = Window::iter(Triangle, 2);
 ///
 ///     assert_eq!(iter.next(), Some(0.0f64));
 ///     assert_eq!(iter.next(), Some(0.0));
 ///     assert_eq!(iter.next(), None);
 ///
-///     // One point always yields a value of `0.0`.
-///     let mut iter = Triangle.iter(1);
+///     // One point always yields a single value of `0.0`.
+///     let mut iter = Window::iter(Triangle, 1);
 ///
 ///     assert_eq!(iter.next(), Some(0.0f64));
 ///     assert_eq!(iter.next(), None);
 ///
 ///     // Zero points is an empty iterator.
-///     let mut iter: Iter<_, f64> = Triangle.iter(0);
+///     let mut iter: Iter<_, f64> = Window::iter(Triangle, 0);
 ///
 ///     assert_eq!(iter.next(), None);
 /// }
 /// ```
-pub struct Iter<W, F>(IterCase<W, F>)
+pub struct Iter<W, F>(IterImpl<W, F>)
 where
-    W: WindowFunc<F>,
+    W: Window<F>,
     F: Float,
 ;
 
 impl<W, F> Iterator for Iter<W, F>
 where
-    W: WindowFunc<F>,
+    W: Window<F>,
     F: Float,
 {
     type Item = F;
@@ -220,7 +221,7 @@ where
 
 impl<W, F> ExactSizeIterator for Iter<W, F>
 where
-    W: WindowFunc<F>,
+    W: Window<F>,
     F: Float,
 {
     fn len(&self) -> usize {
@@ -230,7 +231,7 @@ where
 
 impl<W, F> DoubleEndedIterator for Iter<W, F>
 where
-    W: WindowFunc<F>,
+    W: Window<F>,
     F: Float,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
