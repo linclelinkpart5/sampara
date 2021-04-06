@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use num_traits::Float;
 
 use crate::buffer::Buffer;
@@ -19,7 +21,7 @@ pub trait WindowFunc<F: Float> {
         Self: Sized,
     {
         Iter {
-            i: 0,
+            range: 0..len,
             len,
             _marker: Default::default(),
         }
@@ -96,9 +98,32 @@ where
     W: WindowFunc<F>,
     F: Float,
 {
-    i: usize,
+    range: Range<usize>,
     len: usize,
     _marker: std::marker::PhantomData<(W, F)>,
+}
+
+impl<W, F> Iter<W, F>
+where
+    W: WindowFunc<F>,
+    F: Float,
+{
+    fn idx(&self, i: usize) -> F {
+        match self.len {
+            0 => unreachable!(),
+
+            // TODO: Should this be zero or one?
+            1 => F::zero(),
+
+            n => {
+                let f = F::from(2).unwrap() / F::from(n - 1).unwrap();
+
+                let x = f * F::from(i).unwrap() - F::one();
+
+                W::calc(x)
+            },
+        }
+    }
 }
 
 impl<W, F> Iterator for Iter<W, F>
@@ -109,34 +134,12 @@ where
     type Item = F;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.i < self.len {
-            let y = match self.len {
-                0 => unreachable!(),
-
-                // TODO: Should this be zero or one?
-                1 => F::zero(),
-
-                n => {
-                    let f = F::from(2).unwrap() / F::from(n - 1).unwrap();
-
-                    let x = f * F::from(self.i).unwrap() - F::one();
-
-                    W::calc(x)
-                },
-            };
-
-            self.i += 1;
-            Some(y)
-        }
-        else {
-            None
-        }
+        let i = self.range.next()?;
+        Some(self.idx(i))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        // This should never underflow.
-        let r = self.len - self.i;
-        (r, Some(r))
+        self.range.size_hint()
     }
 }
 
@@ -144,4 +147,19 @@ impl<W, F> ExactSizeIterator for Iter<W, F>
 where
     W: WindowFunc<F>,
     F: Float,
-{}
+{
+    fn len(&self) -> usize {
+        self.range.len()
+    }
+}
+
+impl<W, F> DoubleEndedIterator for Iter<W, F>
+where
+    W: WindowFunc<F>,
+    F: Float,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let i = self.range.next_back()?;
+        Some(self.idx(i))
+    }
+}
