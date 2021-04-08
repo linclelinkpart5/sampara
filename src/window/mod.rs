@@ -1,3 +1,7 @@
+pub mod types;
+
+pub use types::*;
+
 use std::ops::Range;
 use std::option::IntoIter as OptionIntoIter;
 
@@ -23,7 +27,8 @@ pub trait Window<F: Float> {
     /// A window of length 0 produces an empty iterator.
     ///
     /// ```
-    /// use sampara::window::{Window, Triangle};
+    /// use sampara::window::Window;
+    /// use sampara::window::types::Triangle;
     ///
     /// fn main() {
     ///     // An odd number of points produces a value at `x = 0.0` exactly.
@@ -74,7 +79,8 @@ pub trait Window<F: Float> {
     /// Fills a buffer of length `N` with the values of a window of length `N`.
     ///
     /// ```
-    /// use sampara::window::{Window, Triangle};
+    /// use sampara::window::Window;
+    /// use sampara::window::types::Triangle;
     ///
     /// fn main() {
     ///     let mut buffer = [-1.0f64; 5];
@@ -109,22 +115,6 @@ pub trait Window<F: Float> {
         for (y, b) in iter.zip(slice.iter_mut()) {
             *b = y;
         }
-    }
-}
-
-pub struct Rectangle;
-
-impl<F: Float> Window<F> for Rectangle {
-    fn calc(&self, _x: F) -> F {
-        F::one()
-    }
-}
-
-pub struct Triangle;
-
-impl<F: Float> Window<F> for Triangle {
-    fn calc(&self, x: F) -> F {
-        F::one() - x.abs()
     }
 }
 
