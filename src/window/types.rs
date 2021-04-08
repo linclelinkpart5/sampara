@@ -16,7 +16,7 @@ pub struct Triangle;
 
 impl<F: Float> Window<F> for Triangle {
     fn calc(&self, x: F) -> F {
-        F::one() - x.abs()
+        F::one() - ((x + x) - F::one()).abs()
     }
 }
 

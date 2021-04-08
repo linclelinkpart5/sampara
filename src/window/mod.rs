@@ -15,33 +15,18 @@ enum End {
 }
 
 pub trait Window<F: Float> {
-    /// Given a value in the interval [-1.0, 1.0], returns the value of the
+    /// Given a value in the interval [0.0, 1.0], returns the value of the
     /// window function at that point.
     fn calc(&self, x: F) -> F;
 
     /// Returns an iterator that yields the values of a window of length `N`,
-    /// evenly spaced to exactly span the input interval [-1.0, 1.0].
-    ///
-    /// A window of length 1 produces an iterator that yields a single 0.0.
-    ///
-    /// A window of length 0 produces an empty iterator.
+    /// evenly spaced to span the input interval [0.0, 1.0].
     ///
     /// ```
     /// use sampara::window::Window;
     /// use sampara::window::types::Triangle;
     ///
     /// fn main() {
-    ///     // An odd number of points produces a value at `x = 0.0` exactly.
-    ///     let mut iter = Window::iter(Triangle, 5);
-    ///
-    ///     assert_eq!(iter.next(), Some(0.0f64));
-    ///     assert_eq!(iter.next(), Some(0.5));
-    ///     assert_eq!(iter.next(), Some(1.0)); // x = 0.0
-    ///     assert_eq!(iter.next(), Some(0.5));
-    ///     assert_eq!(iter.next(), Some(0.0));
-    ///     assert_eq!(iter.next(), None);
-    ///
-    ///     // An even number of points misses the `x = 0.0` point slightly.
     ///     let mut iter = Window::iter(Triangle, 4);
     ///
     ///     assert_eq!(iter.next(), Some(0.0f64));
@@ -50,17 +35,10 @@ pub trait Window<F: Float> {
     ///     assert_eq!(iter.next(), Some(0.0));
     ///     assert_eq!(iter.next(), None);
     ///
-    ///     // Two points produce values at `x = -1.0` and `x = 1.0`.
-    ///     let mut iter = Window::iter(Triangle, 2);
-    ///
-    ///     assert_eq!(iter.next(), Some(0.0f64));
-    ///     assert_eq!(iter.next(), Some(0.0));
-    ///     assert_eq!(iter.next(), None);
-    ///
-    ///     // One point always yields a single value of `0.0`.
+    ///     // One point always yields a single value of `1.0`.
     ///     let mut iter = Window::iter(Triangle, 1);
     ///
-    ///     assert_eq!(iter.next(), Some(0.0f64));
+    ///     assert_eq!(iter.next(), Some(1.0f64));
     ///     assert_eq!(iter.next(), None);
     ///
     ///     // Zero points is an empty iterator.
@@ -83,21 +61,13 @@ pub trait Window<F: Float> {
     /// use sampara::window::types::Triangle;
     ///
     /// fn main() {
-    ///     let mut buffer = [-1.0f64; 5];
-    ///     Window::fill_buffer(Triangle, &mut buffer);
-    ///     assert_eq!(buffer, [0.0, 0.5, 1.0, 0.5, 0.0]);
-    ///
     ///     let mut buffer = [-1.0f64; 4];
     ///     Window::fill_buffer(Triangle, &mut buffer);
     ///     assert_eq!(buffer, [0.0, 0.6666666666666666, 0.6666666666666667, 0.0]);
     ///
-    ///     let mut buffer = [-1.0f64; 2];
-    ///     Window::fill_buffer(Triangle, &mut buffer);
-    ///     assert_eq!(buffer, [0.0, 0.0]);
-    ///
     ///     let mut buffer = [-1.0f64; 1];
     ///     Window::fill_buffer(Triangle, &mut buffer);
-    ///     assert_eq!(buffer, [0.0]);
+    ///     assert_eq!(buffer, [1.0]);
     ///
     ///     let mut buffer = [-1.0f64; 0];
     ///     Window::fill_buffer(Triangle, &mut buffer);
@@ -116,16 +86,6 @@ pub trait Window<F: Float> {
             *b = y;
         }
     }
-}
-
-#[inline]
-fn calc_at<W, F>(i: usize, factor: F, wf: &W) -> F
-where
-    W: Window<F>,
-    F: Float,
-{
-    let x = factor * F::from(i).unwrap() - F::one();
-    wf.calc(x)
 }
 
 enum IterImpl<W, F>
@@ -147,7 +107,7 @@ where
             0 => Self::ZeroOne(None.into_iter()),
             1 => Self::ZeroOne(Some(()).into_iter()),
             n => {
-                let factor = F::from(2).unwrap() / F::from(n - 1).unwrap();
+                let factor = F::from(n - 1).unwrap().recip();
                 Self::Normal(0..n, factor, windower)
             },
         }
@@ -162,8 +122,7 @@ where
                     End::Back => it.next_back(),
                 };
 
-                // TODO: Should this be zero or one?
-                opt.map(|_| F::zero())
+                opt.map(|_| F::one())
             },
 
             Self::Normal(range, factor, wf) => {
@@ -172,7 +131,10 @@ where
                     End::Back => range.next_back(),
                 }?;
 
-                Some(calc_at(i, *factor, wf))
+                let x = *factor * F::from(i).unwrap();
+                let y = wf.calc(x);
+
+                Some(y)
             },
         }
     }
@@ -221,11 +183,7 @@ where
 }
 
 /// An [`Iterator`] that yields the values of a window (via a [`Window`])
-/// for a given number of points, evenly spaced to exactly span the interval
-/// [-1.0, 1.0].
-///
-/// Iterating over 0 points yields no values. Iterating over 1 point yields 0.0
-/// once, regardless of the chosen [`Window`].
+/// for a given number of points, evenly spaced to span the interval [0.0, 1.0].
 pub struct Iter<W, F>(IterImpl<W, F>)
 where
     W: Window<F>,
