@@ -168,6 +168,80 @@ pub trait Window<F: Float> {
             *buf = w;
         }
     }
+
+    /// Element-wise multiplies a buffer of length `N` with the values of a
+    /// symmetric window of length `N`.
+    ///
+    /// ```
+    /// use sampara::window::Window;
+    /// use sampara::window::types::Triangle;
+    ///
+    /// fn main() {
+    ///     let mut buffer = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+    ///     Window::apply(Triangle, &mut buffer);
+    ///     assert_eq!(buffer, [
+    ///         0.0,
+    ///         0.022222222222222223,
+    ///         0.08888888888888889,
+    ///         0.19999999999999998,
+    ///         0.35555555555555557,
+    ///         0.4444444444444444,
+    ///         0.4,
+    ///         0.3111111111111112,
+    ///         0.17777777777777787,
+    ///         0.0,
+    ///     ]);
+    /// }
+    /// ```
+    fn apply<B>(self, buffer: &mut B)
+    where
+        Self: Sized,
+        B: Buffer<Item = F>,
+    {
+        let slice = buffer.as_mut();
+        let window = self.iter(slice.len());
+
+        for (buf, w) in slice.iter_mut().zip(window) {
+            *buf = *buf * w;
+        }
+    }
+
+    /// Element-wise multiplies a buffer of length `N` with the values of a
+    /// periodic window of length `N`.
+    ///
+    /// ```
+    /// use sampara::window::Window;
+    /// use sampara::window::types::Triangle;
+    ///
+    /// fn main() {
+    ///     let mut buffer = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+    ///     Window::apply_periodic(Triangle, &mut buffer);
+    ///     assert_eq!(buffer, [
+    ///         0.0,
+    ///         0.019999999999999997,
+    ///         0.08000000000000002,
+    ///         0.18000000000000002,
+    ///         0.32000000000000006,
+    ///         0.5,
+    ///         0.47999999999999987,
+    ///         0.4199999999999999,
+    ///         0.31999999999999995,
+    ///         0.17999999999999997,
+    ///     ]);
+    /// }
+    /// ```
+    fn apply_periodic<B>(self, buffer: &mut B)
+    where
+        Self: Sized,
+        B: Buffer<Item = F>,
+    {
+        let slice = buffer.as_mut();
+        let window = self.iter_periodic(slice.len());
+
+        for (buf, w) in slice.iter_mut().zip(window) {
+            *buf = *buf * w;
+        }
+    }
 }
 
 enum IterImpl<W, F>
