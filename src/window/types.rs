@@ -12,7 +12,7 @@ use crate::window::Window;
 ///
 /// fn main() {
 ///     let mut buffer = [-1.0; 16];
-///     Window::fill_buffer(Rectangle, &mut buffer);
+///     Window::fill(Rectangle, &mut buffer);
 ///     assert_eq!(buffer, [1.0; 16]);
 /// }
 /// ```
@@ -32,7 +32,7 @@ impl<F: Float> Window<F> for Rectangle {
 ///
 /// fn main() {
 ///     let mut buffer = [-1.0; 16];
-///     Window::fill_buffer(Triangle, &mut buffer);
+///     Window::fill(Triangle, &mut buffer);
 ///     assert_eq!(buffer, [
 ///         0.0000000000000000,
 ///         0.1333333333333333,
@@ -69,7 +69,7 @@ impl<F: Float> Window<F> for Triangle {
 ///
 /// fn main() {
 ///     let mut buffer = [-1.0; 16];
-///     Window::fill_buffer(Welch, &mut buffer);
+///     Window::fill(Welch, &mut buffer);
 ///     assert_eq!(buffer, [
 ///         0.00000000000000000,
 ///         0.24888888888888883,
@@ -107,7 +107,7 @@ impl<F: Float> Window<F> for Welch {
 ///
 /// fn main() {
 ///     let mut buffer = [-1.0; 16];
-///     Window::fill_buffer(Hann, &mut buffer);
+///     Window::fill(Hann, &mut buffer);
 ///     assert_eq!(buffer, [
 ///         0.00000000000000000,
 ///         0.04322727117869957,
@@ -144,7 +144,7 @@ impl<F: Float + FloatConst> Window<F> for Hann {
 ///
 /// fn main() {
 ///     let mut buffer = [-1.0; 16];
-///     Window::fill_buffer(Blackman, &mut buffer);
+///     Window::fill(Blackman, &mut buffer);
 ///     assert_eq!(buffer, [
 ///         -0.000000000000000013877787807814457,
 ///         0.016757719687408210,

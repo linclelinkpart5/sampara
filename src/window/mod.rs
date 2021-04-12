@@ -9,6 +9,11 @@ use num_traits::Float;
 
 use crate::buffer::Buffer;
 
+enum PS {
+    Periodic,
+    Symmetric,
+}
+
 enum End {
     Front,
     Back,
@@ -19,8 +24,11 @@ pub trait Window<F: Float> {
     /// window function at that point.
     fn calc(&self, x: F) -> F;
 
-    /// Returns an iterator that yields the values of a window of length `N`,
-    /// evenly spaced to span the input interval [0.0, 1.0].
+    /// Returns an iterator that yields the values of a symmetric window of
+    /// length `N`.
+    ///
+    /// The `N` input values for a symmetric window evenly span the input
+    /// interval [0.0, 1.0].
     ///
     /// ```
     /// use sampara::window::Window;
@@ -51,10 +59,50 @@ pub trait Window<F: Float> {
     where
         Self: Sized,
     {
-        Iter(IterImpl::new(len, self))
+        Iter(IterImpl::new(len, self, PS::Symmetric))
     }
 
-    /// Fills a buffer of length `N` with the values of a window of length `N`.
+    /// Returns an iterator that yields the values of a periodic window of
+    /// length `N`.
+    ///
+    /// A periodic window of length `N` is equivalent to a symmetric window of
+    /// length `N + 1` with its last value omitted.
+    ///
+    /// ```
+    /// use sampara::window::Window;
+    /// use sampara::window::types::Triangle;
+    ///
+    /// fn main() {
+    ///     let mut iter = Window::iter_periodic(Triangle, 4);
+    ///
+    ///     // The first 4 values of a symmetric window of length 5.
+    ///     assert_eq!(iter.next(), Some(0.0f64));
+    ///     assert_eq!(iter.next(), Some(0.5));
+    ///     assert_eq!(iter.next(), Some(1.0));
+    ///     assert_eq!(iter.next(), Some(0.5));
+    ///     assert_eq!(iter.next(), None);
+    ///
+    ///     // The first value of a symmetric window of length 2.
+    ///     let mut iter = Window::iter_periodic(Triangle, 1);
+    ///
+    ///     assert_eq!(iter.next(), Some(0.0f64));
+    ///     assert_eq!(iter.next(), None);
+    ///
+    ///     // Zero points is an empty iterator.
+    ///     let mut iter = Window::<f64>::iter_periodic(Triangle, 0);
+    ///
+    ///     assert_eq!(iter.next(), None);
+    /// }
+    /// ```
+    fn iter_periodic(self, len: usize) -> IterPeriodic<Self, F>
+    where
+        Self: Sized,
+    {
+        IterPeriodic(IterImpl::new(len, self, PS::Periodic))
+    }
+
+    /// Fills a buffer of length `N` with the values of a symmetric window of
+    /// length `N`.
     ///
     /// ```
     /// use sampara::window::Window;
@@ -62,28 +110,62 @@ pub trait Window<F: Float> {
     ///
     /// fn main() {
     ///     let mut buffer = [-1.0f64; 4];
-    ///     Window::fill_buffer(Triangle, &mut buffer);
+    ///     Window::fill(Triangle, &mut buffer);
     ///     assert_eq!(buffer, [0.0, 0.6666666666666666, 0.6666666666666667, 0.0]);
     ///
     ///     let mut buffer = [-1.0f64; 1];
-    ///     Window::fill_buffer(Triangle, &mut buffer);
+    ///     Window::fill(Triangle, &mut buffer);
     ///     assert_eq!(buffer, [1.0]);
     ///
     ///     let mut buffer = [-1.0f64; 0];
-    ///     Window::fill_buffer(Triangle, &mut buffer);
+    ///     Window::fill(Triangle, &mut buffer);
     ///     assert_eq!(buffer, []);
     /// }
     /// ```
-    fn fill_buffer<B>(self, buffer: &mut B)
+    fn fill<B>(self, buffer: &mut B)
     where
         Self: Sized,
         B: Buffer<Item = F>,
     {
         let slice = buffer.as_mut();
-        let iter = self.iter(slice.len());
+        let window = self.iter(slice.len());
 
-        for (y, b) in iter.zip(slice.iter_mut()) {
-            *b = y;
+        for (buf, w) in slice.iter_mut().zip(window) {
+            *buf = w;
+        }
+    }
+
+    /// Fills a buffer of length `N` with the values of a periodic window of
+    /// length `N`.
+    ///
+    /// ```
+    /// use sampara::window::Window;
+    /// use sampara::window::types::Triangle;
+    ///
+    /// fn main() {
+    ///     let mut buffer = [-1.0f64; 4];
+    ///     Window::fill_periodic(Triangle, &mut buffer);
+    ///     assert_eq!(buffer, [0.0, 0.5, 1.0, 0.5]);
+    ///
+    ///     let mut buffer = [-1.0f64; 1];
+    ///     Window::fill_periodic(Triangle, &mut buffer);
+    ///     assert_eq!(buffer, [0.0]);
+    ///
+    ///     let mut buffer = [-1.0f64; 0];
+    ///     Window::fill_periodic(Triangle, &mut buffer);
+    ///     assert_eq!(buffer, []);
+    /// }
+    /// ```
+    fn fill_periodic<B>(self, buffer: &mut B)
+    where
+        Self: Sized,
+        B: Buffer<Item = F>,
+    {
+        let slice = buffer.as_mut();
+        let window = self.iter_periodic(slice.len());
+
+        for (buf, w) in slice.iter_mut().zip(window) {
+            *buf = w;
         }
     }
 }
@@ -102,15 +184,16 @@ where
     W: Window<F>,
     F: Float,
 {
-    fn new(len: usize, windower: W) -> Self {
-        match len {
-            0 => Self::ZeroOne(None.into_iter()),
-            1 => Self::ZeroOne(Some(()).into_iter()),
-            n => {
-                let factor = F::from(n - 1).unwrap().recip();
-                Self::Normal(0..n, factor, windower)
-            },
-        }
+    fn new(len: usize, windower: W, ps: PS) -> Self {
+        let bins = match (len, ps) {
+            (0, _) => return Self::ZeroOne(None.into_iter()),
+            (1, PS::Symmetric) => return Self::ZeroOne(Some(()).into_iter()),
+            (n, PS::Symmetric) => n - 1,
+            (n, PS::Periodic) => n,
+        };
+
+        let factor = F::from(bins).unwrap().recip();
+        Self::Normal(0..len, factor, windower)
     }
 
     #[inline]
@@ -217,6 +300,53 @@ where
 }
 
 impl<W, F> DoubleEndedIterator for Iter<W, F>
+where
+    W: Window<F>,
+    F: Float,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.0.next_back()
+    }
+}
+
+/// An [`Iterator`] that yields the first `N` values of an [`Iter`] with
+/// `N + 1` points.
+///
+/// This produces a periodic, asymmetric version of the window, used in cases
+/// when the window needs to be repeated.
+pub struct IterPeriodic<W, F>(IterImpl<W, F>)
+where
+    W: Window<F>,
+    F: Float,
+;
+
+impl<W, F> Iterator for IterPeriodic<W, F>
+where
+    W: Window<F>,
+    F: Float,
+{
+    type Item = F;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
+}
+
+impl<W, F> ExactSizeIterator for IterPeriodic<W, F>
+where
+    W: Window<F>,
+    F: Float,
+{
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl<W, F> DoubleEndedIterator for IterPeriodic<W, F>
 where
     W: Window<F>,
     F: Float,
