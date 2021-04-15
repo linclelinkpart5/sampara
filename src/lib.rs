@@ -1,6 +1,3 @@
-#![feature(associated_type_bounds)]
-#![feature(trait_alias)]
-
 #[cfg(feature = "biquad")]
 pub mod biquad;
 #[cfg(feature = "buffer")]
