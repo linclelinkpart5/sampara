@@ -5,6 +5,8 @@ mod iterators;
 use crate::{Frame, Sample};
 #[cfg(feature = "biquad")]
 use crate::{Duplex, biquad::{Param, Params}, sample::FloatSample};
+#[cfg(feature = "interpolate")]
+use crate::interpolate::Interpolator;
 
 pub use adaptors::*;
 pub use generators::*;
@@ -360,6 +362,53 @@ pub trait Signal<const N: usize> {
         Biquad {
             signal: self,
             filter: params.into(),
+        }
+    }
+
+    /// Interpolates this [`Signal`] by yielding the [`Frame`]s at multiples of
+    /// a given step size. If this step size falls in between two existing
+    /// [`Frame`]s, the intermediate [`Frame`] is computed by using the given
+    /// [`Interpolator`].
+    ///
+    /// This process is also known as "resampling".
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    /// use sampara::interpolate::Linear;
+    ///
+    /// fn main() {
+    ///     let mut input_signal = signal::from_frames(vec![
+    ///         [10, 10, 10],
+    ///         [20, 30, 40],
+    ///         [30, 50, 70],
+    ///         [40, 70, 100],
+    ///     ]);
+    ///
+    ///     // Initialize the interpolator with frames from the input signal.
+    ///     let interpolator = Linear::new(
+    ///         input_signal.next().unwrap(),
+    ///         input_signal.next().unwrap(),
+    ///     );
+    ///     let mut interpolated_signal = input_signal.interpolate(interpolator, 0.75);
+    ///
+    ///     assert_eq!(interpolated_signal.next(), Some([10, 10, 10]));  // 0.00
+    ///     assert_eq!(interpolated_signal.next(), Some([17, 25, 32]));  // 0.75
+    ///     assert_eq!(interpolated_signal.next(), Some([25, 40, 55]));  // 1.50
+    ///     assert_eq!(interpolated_signal.next(), Some([32, 55, 77]));  // 2.25
+    /// }
+    /// ```
+    #[cfg(feature = "interpolate")]
+    fn interpolate<I>(self, interpolator: I, ratio: f64) -> Interpolate<Self, I, N>
+    where
+        Self: Sized,
+        I: Interpolator<N, Frame = Self::Frame>,
+        <Self::Frame as Frame<N>>::Sample: Duplex<f64>,
+    {
+        Interpolate {
+            signal: self,
+            interpolator,
+            interpolant: 0.0,
+            ratio,
         }
     }
 }

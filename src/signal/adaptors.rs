@@ -2,6 +2,8 @@ use crate::{Frame, Sample};
 use crate::signal::Signal;
 #[cfg(feature = "biquad")]
 use crate::{Duplex, biquad::{Param, Filter as BQFilter}, sample::FloatSample};
+#[cfg(feature = "interpolate")]
+use crate::interpolate::Interpolator;
 
 fn zm_helper<S, O, F, M, const N: usize, const NO: usize, const NF: usize>(
     signal_a: &mut S,
@@ -388,5 +390,48 @@ where
     #[inline]
     fn next(&mut self) -> Option<Self::Frame> {
         Some(self.filter.apply(self.signal.next()?))
+    }
+}
+
+#[cfg(feature = "interpolate")]
+pub struct Interpolate<S, I, const N: usize>
+where
+    S: Signal<N>,
+    I: Interpolator<N, Frame = S::Frame>,
+    <S::Frame as Frame<N>>::Sample: Duplex<f64>,
+{
+    pub(super) signal: S,
+    pub(super) interpolator: I,
+    pub(super) interpolant: f64,
+    pub(super) ratio: f64,
+}
+
+#[cfg(feature = "interpolate")]
+impl<S, I, const N: usize> Signal<N> for Interpolate<S, I, N>
+where
+    S: Signal<N>,
+    I: Interpolator<N, Frame = S::Frame>,
+    <S::Frame as Frame<N>>::Sample: Duplex<f64>,
+{
+    type Frame = I::Frame;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        let Interpolate {
+            ref mut signal,
+            ref mut interpolator,
+            ref mut interpolant,
+            ratio,
+        } = *self;
+
+        // Advance frames.
+        while *interpolant >= 1.0 {
+            interpolator.advance(signal.next()?);
+            *interpolant -= 1.0;
+        }
+
+        let out = interpolator.interpolate(*interpolant);
+        *interpolant += ratio;
+        Some(out)
     }
 }
