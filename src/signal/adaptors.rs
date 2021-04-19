@@ -1,9 +1,11 @@
 use crate::{Frame, Sample};
 use crate::signal::Signal;
 #[cfg(feature = "biquad")]
-use crate::{Duplex, biquad::{Param, Filter as BQFilter}, sample::FloatSample};
+use crate::{biquad::{Param, Filter as BQFilter}, sample::FloatSample};
 #[cfg(feature = "interpolate")]
 use crate::interpolate::Interpolator;
+#[cfg(any(feature = "biquad", feature = "interpolate"))]
+use crate::Duplex;
 
 fn zm_helper<S, O, F, M, const N: usize, const NO: usize, const NF: usize>(
     signal_a: &mut S,

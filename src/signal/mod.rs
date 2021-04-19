@@ -4,9 +4,11 @@ mod iterators;
 
 use crate::{Frame, Sample};
 #[cfg(feature = "biquad")]
-use crate::{Duplex, biquad::{Param, Params}, sample::FloatSample};
+use crate::{biquad::{Param, Params}, sample::FloatSample};
 #[cfg(feature = "interpolate")]
 use crate::interpolate::Interpolator;
+#[cfg(any(feature = "biquad", feature = "interpolate"))]
+use crate::Duplex;
 
 pub use adaptors::*;
 pub use generators::*;
