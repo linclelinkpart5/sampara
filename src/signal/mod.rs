@@ -370,6 +370,12 @@ pub trait Signal<const N: usize> {
     /// [`Frame`]s, the intermediate [`Frame`] is computed by using the given
     /// [`Interpolator`].
     ///
+    /// An implicit equilibrium [`Frame`] is appended to the end of this
+    /// [`Signal`] to allow for interpolating up to one [`Frame`] past the last.
+    /// This only comes into effect if an interpolation value would fall past
+    /// the last real [`Frame`] but before the next (non-existent) [`Frame`] is
+    /// requested.
+    ///
     /// This process is also known as "resampling".
     ///
     /// ```
@@ -389,16 +395,19 @@ pub trait Signal<const N: usize> {
     ///         input_signal.next().unwrap(),
     ///         input_signal.next().unwrap(),
     ///     );
-    ///     let mut interpolated_signal = input_signal.interpolate(interpolator, 0.75);
+    ///     let mut interpolated = input_signal.interpolate(interpolator, 0.75);
     ///
-    ///     assert_eq!(interpolated_signal.next(), Some([10, 10, 10]));  // 0.00
-    ///     assert_eq!(interpolated_signal.next(), Some([17, 25, 32]));  // 0.75
-    ///     assert_eq!(interpolated_signal.next(), Some([25, 40, 55]));  // 1.50
-    ///     assert_eq!(interpolated_signal.next(), Some([32, 55, 77]));  // 2.25
+    ///     assert_eq!(interpolated.next(), Some([10, 10, 10]));  // 0.00
+    ///     assert_eq!(interpolated.next(), Some([17, 25, 32]));  // 0.75
+    ///     assert_eq!(interpolated.next(), Some([25, 40, 55]));  // 1.50
+    ///     assert_eq!(interpolated.next(), Some([32, 55, 77]));  // 2.25
+    ///     assert_eq!(interpolated.next(), Some([40, 70, 100])); // 3.00
+    ///     assert_eq!(interpolated.next(), Some([10, 17, 25]));  // 3.75
+    ///     assert_eq!(interpolated.next(), None);                // 4.50
     /// }
     /// ```
     #[cfg(feature = "interpolate")]
-    fn interpolate<I>(self, interpolator: I, ratio: f64) -> Interpolate<Self, I, N>
+    fn interpolate<I>(self, interpolator: I, step: f64) -> Interpolate<Self, I, N>
     where
         Self: Sized,
         I: Interpolator<N, Frame = Self::Frame>,
@@ -408,7 +417,8 @@ pub trait Signal<const N: usize> {
             signal: self,
             interpolator,
             interpolant: 0.0,
-            ratio,
+            step,
+            end_padding: Some(Frame::EQUILIBRIUM),
         }
     }
 }

@@ -403,7 +403,8 @@ where
     pub(super) signal: S,
     pub(super) interpolator: I,
     pub(super) interpolant: f64,
-    pub(super) ratio: f64,
+    pub(super) step: f64,
+    pub(super) end_padding: Option<S::Frame>,
 }
 
 #[cfg(feature = "interpolate")]
@@ -421,17 +422,18 @@ where
             ref mut signal,
             ref mut interpolator,
             ref mut interpolant,
-            ratio,
+            step,
+            ref mut end_padding,
         } = *self;
 
         // Advance frames.
         while *interpolant >= 1.0 {
-            interpolator.advance(signal.next()?);
+            interpolator.advance(signal.next().or_else(|| end_padding.take())?);
             *interpolant -= 1.0;
         }
 
         let out = interpolator.interpolate(*interpolant);
-        *interpolant += ratio;
+        *interpolant += step;
         Some(out)
     }
 }
