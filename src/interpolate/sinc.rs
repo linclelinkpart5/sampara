@@ -83,33 +83,33 @@ where
         self.buffer.capacity() / 2
     }
 
-    fn resamp(&self, x: f64, fmax: f64, fsr: f64) -> f64 {
-        let r_g = 2.0 * fmax / fsr;
-        let mut r_y = 0.0;
+    // fn resamp(&self, x: f64, fmax: f64, fsr: f64) -> f64 {
+    //     let r_g = 2.0 * fmax / fsr;
+    //     let mut r_y = 0.0;
 
-        let wnwdth = self.buffer.capacity();
-        let win_origin = wnwdth as f64 / -2.0;
+    //     let wnwdth = self.buffer.capacity();
+    //     let win_origin = wnwdth as f64 / -2.0;
 
-        for n in 0..wnwdth {
-            let i = win_origin + n as f64;
+    //     for n in 0..wnwdth {
+    //         let i = win_origin + n as f64;
 
-            let j = match (x + i).floor() {
-                jf if jf >= 0.0 => jf as usize,
+    //         let j = match (x + i).floor() {
+    //             jf if jf >= 0.0 => jf as usize,
 
-                // If the extrapolated index would be negative, skip this
-                // iteration.
-                _ => continue,
-            };
+    //             // If the extrapolated index would be negative, skip this
+    //             // iteration.
+    //             _ => continue,
+    //         };
 
-            // If the extrapolated index is out of the buffer bounds, skip this
-            // iteration.
-            if !(j < wnwdth) {
-                continue;
-            }
-        }
+    //         // If the extrapolated index is out of the buffer bounds, skip this
+    //         // iteration.
+    //         if !(j < wnwdth) {
+    //             continue;
+    //         }
+    //     }
 
-        r_y
-    }
+    //     r_y
+    // }
 }
 
 impl<F, B, const N: usize> Interpolator<N> for Sinc<F, B, N>
