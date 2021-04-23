@@ -2,13 +2,9 @@ mod adaptors;
 mod generators;
 mod iterators;
 
-use crate::{Frame, Sample};
-#[cfg(feature = "biquad")]
+use crate::{Frame, Sample, Duplex};
 use crate::{biquad::{Param, Params}, sample::FloatSample};
-#[cfg(feature = "interpolate")]
 use crate::interpolate::Interpolator;
-#[cfg(any(feature = "biquad", feature = "interpolate"))]
-use crate::Duplex;
 
 pub use adaptors::*;
 pub use generators::*;
@@ -354,7 +350,6 @@ pub trait Signal<const N: usize> {
     ///     assert_eq!(&produced, expected);
     /// }
     /// ```
-    #[cfg(feature = "biquad")]
     fn biquad<P>(self, params: Params<P>) -> Biquad<Self, P, N>
     where
         Self: Sized,
@@ -408,7 +403,6 @@ pub trait Signal<const N: usize> {
     ///     assert_eq!(interpolated.next(), None);                // 4.50
     /// }
     /// ```
-    #[cfg(feature = "interpolate")]
     fn interpolate<I>(self, interpolator: I, step: f64) -> Interpolate<Self, I, N>
     where
         Self: Sized,

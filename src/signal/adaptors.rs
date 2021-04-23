@@ -1,11 +1,8 @@
-use crate::{Frame, Sample};
+use crate::{Frame, Sample, Duplex};
+use crate::sample::FloatSample;
 use crate::signal::Signal;
-#[cfg(feature = "biquad")]
-use crate::{biquad::{Param, Filter as BQFilter}, sample::FloatSample};
-#[cfg(feature = "interpolate")]
+use crate::biquad::{Param, Filter as BQFilter};
 use crate::interpolate::Interpolator;
-#[cfg(any(feature = "biquad", feature = "interpolate"))]
-use crate::Duplex;
 
 fn zm_helper<S, O, F, M, const N: usize, const NO: usize, const NF: usize>(
     signal_a: &mut S,
@@ -369,7 +366,6 @@ where
     }
 }
 
-#[cfg(feature = "biquad")]
 pub struct Biquad<S, P, const N: usize>
 where
     S: Signal<N>,
@@ -380,7 +376,6 @@ where
     pub(super) filter: BQFilter<P, N>,
 }
 
-#[cfg(feature = "biquad")]
 impl<S, P, const N: usize> Signal<N> for Biquad<S, P, N>
 where
     S: Signal<N>,
@@ -395,7 +390,6 @@ where
     }
 }
 
-#[cfg(feature = "interpolate")]
 pub struct Interpolate<S, I, const N: usize>
 where
     S: Signal<N>,
@@ -409,7 +403,6 @@ where
     pub(super) end_padding: Option<S::Frame>,
 }
 
-#[cfg(feature = "interpolate")]
 impl<S, I, const N: usize> Signal<N> for Interpolate<S, I, N>
 where
     S: Signal<N>,
