@@ -3,8 +3,11 @@ mod generators;
 mod iterators;
 
 use crate::{Frame, Sample, Duplex};
-use crate::{biquad::{Param, Params}, sample::FloatSample};
+use crate::biquad::{Param, Params};
+use crate::buffer::Buffer;
+use crate::sample::FloatSample;
 use crate::interpolate::Interpolator;
+use crate::rms::Rms as RmsState;
 
 pub use adaptors::*;
 pub use generators::*;
@@ -416,6 +419,75 @@ pub trait Signal<const N: usize> {
             step,
             end_padding: Some(Frame::EQUILIBRIUM),
         }
+    }
+
+    /// Calculates a windowed root mean square of this [`Signal`]. The given
+    /// [`Buffer`] will be zeroed out, and its length will determine the RMS
+    /// window length.
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let signal = signal::from_frames(vec![
+    ///         [0.50, -0.50],
+    ///         [0.25, -0.75],
+    ///         [0.40, -0.60],
+    ///         [0.75, -0.25],
+    ///     ]);
+    ///
+    ///     let mut rms_signal = signal.rms([[0.0, 0.0]; 4]);
+    ///     assert_eq!(rms_signal.next(), Some([0.25, 0.25]));
+    ///     assert_eq!(rms_signal.next(), Some([0.2795084971874737, 0.45069390943299864]));
+    ///     assert_eq!(rms_signal.next(), Some([0.343693177121688, 0.5414101956926929]));
+    ///     assert_eq!(rms_signal.next(), Some([0.5086747487343951, 0.5556527692723217]));
+    ///     assert_eq!(rms_signal.next(), None);
+    /// }
+    /// ```
+    fn rms<B>(self, window: B) -> Rms<Self, B, N>
+    where
+        Self: Sized,
+        <Self::Frame as Frame<N>>::Sample: FloatSample,
+        B: Buffer<Item = <Self::Frame as Frame<N>>::Float>,
+    {
+        Rms(RmsCommon {
+            signal: self,
+            rms_state: RmsState::new(window),
+        })
+    }
+
+    /// Similar to [`rms`], but instead calculates a windowed mean square of
+    /// this [`Signal`].
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let signal = signal::from_frames(vec![
+    ///         [0.50, -0.50],
+    ///         [0.25, -0.75],
+    ///         [0.40, -0.60],
+    ///         [0.75, -0.25],
+    ///     ]);
+    ///
+    ///     let mut ms_signal = signal.ms([[0.0, 0.0]; 4]);
+    ///     assert_eq!(ms_signal.next(), Some([0.0625, 0.0625]));
+    ///     assert_eq!(ms_signal.next(), Some([0.078125, 0.203125]));
+    ///     assert_eq!(ms_signal.next(), Some([0.11812500000000001, 0.29312499999999997]));
+    ///     assert_eq!(ms_signal.next(), Some([0.25875000000000004, 0.30874999999999997]));
+    ///     assert_eq!(ms_signal.next(), None);
+    /// }
+    /// ```
+    fn ms<B>(self, window: B) -> Ms<Self, B, N>
+    where
+        Self: Sized,
+        <Self::Frame as Frame<N>>::Sample: FloatSample,
+        B: Buffer<Item = <Self::Frame as Frame<N>>::Float>,
+    {
+        Ms(RmsCommon {
+            signal: self,
+            rms_state: RmsState::new(window),
+        })
     }
 }
 

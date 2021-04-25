@@ -125,6 +125,8 @@ where
     ///     assert_eq!(rms.next([-1.0]), [1.0]);
     /// }
     /// ```
+    // TODO: Should this accept any compatible frame, or should it only accept
+    //       float frames?
     #[inline]
     pub fn next<I>(&mut self, new_frame: I) -> F
     where

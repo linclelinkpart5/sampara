@@ -2,7 +2,9 @@ use crate::{Frame, Sample, Duplex};
 use crate::sample::FloatSample;
 use crate::signal::Signal;
 use crate::biquad::{Param, Filter as BQFilter};
+use crate::buffer::Buffer;
 use crate::interpolate::Interpolator;
+use crate::rms::Rms as RmsState;
 
 fn zm_helper<S, O, F, M, const N: usize, const NO: usize, const NF: usize>(
     signal_a: &mut S,
@@ -430,5 +432,76 @@ where
         let out = interpolator.interpolate(*interpolant);
         *interpolant += step;
         Some(out)
+    }
+}
+
+pub(super) struct RmsCommon<S, B, const N: usize>
+where
+    S: Signal<N>,
+    <S::Frame as Frame<N>>::Sample: FloatSample,
+    B: Buffer<Item = <S::Frame as Frame<N>>::Float>,
+{
+    pub(super) signal: S,
+    pub(super) rms_state: RmsState<<S::Frame as Frame<N>>::Float, B, N>,
+}
+
+impl<S, B, const N: usize> RmsCommon<S, B, N>
+where
+    S: Signal<N>,
+    <S::Frame as Frame<N>>::Sample: FloatSample,
+    B: Buffer<Item = <S::Frame as Frame<N>>::Float>,
+{
+    fn advance(&mut self, calc_root: bool) -> Option<<S::Frame as Frame<N>>::Float> {
+        let frame = self.signal.next()?;
+        let output = if calc_root {
+            self.rms_state.next(frame)
+        }
+        else {
+            self.rms_state.next_squared(frame)
+        };
+
+        Some(output)
+    }
+}
+
+pub struct Rms<S, B, const N: usize>(pub(super) RmsCommon<S, B, N>)
+where
+    S: Signal<N>,
+    <S::Frame as Frame<N>>::Sample: FloatSample,
+    B: Buffer<Item = <S::Frame as Frame<N>>::Float>,
+;
+
+impl<S, B, const N: usize> Signal<N> for Rms<S, B, N>
+where
+    S: Signal<N>,
+    <S::Frame as Frame<N>>::Sample: FloatSample,
+    B: Buffer<Item = <S::Frame as Frame<N>>::Float>,
+{
+    type Frame = B::Item;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        self.0.advance(true)
+    }
+}
+
+pub struct Ms<S, B, const N: usize>(pub(super) RmsCommon<S, B, N>)
+where
+    S: Signal<N>,
+    <S::Frame as Frame<N>>::Sample: FloatSample,
+    B: Buffer<Item = <S::Frame as Frame<N>>::Float>,
+;
+
+impl<S, B, const N: usize> Signal<N> for Ms<S, B, N>
+where
+    S: Signal<N>,
+    <S::Frame as Frame<N>>::Sample: FloatSample,
+    B: Buffer<Item = <S::Frame as Frame<N>>::Float>,
+{
+    type Frame = B::Item;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        self.0.advance(false)
     }
 }
