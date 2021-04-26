@@ -1,4 +1,4 @@
-use crate::{Frame, ConvertFrom, ConvertInto};
+use crate::Frame;
 use crate::sample::FloatSample;
 
 trait Inner: FloatSample {
@@ -226,9 +226,6 @@ where
     /// }
     /// ```
     pub fn apply(&mut self, input: F) -> F {
-        // Convert into floating point representation.
-        let input: F = input.apply(ConvertInto::convert_into);
-
         // Calculate scaled inputs.
         let input_by_b0 = input.mul_amp(self.params.b0).into_signed_frame();
         let input_by_b1 = input.mul_amp(self.params.b1).into_signed_frame();
@@ -246,8 +243,7 @@ where
         self.t0 = self.t1.add_frame(input_by_b1).add_frame(output_by_neg_a1);
         self.t1 = input_by_b2.add_frame(output_by_neg_a2);
 
-        // Convert back into the original `Frame` format.
-        output.apply(ConvertFrom::convert_from)
+        output
     }
 }
 
