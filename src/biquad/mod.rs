@@ -1,4 +1,4 @@
-use crate::{Frame, Duplex, ConvertFrom, ConvertInto};
+use crate::{Frame, ConvertFrom, ConvertInto};
 use crate::sample::FloatSample;
 
 trait Inner: FloatSample {
@@ -169,30 +169,24 @@ where
 
 /// An implementation of a digital biquad filter, using the Direct Form 2
 /// Transposed (DF2T) representation.
-pub struct Filter<P, const N: usize>
+pub struct Filter<F, const N: usize>
 where
-    P: FloatSample,
+    F: Frame<N>,
+    F::Sample: FloatSample,
 {
-    params: Params<P>,
+    params: Params<F::Sample>,
 
     // Since biquad filters are second-order, we require two historical buffers.
     // This state is updated each time the filter is applied to a frame.
-    t0: [P; N],
-    t1: [P; N],
+    t0: F,
+    t1: F,
 }
 
-impl<P, const N: usize> Filter<P, N>
+impl<F, const N: usize> Filter<F, N>
 where
-    P: FloatSample,
+    F: Frame<N>,
+    F::Sample: FloatSample,
 {
-    pub fn new(params: Params<P>) -> Self {
-        Self {
-            params,
-            t0: Frame::EQUILIBRIUM,
-            t1: Frame::EQUILIBRIUM,
-        }
-    }
-
     /// Performs a single iteration of this filter, calculating a new filtered
     /// `Frame` from an input `Frame`.
     ///
@@ -204,23 +198,24 @@ where
     ///     let params = Params::from_kind(Kind::Notch, 0.25, 0.7071);
     ///
     ///     let inputs = &[
-    ///         [-57,  61], [ 50,  13], [  5,  91], [-16,  -7],
-    ///         [ 74, -36], [ 85, -37], [-48,  19], [-64,  -8],
-    ///         [  1,  77], [ 28,  45], [ 83,  47], [-34, -92],
-    ///         [ 16,   4], [ 74,  45], [-89,   5], [-63, -53],
+    ///          0.00000,  0.97553,  0.29389, -0.79389,
+    ///         -0.47553,  0.50000,  0.47553, -0.20611,
+    ///         -0.29389,  0.02447,  0.00000, -0.02447,
+    ///          0.29389,  0.20611, -0.47553, -0.50000,
     ///     ];
     ///
     ///     let expected = &[
-    ///         [-33,  35], [ 29,   7], [-24,  82], [ 14,   2],
-    ///         [ 50,  17], [ 37, -26], [  6, -13], [  5, -21],
-    ///         [-28,  58], [-22,  25], [ 54,  62], [  0, -31],
-    ///         [ 48,  19], [ 23, -22], [-51,   1], [  2,   0],
+    ///          0.000000000000000000,  0.571449973490183000,
+    ///          0.172156092287300080,  0.008359170317441045,
+    ///         -0.135938340413138700, -0.173590260270683420,
+    ///          0.023322699278900627,  0.201938664486834900,
+    ///          0.102400391831115600, -0.141048083352848520,
+    ///         -0.189724745380021540,  0.024199368786658026,
+    ///          0.204706829399554650,  0.102249983202951780,
+    ///         -0.141523012483346670, -0.189698940039210730,
     ///     ];
     ///
-    ///     // Note that this type argument defines the format of the temporary
-    ///     // values, as well as the number of channels required for input
-    ///     // `Frame`s.
-    ///     let mut filter = Filter::<f64, 2>::new(params);
+    ///     let mut filter = Filter::from(params);
     ///
     ///     let mut produced = vec![];
     ///     for &input in inputs.iter() {
@@ -230,13 +225,9 @@ where
     ///     assert_eq!(&produced, expected);
     /// }
     /// ```
-    pub fn apply<I>(&mut self, input: I) -> I
-    where
-        I: Frame<N>,
-        I::Sample: Duplex<P>,
-    {
+    pub fn apply(&mut self, input: F) -> F {
         // Convert into floating point representation.
-        let input: [P; N] = input.apply(ConvertInto::convert_into);
+        let input: F = input.apply(ConvertInto::convert_into);
 
         // Calculate scaled inputs.
         let input_by_b0 = input.mul_amp(self.params.b0).into_signed_frame();
@@ -244,7 +235,7 @@ where
         let input_by_b2 = input.mul_amp(self.params.b2);
 
         // This is the new filtered `Frame`.
-        let output: [P; N] = self.t0.add_frame(input_by_b0);
+        let output: F = self.t0.add_frame(input_by_b0);
 
         // Calculate scaled outputs.
         // NOTE: Negative signs on the scaling factors for these.
@@ -260,11 +251,16 @@ where
     }
 }
 
-impl<P, const N: usize> From<Params<P>> for Filter<P, N>
+impl<F, const N: usize> From<Params<F::Sample>> for Filter<F, N>
 where
-    P: FloatSample,
+    F: Frame<N>,
+    F::Sample: FloatSample,
 {
-    fn from(params: Params<P>) -> Self {
-        Self::new(params)
+    fn from(params: Params<F::Sample>) -> Self {
+        Self {
+            params,
+            t0: Frame::EQUILIBRIUM,
+            t1: Frame::EQUILIBRIUM,
+        }
     }
 }

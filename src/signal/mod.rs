@@ -298,7 +298,7 @@ pub trait Signal<const N: usize> {
     ///     assert_eq!(iter.collect::<Vec<_>>(), vec![7, 8, 6]);
     /// }
     /// ```
-    // NOTE: This is a trait method on `Signal` as opposed to an impl of
+    // NOTE/TODO: This is a trait method on `Signal` as opposed to an impl of
     // `IntoIterator`, due to trait restrictions. We cannot have a blanket
     // `impl<S: Signal<N>, ...> IntoIterator for S`, since the `N` is
     // unconstrained. But, `Signal` requires `N` as a const generic input due
@@ -330,17 +330,21 @@ pub trait Signal<const N: usize> {
     ///     let params = Params::from_kind(Kind::Notch, 0.25, 0.7071);
     ///
     ///     let input_signal = signal::from_frames(vec![
-    ///         [-57,  61], [ 50,  13], [  5,  91], [-16,  -7],
-    ///         [ 74, -36], [ 85, -37], [-48,  19], [-64,  -8],
-    ///         [  1,  77], [ 28,  45], [ 83,  47], [-34, -92],
-    ///         [ 16,   4], [ 74,  45], [-89,   5], [-63, -53],
+    ///          0.00000,  0.97553,  0.29389, -0.79389,
+    ///         -0.47553,  0.50000,  0.47553, -0.20611,
+    ///         -0.29389,  0.02447,  0.00000, -0.02447,
+    ///          0.29389,  0.20611, -0.47553, -0.50000,
     ///     ]);
     ///
     ///     let expected = &[
-    ///         [-33,  35], [ 29,   7], [-24,  82], [ 14,   2],
-    ///         [ 50,  17], [ 37, -26], [  6, -13], [  5, -21],
-    ///         [-28,  58], [-22,  25], [ 54,  62], [  0, -31],
-    ///         [ 48,  19], [ 23, -22], [-51,   1], [  2,   0],
+    ///          0.000000000000000000,  0.571449973490183000,
+    ///          0.172156092287300080,  0.008359170317441045,
+    ///         -0.135938340413138700, -0.173590260270683420,
+    ///          0.023322699278900627,  0.201938664486834900,
+    ///          0.102400391831115600, -0.141048083352848520,
+    ///         -0.189724745380021540,  0.024199368786658026,
+    ///          0.204706829399554650,  0.102249983202951780,
+    ///         -0.141523012483346670, -0.189698940039210730,
     ///     ];
     ///
     ///     let mut filtered_signal = input_signal.biquad(params);
@@ -353,11 +357,10 @@ pub trait Signal<const N: usize> {
     ///     assert_eq!(&produced, expected);
     /// }
     /// ```
-    fn biquad<P>(self, params: Params<P>) -> Biquad<Self, P, N>
+    fn biquad(self, params: Params<<Self::Frame as Frame<N>>::Sample>) -> Biquad<Self, N>
     where
         Self: Sized,
-        P: FloatSample,
-        <Self::Frame as Frame<N>>::Sample: Duplex<P>,
+        <Self::Frame as Frame<N>>::Sample: FloatSample,
     {
         Biquad {
             signal: self,

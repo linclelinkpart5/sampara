@@ -368,21 +368,19 @@ where
     }
 }
 
-pub struct Biquad<S, P, const N: usize>
+pub struct Biquad<S, const N: usize>
 where
     S: Signal<N>,
-    P: FloatSample,
-    <S::Frame as Frame<N>>::Sample: Duplex<P>,
+    <S::Frame as Frame<N>>::Sample: FloatSample,
 {
     pub(super) signal: S,
-    pub(super) filter: BQFilter<P, N>,
+    pub(super) filter: BQFilter<S::Frame, N>,
 }
 
-impl<S, P, const N: usize> Signal<N> for Biquad<S, P, N>
+impl<S, const N: usize> Signal<N> for Biquad<S, N>
 where
     S: Signal<N>,
-    P: FloatSample,
-    <S::Frame as Frame<N>>::Sample: Duplex<P>,
+    <S::Frame as Frame<N>>::Sample: FloatSample,
 {
     type Frame = S::Frame;
 
