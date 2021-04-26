@@ -1,7 +1,6 @@
 // All of these are derived from https://en.wikipedia.org/wiki/Window_function
 
-use num_traits::{Float, FloatConst};
-
+use crate::sample::FloatSample;
 use crate::window::Window;
 
 /// Represents a rectangular (aka boxcar) window.
@@ -18,7 +17,7 @@ use crate::window::Window;
 /// ```
 pub struct Rectangle;
 
-impl<F: Float> Window<F> for Rectangle {
+impl<F: FloatSample> Window<F> for Rectangle {
     fn calc(&self, _x: F) -> F {
         F::one()
     }
@@ -55,7 +54,7 @@ impl<F: Float> Window<F> for Rectangle {
 /// ```
 pub struct Triangle;
 
-impl<F: Float> Window<F> for Triangle {
+impl<F: FloatSample> Window<F> for Triangle {
     fn calc(&self, x: F) -> F {
         F::one() - ((x + x) - F::one()).abs()
     }
@@ -92,7 +91,7 @@ impl<F: Float> Window<F> for Triangle {
 /// ```
 pub struct Welch;
 
-impl<F: Float> Window<F> for Welch {
+impl<F: FloatSample> Window<F> for Welch {
     fn calc(&self, x: F) -> F {
         let i = F::from(2.0).unwrap() * x - F::one();
         F::one() - (i * i)
@@ -130,7 +129,7 @@ impl<F: Float> Window<F> for Welch {
 /// ```
 pub struct Hann;
 
-impl<F: Float + FloatConst> Window<F> for Hann {
+impl<F: FloatSample> Window<F> for Hann {
     fn calc(&self, x: F) -> F {
         (F::one() - (F::TAU() * x).cos()) * F::from(0.5).unwrap()
     }
@@ -167,7 +166,7 @@ impl<F: Float + FloatConst> Window<F> for Hann {
 /// ```
 pub struct Blackman;
 
-impl<F: Float + FloatConst> Window<F> for Blackman {
+impl<F: FloatSample> Window<F> for Blackman {
     fn calc(&self, x: F) -> F {
         const A: f64 = 0.16;
         const A0: f64 = 0.5 * (1.0 - A);

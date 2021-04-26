@@ -1,13 +1,11 @@
-use num_traits::{Float, FloatConst};
-
 use crate::{Frame, Duplex, ConvertFrom, ConvertInto};
 use crate::sample::FloatSample;
 
-trait Inner: Float {
+trait Inner: FloatSample {
     fn a_cap(self) -> Self;
 }
 
-impl<F: Float> Inner for F {
+impl<F: FloatSample> Inner for F {
     fn a_cap(self) -> Self {
         let ten = F::from(10.0).unwrap();
         let fourty = F::from(40.0).unwrap();
@@ -17,7 +15,7 @@ impl<F: Float> Inner for F {
 
 pub enum Kind<P>
 where
-    P: Float,
+    P: FloatSample,
 {
     Allpass,
     Lowpass,
@@ -31,12 +29,9 @@ where
 
 impl<P> Kind<P>
 where
-    P: Float,
+    P: FloatSample,
 {
-    fn into_params(self, norm_freq: P, q_factor: P) -> Params<P>
-    where
-        P: FloatConst,
-    {
+    fn into_params(self, norm_freq: P, q_factor: P) -> Params<P> {
         // Common reused values.
         let one = P::one();
         let two = one + one;
@@ -151,7 +146,7 @@ where
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Params<X>
 where
-    X: Float,
+    X: FloatSample,
 {
     // Transfer function numerator coefficients.
     pub b0: X,
@@ -165,12 +160,9 @@ where
 
 impl<X> Params<X>
 where
-    X: Float,
+    X: FloatSample,
 {
-    pub fn from_kind(kind: Kind<X>, norm_freq: X, q_factor: X) -> Self
-    where
-        X: FloatConst,
-    {
+    pub fn from_kind(kind: Kind<X>, norm_freq: X, q_factor: X) -> Self {
         kind.into_params(norm_freq, q_factor)
     }
 }

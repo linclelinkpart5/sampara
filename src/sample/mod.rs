@@ -2,7 +2,7 @@ pub mod conv;
 
 pub use conv::{ConvertFrom, ConvertInto, Duplex};
 
-use num_traits::{Float, Signed};
+use num_traits::{Float, FloatConst, Signed};
 
 /// A trait for working generically across different sample format types, both
 /// in terms of representation (integral versus floating-point) and bitsize.
@@ -232,6 +232,7 @@ pub trait FloatSample:
     + Duplex<f32>
     + Duplex<f64>
     + Float
+    + FloatConst
 {}
 
 impl FloatSample for f32 {}
