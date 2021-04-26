@@ -1,7 +1,7 @@
 use crate::{Frame, Sample, Duplex};
 use crate::sample::FloatSample;
 use crate::signal::Signal;
-use crate::biquad::{Param, Filter as BQFilter};
+use crate::biquad::Filter as BQFilter;
 use crate::buffer::Buffer;
 use crate::interpolate::Interpolator;
 use crate::rms::Rms as RmsState;
@@ -371,7 +371,7 @@ where
 pub struct Biquad<S, P, const N: usize>
 where
     S: Signal<N>,
-    P: Param + FloatSample,
+    P: FloatSample,
     <S::Frame as Frame<N>>::Sample: Duplex<P>,
 {
     pub(super) signal: S,
@@ -381,7 +381,7 @@ where
 impl<S, P, const N: usize> Signal<N> for Biquad<S, P, N>
 where
     S: Signal<N>,
-    P: Param + FloatSample,
+    P: FloatSample,
     <S::Frame as Frame<N>>::Sample: Duplex<P>,
 {
     type Frame = S::Frame;

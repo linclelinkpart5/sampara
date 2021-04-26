@@ -3,7 +3,7 @@ mod generators;
 mod iterators;
 
 use crate::{Frame, Sample, Duplex};
-use crate::biquad::{Param, Params};
+use crate::biquad::Params;
 use crate::buffer::Buffer;
 use crate::sample::FloatSample;
 use crate::interpolate::Interpolator;
@@ -356,7 +356,7 @@ pub trait Signal<const N: usize> {
     fn biquad<P>(self, params: Params<P>) -> Biquad<Self, P, N>
     where
         Self: Sized,
-        P: Param + FloatSample,
+        P: FloatSample,
         <Self::Frame as Frame<N>>::Sample: Duplex<P>,
     {
         Biquad {

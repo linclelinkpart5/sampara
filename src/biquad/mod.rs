@@ -1,48 +1,23 @@
-use num_traits::Float;
+use num_traits::{Float, FloatConst};
 
 use crate::{Frame, Duplex, ConvertFrom, ConvertInto};
 use crate::sample::FloatSample;
 
-pub trait Param: Float {
-    const ZERO: Self;
-    const ONE: Self;
-    const TWO: Self;
-    const HALF: Self;
-    const SQRT_2: Self;
-    const PI: Self;
-
+trait Inner: Float {
     fn a_cap(self) -> Self;
 }
 
-impl Param for f32 {
-    const ZERO: Self = 0.0;
-    const ONE: Self = 1.0;
-    const TWO: Self = 2.0;
-    const HALF: Self = 0.5;
-    const SQRT_2: Self = std::f32::consts::SQRT_2;
-    const PI: Self = std::f32::consts::PI;
-
+impl<F: Float> Inner for F {
     fn a_cap(self) -> Self {
-        10.0.powf(self / 40.0)
-    }
-}
-
-impl Param for f64 {
-    const ZERO: Self = 0.0;
-    const ONE: Self = 1.0;
-    const TWO: Self = 2.0;
-    const HALF: Self = 0.5;
-    const SQRT_2: Self = std::f64::consts::SQRT_2;
-    const PI: Self = std::f64::consts::PI;
-
-    fn a_cap(self) -> Self {
-        10.0.powf(self / 40.0)
+        let ten = F::from(10.0).unwrap();
+        let fourty = F::from(40.0).unwrap();
+        ten.powf(self / fourty)
     }
 }
 
 pub enum Kind<P>
 where
-    P: Param,
+    P: Float,
 {
     Allpass,
     Lowpass,
@@ -56,12 +31,21 @@ where
 
 impl<P> Kind<P>
 where
-    P: Param,
+    P: Float,
 {
-    fn into_params(self, norm_freq: P, q_factor: P) -> Params<P> {
-        let omega = P::TWO * P::PI * norm_freq;
+    fn into_params(self, norm_freq: P, q_factor: P) -> Params<P>
+    where
+        P: FloatConst,
+    {
+        // Common reused values.
+        let one = P::one();
+        let two = one + one;
+        let half = two.recip();
+        let pi = P::PI();
+
+        let omega = two * pi * norm_freq;
         let (omega_s, omega_c) = omega.sin_cos();
-        let alpha = omega_s / (P::TWO * q_factor);
+        let alpha = omega_s / (two * q_factor);
 
         let b0: P;
         let b1: P;
@@ -72,80 +56,80 @@ where
 
         match self {
             Self::Allpass => {
-                b0 = P::ONE - alpha;
-                b1 = -P::TWO * omega_c;
-                b2 = P::ONE + alpha;
-                a0 = P::ONE + alpha;
-                a1 = -P::TWO * omega_c;
-                a2 = P::ONE - alpha;
+                b0 = one - alpha;
+                b1 = -two * omega_c;
+                b2 = one + alpha;
+                a0 = one + alpha;
+                a1 = -two * omega_c;
+                a2 = one - alpha;
             },
             Self::Lowpass => {
-                b0 = (P::ONE - omega_c) * P::HALF;
-                b1 = P::ONE - omega_c;
-                b2 = (P::ONE - omega_c) * P::HALF;
-                a0 = P::ONE + alpha;
-                a1 = -P::TWO * omega_c;
-                a2 = P::ONE - alpha;
+                b0 = (one - omega_c) * half;
+                b1 = one - omega_c;
+                b2 = (one - omega_c) * half;
+                a0 = one + alpha;
+                a1 = -two * omega_c;
+                a2 = one - alpha;
             },
             Self::Highpass => {
-                b0 = (P::ONE + omega_c) * P::HALF;
-                b1 = -(P::ONE + omega_c);
-                b2 = (P::ONE + omega_c) * P::HALF;
-                a0 = P::ONE + alpha;
-                a1 = -P::TWO * omega_c;
-                a2 = P::ONE - alpha;
+                b0 = (one + omega_c) * half;
+                b1 = -(one + omega_c);
+                b2 = (one + omega_c) * half;
+                a0 = one + alpha;
+                a1 = -two * omega_c;
+                a2 = one - alpha;
             },
             Self::Bandpass => {
-                b0 = omega_s * P::HALF;
-                b1 = P::ZERO;
-                b2 = -(omega_s * P::HALF);
-                a0 = P::ONE + alpha;
-                a1 = -P::TWO * omega_c;
-                a2 = P::ONE - alpha;
+                b0 = omega_s * half;
+                b1 = P::zero();
+                b2 = -(omega_s * half);
+                a0 = one + alpha;
+                a1 = -two * omega_c;
+                a2 = one - alpha;
             },
             Self::Notch => {
-                b0 = P::ONE;
-                b1 = -P::TWO * omega_c;
-                b2 = P::ONE;
-                a0 = P::ONE + alpha;
-                a1 = -P::TWO * omega_c;
-                a2 = P::ONE - alpha;
+                b0 = one;
+                b1 = -two * omega_c;
+                b2 = one;
+                a0 = one + alpha;
+                a1 = -two * omega_c;
+                a2 = one - alpha;
             },
             Self::Peak(db_gain) => {
                 let a = db_gain.a_cap();
 
-                b0 = P::ONE + alpha * a;
-                b1 = -P::TWO * omega_c;
-                b2 = P::ONE - alpha * a;
-                a0 = P::ONE + alpha / a;
-                a1 = -P::TWO * omega_c;
-                a2 = P::ONE - alpha / a;
+                b0 = one + alpha * a;
+                b1 = -two * omega_c;
+                b2 = one - alpha * a;
+                a0 = one + alpha / a;
+                a1 = -two * omega_c;
+                a2 = one - alpha / a;
             },
             Self::Lowshelf(db_gain) => {
                 let a = db_gain.a_cap();
-                let a_p1 = a + P::ONE;
-                let a_m1 = a - P::ONE;
+                let a_p1 = a + one;
+                let a_m1 = a - one;
                 let sqrt_a = a.sqrt();
 
-                b0 = a * (a_p1 - a_m1 * omega_c + P::TWO * alpha * sqrt_a);
-                b1 = P::TWO * a * (a_m1 - a_p1 * omega_c);
-                b2 = a * (a_p1 - a_m1 * omega_c - P::TWO * alpha * sqrt_a);
-                a0 = a_p1 + a_m1 * omega_c + P::TWO * alpha * sqrt_a;
-                a1 = -P::TWO * (a_m1 + a_p1 * omega_c);
-                a2 = a_p1 + a_m1 * omega_c - P::TWO * alpha * sqrt_a;
+                b0 = a * (a_p1 - a_m1 * omega_c + two * alpha * sqrt_a);
+                b1 = two * a * (a_m1 - a_p1 * omega_c);
+                b2 = a * (a_p1 - a_m1 * omega_c - two * alpha * sqrt_a);
+                a0 = a_p1 + a_m1 * omega_c + two * alpha * sqrt_a;
+                a1 = -two * (a_m1 + a_p1 * omega_c);
+                a2 = a_p1 + a_m1 * omega_c - two * alpha * sqrt_a;
             },
             Self::Highshelf(db_gain) => {
                 let a = db_gain.a_cap();
-                let a_p1 = a + P::ONE;
-                let a_m1 = a - P::ONE;
+                let a_p1 = a + one;
+                let a_m1 = a - one;
                 let sqrt_a = a.sqrt();
 
-                b0 = a * (a_p1 + a_m1 * omega_c + P::TWO * alpha * sqrt_a);
-                b1 = -P::TWO * a * (a_m1 + a_p1 * omega_c);
-                b2 = a * (a_p1 + a_m1 * omega_c - P::TWO * alpha * sqrt_a);
-                a0 = a_p1 - a_m1 * omega_c + P::TWO * alpha * sqrt_a;
-                a1 = P::TWO * (a_m1 - a_p1 * omega_c);
-                a2 = a_p1 - a_m1 * omega_c - P::TWO * alpha * sqrt_a;
+                b0 = a * (a_p1 + a_m1 * omega_c + two * alpha * sqrt_a);
+                b1 = -two * a * (a_m1 + a_p1 * omega_c);
+                b2 = a * (a_p1 + a_m1 * omega_c - two * alpha * sqrt_a);
+                a0 = a_p1 - a_m1 * omega_c + two * alpha * sqrt_a;
+                a1 = two * (a_m1 - a_p1 * omega_c);
+                a2 = a_p1 - a_m1 * omega_c - two * alpha * sqrt_a;
             },
         };
 
@@ -167,7 +151,7 @@ where
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Params<X>
 where
-    X: Param,
+    X: Float,
 {
     // Transfer function numerator coefficients.
     pub b0: X,
@@ -181,9 +165,12 @@ where
 
 impl<X> Params<X>
 where
-    X: Param,
+    X: Float,
 {
-    pub fn from_kind(kind: Kind<X>, norm_freq: X, q_factor: X) -> Self {
+    pub fn from_kind(kind: Kind<X>, norm_freq: X, q_factor: X) -> Self
+    where
+        X: FloatConst,
+    {
         kind.into_params(norm_freq, q_factor)
     }
 }
@@ -192,7 +179,7 @@ where
 /// Transposed (DF2T) representation.
 pub struct Filter<P, const N: usize>
 where
-    P: FloatSample + Param,
+    P: FloatSample,
 {
     params: Params<P>,
 
@@ -204,7 +191,7 @@ where
 
 impl<P, const N: usize> Filter<P, N>
 where
-    P: FloatSample + Param,
+    P: FloatSample,
 {
     pub fn new(params: Params<P>) -> Self {
         Self {
@@ -283,7 +270,7 @@ where
 
 impl<P, const N: usize> From<Params<P>> for Filter<P, N>
 where
-    P: FloatSample + Param,
+    P: FloatSample,
 {
     fn from(params: Params<P>) -> Self {
         Self::new(params)
