@@ -1,4 +1,5 @@
 use crate::sample::Sample;
+use crate::sample::conv::{ConvertFrom, ConvertInto};
 
 /// A trait for working generically across `N`-sized blocks of [`Sample`]s,
 /// representing sampling values across `N` channels at a single point in time.
@@ -376,6 +377,54 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
     #[inline]
     fn mul_frame(self, amps: Self::Float) -> Self {
         self.zip_apply(amps, |a, b| Sample::mul_amp(a, b))
+    }
+
+    /// Converts this [`Frame`] into another of the same size but different
+    /// [`Sample`] type.
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     let conv: [i8; 2] = [0.25, -0.5].into_frame();
+    ///     assert_eq!(conv, [32, -64]);
+    ///
+    ///     let conv: [u8; 2] = [0.25, -0.5].into_frame();
+    ///     assert_eq!(conv, [160, 64]);
+    /// }
+    /// ```
+    #[inline]
+    fn into_frame<S, F>(self) -> F
+    where
+        S: Sample,
+        F: Frame<N, Sample = S>,
+        Self::Sample: ConvertInto<S>,
+    {
+        self.apply(ConvertInto::convert_into)
+    }
+
+    /// Converts another [`Frame`] of the same size but different [`Sample`]
+    /// type into this [`Frame`].
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     let conv = <[i8; 2]>::from_frame([0.25, -0.5]);
+    ///     assert_eq!(conv, [32, -64]);
+    ///
+    ///     let conv = <[u8; 2]>::from_frame([0.25, -0.5]);
+    ///     assert_eq!(conv, [160, 64]);
+    /// }
+    /// ```
+    #[inline]
+    fn from_frame<S, F>(other: F) -> Self
+    where
+        S: Sample,
+        F: Frame<N, Sample = S>,
+        Self::Sample: ConvertFrom<S>,
+    {
+        other.apply(ConvertFrom::convert_from)
     }
 }
 
