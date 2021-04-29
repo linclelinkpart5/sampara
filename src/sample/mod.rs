@@ -2,11 +2,13 @@ pub mod conv;
 
 pub use conv::{ConvertFrom, ConvertInto, Duplex};
 
+use std::fmt::Debug;
+
 use num_traits::{Float, FloatConst, Signed};
 
 /// A trait for working generically across different sample format types, both
 /// in terms of representation (integral versus floating-point) and bitsize.
-pub trait Sample: Copy + Clone + PartialOrd + PartialEq {
+pub trait Sample: Copy + Clone + PartialOrd + PartialEq + Debug {
     /// The equilibrium value for the wave that this sample type represents.
     /// This is normally the value that is equal distance from both the min and
     /// max ranges of the sample, i.e. the "zero amplitude" value.

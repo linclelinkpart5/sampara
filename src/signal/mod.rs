@@ -2,6 +2,8 @@ mod adaptors;
 mod generators;
 mod iterators;
 
+use thiserror::Error;
+
 use crate::{Frame, Sample, Duplex};
 use crate::biquad::Params;
 use crate::buffer::Buffer;
@@ -12,6 +14,28 @@ use crate::rms::Rms as RmsState;
 pub use adaptors::*;
 pub use generators::*;
 pub use iterators::*;
+
+#[derive(Error)]
+#[error("unable to completely fill buffer")]
+pub struct FillBufferError<B>
+where
+    B: Buffer,
+{
+    pub buffer: B,
+    pub num_filled: usize,
+}
+
+impl<B> std::fmt::Debug for FillBufferError<B>
+where
+    B: Buffer,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FillBufferError")
+            .field("buffer", &self.buffer.as_ref())
+            .field("num_filled", &self.num_filled)
+            .finish()
+    }
+}
 
 /// Types that yield a sequence of [`Frame`]s, representing an audio signal.
 ///
@@ -316,6 +340,43 @@ pub trait Signal<const N: usize> {
         IntoIter {
             signal: self,
         }
+    }
+
+    /// Uses the [`Frame`]s of this [`Signal`] to fill a [`Buffer`].
+    ///
+    /// If there are not enough available [`Frame`]s to fill the [`Buffer`],
+    /// returns a [`FillBufferError`].
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let mut signal = signal::from_frames(0..=9);
+    ///
+    ///     let buffer = signal.fill_buffer([-1i8; 4]).unwrap();
+    ///     assert_eq!(buffer, [0, 1, 2, 3]);
+    ///
+    ///     let error = signal.fill_buffer([-1i8; 8]).unwrap_err();
+    ///     assert_eq!(error.num_filled, 6);
+    ///     assert_eq!(error.buffer, [4, 5, 6, 7, 8, 9, -1, -1]);
+    /// }
+    /// ```
+    fn fill_buffer<B>(&mut self, mut buffer: B) -> Result<B, FillBufferError<B>>
+    where
+        B: Buffer<Item = Self::Frame>,
+    {
+        for (num_filled, c) in buffer.as_mut().iter_mut().enumerate() {
+            match self.next() {
+                None => {
+                    return Err(FillBufferError { buffer, num_filled });
+                },
+                Some(frame) => {
+                    *c = frame;
+                },
+            }
+        }
+
+        Ok(buffer)
     }
 
     /// Performs biquad filtering on this [`Signal`] and yields filtered

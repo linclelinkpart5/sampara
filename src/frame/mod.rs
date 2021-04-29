@@ -1,10 +1,12 @@
+use std::fmt::Debug;
+
 use crate::sample::Sample;
 use crate::sample::conv::{ConvertFrom, ConvertInto};
 
 /// A trait for working generically across `N`-sized blocks of [`Sample`]s,
 /// representing sampling values across `N` channels at a single point in time.
 /// Each of these blocks is called a "frame".
-pub trait Frame<const N: usize>: Copy + Clone + PartialEq {
+pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
     /// The [`Sample`] type stored in each channel within the frame.
     type Sample: Sample;
 
