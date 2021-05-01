@@ -54,17 +54,19 @@ where
     ///     let rms = Rms::from_full([[0.00], [0.25], [0.50], [0.75]]);
     ///     assert_eq!(
     ///         rms.into_window().into_buffer(),
-    ///         [[0.00], [0.25], [0.50], [0.75]],
+    ///         [[0.0], [0.0625], [0.25], [0.5625]],
     ///     );
     /// }
     /// ```
     pub fn from_full(buffer: B) -> Self {
+        let mut buffer = buffer;
         let mut square_sum: F = Frame::EQUILIBRIUM;
 
-        for frame in buffer.as_ref().iter() {
-            square_sum = square_sum.add_frame(
-                frame.into_float_frame().apply(|x| x * x)
-            );
+        // Since the passed-in buffer has raw frames, square them inplace and
+        // calculate the square sum.
+        for frame in buffer.as_mut().iter_mut() {
+            frame.transform(|x| x * x);
+            square_sum = square_sum.add_frame(frame.into_signed_frame());
         }
 
         Self {
@@ -215,7 +217,8 @@ where
     ///
     /// fn main() {
     ///     let rms = Rms::from_full([0.0, 1.0, 2.0]);
-    ///     assert!(rms.window().iter().eq(&[0.0, 1.0, 2.0]));
+    ///     let window = rms.window().iter().copied().collect::<Vec<_>>();
+    ///     assert_eq!(window, &[0.0, 1.0, 4.0]);
     /// }
     /// ```
     #[inline]
@@ -230,7 +233,8 @@ where
     ///
     /// fn main() {
     ///     let rms = Rms::from_full([0.0, 1.0, 2.0]);
-    ///     assert!(rms.into_window().iter().eq(&[0.0, 1.0, 2.0]));
+    ///     let window = rms.into_window().iter().copied().collect::<Vec<_>>();
+    ///     assert_eq!(window, &[0.0, 1.0, 4.0]);
     /// }
     /// ```
     #[inline]
