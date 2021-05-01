@@ -7,7 +7,6 @@ use crate::biquad::Params;
 use crate::buffer::Buffer;
 use crate::sample::FloatSample;
 use crate::interpolate::Interpolator;
-use crate::rms::Rms as RmsState;
 
 pub use adaptors::*;
 pub use generators::*;
@@ -477,6 +476,7 @@ pub trait Signal<const N: usize> {
     ///     ]);
     ///
     ///     let mut rms_signal = signal.rms([[0.0, 0.0]; 4]);
+    ///
     ///     assert_eq!(rms_signal.next(), Some([0.25, 0.25]));
     ///     assert_eq!(rms_signal.next(), Some([0.2795084971874737, 0.45069390943299864]));
     ///     assert_eq!(rms_signal.next(), Some([0.343693177121688, 0.5414101956926929]));
@@ -490,14 +490,43 @@ pub trait Signal<const N: usize> {
         <Self::Frame as Frame<N>>::Sample: FloatSample,
         B: Buffer<Item = <Self::Frame as Frame<N>>::Float>,
     {
-        Rms(RmsCommon {
-            signal: self,
-            rms_state: RmsState::new(window),
-        })
+        Rms(RmsCommon::from_empty(self, window))
     }
 
-    /// Similar to [`rms`], but instead calculates a windowed mean square of
-    /// this [`Signal`].
+    /// Similar to [`Signal::rms`], but treats the passed-in [`Buffer`] as
+    /// already full and containing valid [`Frame`]s.
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let signal = signal::from_frames(vec![
+    ///         [0.50, -0.50],
+    ///         [0.25, -0.75],
+    ///         [0.40, -0.60],
+    ///         [0.75, -0.25],
+    ///     ]);
+    ///
+    ///     let mut rms_signal = signal.rms_full([[0.5, 0.0]; 4]);
+    ///
+    ///     assert_eq!(rms_signal.next(), Some([0.5, 0.25]));
+    ///     assert_eq!(rms_signal.next(), Some([0.45069390943299864, 0.45069390943299864]));
+    ///     assert_eq!(rms_signal.next(), Some([0.425, 0.5414101956926929]));
+    ///     assert_eq!(rms_signal.next(), Some([0.5086747487343951, 0.5556527692723217]));
+    ///     assert_eq!(rms_signal.next(), None);
+    /// }
+    /// ```
+    fn rms_full<B>(self, window: B) -> Rms<Self, B, N>
+    where
+        Self: Sized,
+        <Self::Frame as Frame<N>>::Sample: FloatSample,
+        B: Buffer<Item = <Self::Frame as Frame<N>>::Float>,
+    {
+        Rms(RmsCommon::from_full(self, window))
+    }
+
+    /// Similar to [`Signal::rms`], but instead calculates a windowed mean
+    /// square of this [`Signal`] (without the final square root).
     ///
     /// ```
     /// use sampara::{signal, Signal};
@@ -511,6 +540,7 @@ pub trait Signal<const N: usize> {
     ///     ]);
     ///
     ///     let mut ms_signal = signal.ms([[0.0, 0.0]; 4]);
+    ///
     ///     assert_eq!(ms_signal.next(), Some([0.0625, 0.0625]));
     ///     assert_eq!(ms_signal.next(), Some([0.078125, 0.203125]));
     ///     assert_eq!(ms_signal.next(), Some([0.11812500000000001, 0.29312499999999997]));
@@ -524,10 +554,39 @@ pub trait Signal<const N: usize> {
         <Self::Frame as Frame<N>>::Sample: FloatSample,
         B: Buffer<Item = <Self::Frame as Frame<N>>::Float>,
     {
-        Ms(RmsCommon {
-            signal: self,
-            rms_state: RmsState::new(window),
-        })
+        Ms(RmsCommon::from_empty(self, window))
+    }
+
+    /// Similar to [`Signal::ms`], but treats the passed-in [`Buffer`] as
+    /// already full and containing valid [`Frame`]s.
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let signal = signal::from_frames(vec![
+    ///         [0.50, -0.50],
+    ///         [0.25, -0.75],
+    ///         [0.40, -0.60],
+    ///         [0.75, -0.25],
+    ///     ]);
+    ///
+    ///     let mut ms_signal = signal.ms_full([[0.5, 0.0]; 4]);
+    ///
+    ///     assert_eq!(ms_signal.next(), Some([0.25, 0.0625]));
+    ///     assert_eq!(ms_signal.next(), Some([0.203125, 0.203125]));
+    ///     assert_eq!(ms_signal.next(), Some([0.180625, 0.29312499999999997]));
+    ///     assert_eq!(ms_signal.next(), Some([0.25875000000000004, 0.30874999999999997]));
+    ///     assert_eq!(ms_signal.next(), None);
+    /// }
+    /// ```
+    fn ms_full<B>(self, window: B) -> Ms<Self, B, N>
+    where
+        Self: Sized,
+        <Self::Frame as Frame<N>>::Sample: FloatSample,
+        B: Buffer<Item = <Self::Frame as Frame<N>>::Float>,
+    {
+        Ms(RmsCommon::from_full(self, window))
     }
 }
 

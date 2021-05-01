@@ -439,8 +439,8 @@ where
     <S::Frame as Frame<N>>::Sample: FloatSample,
     B: Buffer<Item = <S::Frame as Frame<N>>::Float>,
 {
-    pub(super) signal: S,
-    pub(super) rms_state: RmsState<<S::Frame as Frame<N>>::Float, B, N>,
+    signal: S,
+    rms_state: RmsState<<S::Frame as Frame<N>>::Float, B, N>,
 }
 
 impl<S, B, const N: usize> RmsCommon<S, B, N>
@@ -449,6 +449,20 @@ where
     <S::Frame as Frame<N>>::Sample: FloatSample,
     B: Buffer<Item = <S::Frame as Frame<N>>::Float>,
 {
+    pub(super) fn from_empty(signal: S, buffer: B) -> Self {
+        Self {
+            signal,
+            rms_state: RmsState::from(buffer),
+        }
+    }
+
+    pub(super) fn from_full(signal: S, buffer: B) -> Self {
+        Self {
+            signal,
+            rms_state: RmsState::from_full(buffer),
+        }
+    }
+
     fn advance(&mut self, calc_root: bool) -> Option<<S::Frame as Frame<N>>::Float> {
         let frame = self.signal.next()?;
         let output = if calc_root {

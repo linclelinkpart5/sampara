@@ -21,31 +21,8 @@ where
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
-    /// Creates a new [`Rms`] using a given [`Buffer`] as a window.
-    /// The initial contents of the [`Buffer`] will be overwritten with
-    /// equilibrium values.
-    ///
-    /// ```
-    /// use sampara::rms::Rms;
-    ///
-    /// fn main() {
-    ///     let mut rms = Rms::new([[0.0]; 4]);
-    ///     rms.next([0.5]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn new(buffer: B) -> Self {
-        let mut new = Self {
-            window: Fixed::from(buffer),
-            square_sum: Frame::EQUILIBRIUM,
-        };
-
-        new.reset();
-
-        new
-    }
-
-    /// Similar to [`new`], but treats the passed-in buffer as already filled.
+    /// Similar to [`Rms::from`], but treats the passed-in buffer as already
+    /// filled with raw input [`Frame`]s.
     ///
     /// ```
     /// use sampara::rms::Rms;
@@ -81,7 +58,7 @@ where
     /// use sampara::rms::Rms;
     ///
     /// fn main() {
-    ///     let mut rms = Rms::new([[1.0], [2.0], [3.0], [4.0]]);
+    ///     let mut rms = Rms::from([[1.0], [2.0], [3.0], [4.0]]);
     ///     rms.reset();
     ///     assert_eq!(
     ///         rms.into_window().into_buffer(),
@@ -102,7 +79,7 @@ where
     ///
     /// fn main() {
     ///     const LEN: usize = 99;
-    ///     let rms = Rms::new([[0.0; 2]; LEN]);
+    ///     let rms = Rms::from([[0.0; 2]; LEN]);
     ///     assert_eq!(rms.len(), LEN);
     /// }
     /// ```
@@ -120,15 +97,13 @@ where
     /// use sampara::rms::Rms;
     ///
     /// fn main() {
-    ///     let mut rms = Rms::new([[0.0]; 4]);
+    ///     let mut rms = Rms::from([[0.0]; 4]);
     ///     assert_eq!(rms.next([1.0]), [0.5]);
     ///     assert_eq!(rms.next([-1.0]), [0.7071067811865476]);
     ///     assert_eq!(rms.next([1.0]), [0.8660254037844386]);
     ///     assert_eq!(rms.next([-1.0]), [1.0]);
     /// }
     /// ```
-    // TODO: Should this accept any compatible frame, or should it only accept
-    //       float frames?
     #[inline]
     pub fn next<I>(&mut self, new_frame: I) -> F
     where
@@ -144,7 +119,7 @@ where
     /// use sampara::rms::Rms;
     ///
     /// fn main() {
-    ///     let mut rms = Rms::new([[0.0]; 4]);
+    ///     let mut rms = Rms::from([[0.0]; 4]);
     ///     assert_eq!(rms.next_squared([1.0]), [0.25]);
     ///     assert_eq!(rms.next_squared([-1.0]), [0.5]);
     ///     assert_eq!(rms.next_squared([1.0]), [0.75]);
@@ -240,5 +215,40 @@ where
     #[inline]
     pub fn into_window(self) -> Fixed<B> {
         self.window
+    }
+}
+
+impl<F, B, const N: usize> From<B> for Rms<F, B, N>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    /// Creates a new [`Rms`] using a given [`Buffer`] as a window.
+    ///
+    /// The contents of the [`Buffer`] will be discarded and overwritten with
+    /// initial values.
+    ///
+    /// ```
+    /// use sampara::rms::Rms;
+    ///
+    /// fn main() {
+    ///     // These values get zeroed out.
+    ///     let mut rms = Rms::from([[-1.0]; 4]);
+    ///
+    ///     assert_eq!(rms.next([1.0]), [0.5]);
+    ///     assert_eq!(rms.next_squared([1.0]), [0.5]);
+    /// }
+    /// ```
+    #[inline]
+    fn from(buffer: B) -> Self {
+        let mut new = Self {
+            window: Fixed::from(buffer),
+            square_sum: Frame::EQUILIBRIUM,
+        };
+
+        new.reset();
+
+        new
     }
 }
