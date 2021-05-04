@@ -4,7 +4,7 @@ use crate::signal::Signal;
 use crate::biquad::Filter as BQFilter;
 use crate::buffer::Buffer;
 use crate::interpolate::Interpolator;
-use crate::rms::Rms as RmsState;
+use crate::rms::Rms as RmsEngine;
 
 fn zm_helper<S, O, F, M, const N: usize, const NO: usize, const NF: usize>(
     signal_a: &mut S,
@@ -433,61 +433,130 @@ where
     }
 }
 
-pub(super) struct RmsCommon<S, B, const N: usize>
+enum UninitState<B: Buffer> {
+    Failed,
+    Waiting(B),
+}
+
+enum RmsEngineState<F, B, const N: usize>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    Active(RmsEngine<F, B, N>),
+    Uninit(UninitState<B>),
+}
+
+pub(super) struct RmsState<S, B, const N: usize>
 where
     S: Signal<N>,
     <S::Frame as Frame<N>>::Sample: FloatSample,
-    B: Buffer<Item = <S::Frame as Frame<N>>::Float>,
+    B: Buffer<Item = S::Frame>,
 {
     signal: S,
-    rms_state: RmsState<<S::Frame as Frame<N>>::Float, B, N>,
+    engine_state: RmsEngineState<S::Frame, B, N>,
 }
 
-impl<S, B, const N: usize> RmsCommon<S, B, N>
+impl<S, B, const N: usize> RmsState<S, B, N>
 where
     S: Signal<N>,
     <S::Frame as Frame<N>>::Sample: FloatSample,
-    B: Buffer<Item = <S::Frame as Frame<N>>::Float>,
+    B: Buffer<Item = S::Frame>,
 {
-    pub(super) fn from_empty(signal: S, buffer: B) -> Self {
+    pub(super) fn zeroed(signal: S, buffer: B) -> Self {
         Self {
             signal,
-            rms_state: RmsState::from(buffer),
+            engine_state: RmsEngineState::Active(RmsEngine::from(buffer)),
         }
     }
 
-    pub(super) fn from_full(signal: S, buffer: B) -> Self {
+    pub(super) fn padded(signal: S, buffer: B) -> Self {
         Self {
             signal,
-            rms_state: RmsState::from_full(buffer),
+            engine_state: RmsEngineState::Active(RmsEngine::from_full(buffer)),
         }
     }
 
-    fn advance(&mut self, calc_root: bool) -> Option<<S::Frame as Frame<N>>::Float> {
-        let frame = self.signal.next()?;
-        let output = if calc_root {
-            self.rms_state.next(frame)
+    pub(super) fn signal(signal: S, buffer: B) -> Self {
+        Self {
+            signal,
+            engine_state: RmsEngineState::Uninit(UninitState::Waiting(buffer)),
         }
-        else {
-            self.rms_state.next_squared(frame)
-        };
+    }
 
-        Some(output)
+    fn advance(&mut self, calc_root: bool) -> Option<S::Frame> {
+        let signal = &mut self.signal;
+
+        match &mut self.engine_state {
+            RmsEngineState::Active(engine) => {
+                let frame = self.signal.next()?;
+                let output = if calc_root {
+                    engine.next(frame)
+                }
+                else {
+                    engine.next_squared(frame)
+                };
+
+                Some(output)
+            },
+
+            RmsEngineState::Uninit(ref mut uninit_state) => {
+                // The window/buffer has not been initialized from the signal.
+                match uninit_state {
+                    UninitState::Waiting(buffer) => {
+                        // Try and fill the buffer.
+                        match signal.fill_buffer(buffer) {
+                            // Not enough frames, set to failure state and
+                            // return `None`.
+                            Err(_) => {
+                                *uninit_state = UninitState::Failed;
+                                None
+                            },
+
+                            // The window/buffer was able to be filled, convert
+                            // to active state and then re-call this method.
+                            Ok(_) => {
+                                // Using `Failed` as a "free" temporary dummy
+                                // value.
+                                let mut owned_uninit_state = UninitState::Failed;
+                                std::mem::swap(&mut owned_uninit_state, uninit_state);
+
+                                let owned_buffer = match owned_uninit_state {
+                                    UninitState::Waiting(buffer) => buffer,
+                                    _ => unreachable!(),
+                                };
+
+                                self.engine_state = RmsEngineState::Active(
+                                    RmsEngine::from_full(owned_buffer)
+                                );
+
+                                self.advance(calc_root)
+                            },
+                        }
+                    },
+
+                    // There were not enough frames to initially fill the
+                    // window/buffer, return `None` forever.
+                    UninitState::Failed => None,
+                }
+            },
+        }
     }
 }
 
-pub struct Rms<S, B, const N: usize>(pub(super) RmsCommon<S, B, N>)
+pub struct Rms<S, B, const N: usize>(pub(super) RmsState<S, B, N>)
 where
     S: Signal<N>,
     <S::Frame as Frame<N>>::Sample: FloatSample,
-    B: Buffer<Item = <S::Frame as Frame<N>>::Float>,
+    B: Buffer<Item = S::Frame>,
 ;
 
 impl<S, B, const N: usize> Signal<N> for Rms<S, B, N>
 where
     S: Signal<N>,
     <S::Frame as Frame<N>>::Sample: FloatSample,
-    B: Buffer<Item = <S::Frame as Frame<N>>::Float>,
+    B: Buffer<Item = S::Frame>,
 {
     type Frame = B::Item;
 
@@ -497,18 +566,18 @@ where
     }
 }
 
-pub struct Ms<S, B, const N: usize>(pub(super) RmsCommon<S, B, N>)
+pub struct Ms<S, B, const N: usize>(pub(super) RmsState<S, B, N>)
 where
     S: Signal<N>,
     <S::Frame as Frame<N>>::Sample: FloatSample,
-    B: Buffer<Item = <S::Frame as Frame<N>>::Float>,
+    B: Buffer<Item = S::Frame>,
 ;
 
 impl<S, B, const N: usize> Signal<N> for Ms<S, B, N>
 where
     S: Signal<N>,
     <S::Frame as Frame<N>>::Sample: FloatSample,
-    B: Buffer<Item = <S::Frame as Frame<N>>::Float>,
+    B: Buffer<Item = S::Frame>,
 {
     type Frame = B::Item;
 

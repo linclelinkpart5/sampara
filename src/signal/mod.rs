@@ -488,9 +488,9 @@ pub trait Signal<const N: usize> {
     where
         Self: Sized,
         <Self::Frame as Frame<N>>::Sample: FloatSample,
-        B: Buffer<Item = <Self::Frame as Frame<N>>::Float>,
+        B: Buffer<Item = Self::Frame>,
     {
-        Rms(RmsCommon::from_empty(self, window))
+        Rms(RmsState::zeroed(self, window))
     }
 
     /// Similar to [`Signal::rms`], but treats the passed-in [`Buffer`] as
@@ -507,7 +507,7 @@ pub trait Signal<const N: usize> {
     ///         [0.75, -0.25],
     ///     ]);
     ///
-    ///     let mut rms_signal = signal.rms_full([[0.5, 0.0]; 4]);
+    ///     let mut rms_signal = signal.rms_padded([[0.5, 0.0]; 4]);
     ///
     ///     assert_eq!(rms_signal.next(), Some([0.5, 0.25]));
     ///     assert_eq!(rms_signal.next(), Some([0.45069390943299864, 0.45069390943299864]));
@@ -516,13 +516,22 @@ pub trait Signal<const N: usize> {
     ///     assert_eq!(rms_signal.next(), None);
     /// }
     /// ```
-    fn rms_full<B>(self, window: B) -> Rms<Self, B, N>
+    fn rms_padded<B>(self, window: B) -> Rms<Self, B, N>
     where
         Self: Sized,
         <Self::Frame as Frame<N>>::Sample: FloatSample,
-        B: Buffer<Item = <Self::Frame as Frame<N>>::Float>,
+        B: Buffer<Item = Self::Frame>,
     {
-        Rms(RmsCommon::from_full(self, window))
+        Rms(RmsState::padded(self, window))
+    }
+
+    fn rms_signal<B>(self, window: B) -> Rms<Self, B, N>
+    where
+        Self: Sized,
+        <Self::Frame as Frame<N>>::Sample: FloatSample,
+        B: Buffer<Item = Self::Frame>,
+    {
+        Rms(RmsState::signal(self, window))
     }
 
     /// Similar to [`Signal::rms`], but instead calculates a windowed mean
@@ -552,9 +561,9 @@ pub trait Signal<const N: usize> {
     where
         Self: Sized,
         <Self::Frame as Frame<N>>::Sample: FloatSample,
-        B: Buffer<Item = <Self::Frame as Frame<N>>::Float>,
+        B: Buffer<Item = Self::Frame>,
     {
-        Ms(RmsCommon::from_empty(self, window))
+        Ms(RmsState::zeroed(self, window))
     }
 
     /// Similar to [`Signal::ms`], but treats the passed-in [`Buffer`] as
@@ -571,7 +580,7 @@ pub trait Signal<const N: usize> {
     ///         [0.75, -0.25],
     ///     ]);
     ///
-    ///     let mut ms_signal = signal.ms_full([[0.5, 0.0]; 4]);
+    ///     let mut ms_signal = signal.ms_padded([[0.5, 0.0]; 4]);
     ///
     ///     assert_eq!(ms_signal.next(), Some([0.25, 0.0625]));
     ///     assert_eq!(ms_signal.next(), Some([0.203125, 0.203125]));
@@ -580,13 +589,22 @@ pub trait Signal<const N: usize> {
     ///     assert_eq!(ms_signal.next(), None);
     /// }
     /// ```
-    fn ms_full<B>(self, window: B) -> Ms<Self, B, N>
+    fn ms_padded<B>(self, window: B) -> Ms<Self, B, N>
     where
         Self: Sized,
         <Self::Frame as Frame<N>>::Sample: FloatSample,
-        B: Buffer<Item = <Self::Frame as Frame<N>>::Float>,
+        B: Buffer<Item = Self::Frame>,
     {
-        Ms(RmsCommon::from_full(self, window))
+        Ms(RmsState::padded(self, window))
+    }
+
+    fn ms_signal<B>(self, window: B) -> Ms<Self, B, N>
+    where
+        Self: Sized,
+        <Self::Frame as Frame<N>>::Sample: FloatSample,
+        B: Buffer<Item = Self::Frame>,
+    {
+        Ms(RmsState::signal(self, window))
     }
 }
 

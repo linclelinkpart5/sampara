@@ -105,10 +105,7 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn next<I>(&mut self, new_frame: I) -> F
-    where
-        I: Frame<N, Float = F>,
-    {
+    pub fn next(&mut self, new_frame: F) -> F {
         self.next_squared(new_frame).apply(Float::sqrt)
     }
 
@@ -127,12 +124,9 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn next_squared<I>(&mut self, new_frame: I) -> F
-    where
-        I: Frame<N, Float = F>,
-    {
+    pub fn next_squared(&mut self, new_frame: F) -> F {
         // Calculate the square of the new frame and push onto the buffer.
-        let new_frame_square = new_frame.into_float_frame().apply(|s| s * s);
+        let new_frame_square = new_frame.apply(|s| s * s);
         let removed_frame_square = self.window.push(new_frame_square);
 
         // Add the new frame square and subtract the removed frame square.
