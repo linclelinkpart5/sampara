@@ -478,7 +478,7 @@ where
         }
     }
 
-    pub(super) fn signal(signal: S, buffer: B) -> Self {
+    pub(super) fn fill(signal: S, buffer: B) -> Self {
         Self {
             signal,
             engine_state: RmsEngineState::Uninit(UninitState::Waiting(buffer)),
@@ -527,11 +527,20 @@ where
                                     _ => unreachable!(),
                                 };
 
-                                self.engine_state = RmsEngineState::Active(
-                                    RmsEngine::from_full(owned_buffer)
-                                );
+                                let engine = RmsEngine::from_full(owned_buffer);
 
-                                self.advance(calc_root)
+                                // Get the current RMS value in the engine to
+                                // return later.
+                                let curr_rms = if calc_root {
+                                    engine.current()
+                                }
+                                else {
+                                    engine.current_squared()
+                                };
+
+                                self.engine_state = RmsEngineState::Active(engine);
+
+                                Some(curr_rms)
                             },
                         }
                     },

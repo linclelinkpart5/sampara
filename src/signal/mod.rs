@@ -464,6 +464,9 @@ pub trait Signal<const N: usize> {
     /// [`Buffer`] will be zeroed out, and its length will determine the RMS
     /// window length.
     ///
+    /// For an input [`Signal`] of length `N`, this will produce a new
+    /// [`Signal`] that also yields `N` [`Frame`]s.
+    ///
     /// ```
     /// use sampara::{signal, Signal};
     ///
@@ -496,6 +499,9 @@ pub trait Signal<const N: usize> {
     /// Similar to [`Signal::rms`], but treats the passed-in [`Buffer`] as
     /// already full and containing valid [`Frame`]s.
     ///
+    /// For an input [`Signal`] of length `N`, this will produce a new
+    /// [`Signal`] that also yields `N` [`Frame`]s.
+    ///
     /// ```
     /// use sampara::{signal, Signal};
     ///
@@ -525,13 +531,62 @@ pub trait Signal<const N: usize> {
         Rms(RmsState::padded(self, window))
     }
 
-    fn rms_signal<B>(self, window: B) -> Rms<Self, B, N>
+    /// Similar to [`Signal::rms`], but fills the given [`Buffer`] with input
+    /// [`Frame`]s from the [`Signal`]. Upon filling, the first [`Frame`] will
+    /// be yielded.
+    ///
+    /// For an input [`Signal`] of length `N` and an input [`Buffer`] of length
+    /// `B`, this will produce a new [`Signal`] that yields `N - B + 1`
+    /// [`Frame`]s (or 0 if `N < B`).
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let frames_n8 = vec![
+    ///         [0.0, 0.0], [0.1, 0.2], [0.2, 0.4], [0.3, 0.6],
+    ///         [0.0, 0.0], [0.1, 0.2], [0.2, 0.4], [0.3, 0.6],
+    ///     ];
+    ///     let frames_n4 = vec![
+    ///         [0.0, 0.0], [0.1, 0.2], [0.2, 0.4], [0.3, 0.6],
+    ///     ];
+    ///     let frames_n2 = vec![[0.0, 0.0], [0.1, 0.2]];
+    ///
+    ///     let mut buffer = [[0.0f32; 2]; 4];
+    ///
+    ///     // Fills the buffer, with 4 frames still left to go, so this will
+    ///     // yield 5 frames total.
+    ///     let signal = signal::from_frames(frames_n8);
+    ///     let mut rms_signal = signal.rms_fill(&mut buffer);
+    ///
+    ///     assert_eq!(rms_signal.next(), Some([0.18708289, 0.37416577]));
+    ///     assert_eq!(rms_signal.next(), Some([0.18708289, 0.37416577]));
+    ///     assert_eq!(rms_signal.next(), Some([0.18708289, 0.37416577]));
+    ///     assert_eq!(rms_signal.next(), Some([0.18708289, 0.37416577]));
+    ///     assert_eq!(rms_signal.next(), Some([0.18708289, 0.37416577]));
+    ///     assert_eq!(rms_signal.next(), None);
+    ///
+    ///     // Not enough frames to fill the buffer, yields no frames.
+    ///     let signal = signal::from_frames(frames_n2);
+    ///     let mut rms_signal = signal.rms_fill(&mut buffer);
+    ///
+    ///     assert_eq!(rms_signal.next(), None);
+    ///
+    ///     // Barely filling the buffer yields one frame.
+    ///     let signal = signal::from_frames(frames_n4);
+    ///     let mut rms_signal = signal.rms_fill(&mut buffer);
+    ///
+    ///     assert_eq!(rms_signal.next(), Some([0.18708289, 0.37416577]));
+    ///     assert_eq!(rms_signal.next(), None);
+    /// }
+    /// ```
+    fn rms_fill<B>(self, window: B) -> Rms<Self, B, N>
     where
         Self: Sized,
         <Self::Frame as Frame<N>>::Sample: FloatSample,
         B: Buffer<Item = Self::Frame>,
     {
-        Rms(RmsState::signal(self, window))
+        Rms(RmsState::fill(self, window))
     }
 
     /// Similar to [`Signal::rms`], but instead calculates a windowed mean
@@ -566,8 +621,8 @@ pub trait Signal<const N: usize> {
         Ms(RmsState::zeroed(self, window))
     }
 
-    /// Similar to [`Signal::ms`], but treats the passed-in [`Buffer`] as
-    /// already full and containing valid [`Frame`]s.
+    /// Similar to [`Signal::rms_padded`], but instead calculates a windowed mean
+    /// square of this [`Signal`] (without the final square root).
     ///
     /// ```
     /// use sampara::{signal, Signal};
@@ -598,13 +653,57 @@ pub trait Signal<const N: usize> {
         Ms(RmsState::padded(self, window))
     }
 
-    fn ms_signal<B>(self, window: B) -> Ms<Self, B, N>
+    /// Similar to [`Signal::rms_fill`], but instead calculates a windowed mean
+    /// square of this [`Signal`] (without the final square root).
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let frames_n8 = vec![
+    ///         [0.0, 0.0], [0.1, 0.2], [0.2, 0.4], [0.3, 0.6],
+    ///         [0.0, 0.0], [0.1, 0.2], [0.2, 0.4], [0.3, 0.6],
+    ///     ];
+    ///     let frames_n4 = vec![
+    ///         [0.0, 0.0], [0.1, 0.2], [0.2, 0.4], [0.3, 0.6],
+    ///     ];
+    ///     let frames_n2 = vec![[0.0, 0.0], [0.1, 0.2]];
+    ///
+    ///     let mut buffer = [[0.0f32; 2]; 4];
+    ///
+    ///     // Fills the buffer, with 4 frames still left to go, so this will
+    ///     // yield 5 frames total.
+    ///     let signal = signal::from_frames(frames_n8);
+    ///     let mut ms_signal = signal.ms_fill(&mut buffer);
+    ///
+    ///     assert_eq!(ms_signal.next(), Some([0.035000004, 0.14000002]));
+    ///     assert_eq!(ms_signal.next(), Some([0.035000004, 0.14000002]));
+    ///     assert_eq!(ms_signal.next(), Some([0.035000004, 0.14000002]));
+    ///     assert_eq!(ms_signal.next(), Some([0.035000004, 0.14000002]));
+    ///     assert_eq!(ms_signal.next(), Some([0.035000004, 0.14000002]));
+    ///     assert_eq!(ms_signal.next(), None);
+    ///
+    ///     // Not enough frames to fill the buffer, yields no frames.
+    ///     let signal = signal::from_frames(frames_n2);
+    ///     let mut ms_signal = signal.ms_fill(&mut buffer);
+    ///
+    ///     assert_eq!(ms_signal.next(), None);
+    ///
+    ///     // Barely filling the buffer yields one frame.
+    ///     let signal = signal::from_frames(frames_n4);
+    ///     let mut ms_signal = signal.ms_fill(&mut buffer);
+    ///
+    ///     assert_eq!(ms_signal.next(), Some([0.035000004, 0.14000002]));
+    ///     assert_eq!(ms_signal.next(), None);
+    /// }
+    /// ```
+    fn ms_fill<B>(self, window: B) -> Ms<Self, B, N>
     where
         Self: Sized,
         <Self::Frame as Frame<N>>::Sample: FloatSample,
         B: Buffer<Item = Self::Frame>,
     {
-        Ms(RmsState::signal(self, window))
+        Ms(RmsState::fill(self, window))
     }
 }
 
