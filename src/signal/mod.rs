@@ -285,6 +285,42 @@ pub trait Signal<const N: usize> {
         }
     }
 
+    /// Eagerly advances and discards `N` [`Frame`]s from [`Self`]. If there
+    /// are fewer than `N` [`Frame`]s found, this will return `Err(X)`, where
+    /// `X` is the number of [`Frame`]s actually advanced. Otherwise, returns
+    /// `Ok(())`.
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let mut signal = signal::from_frames(0u8..=9);
+    ///
+    ///     // Skip ahead 5 frames.
+    ///     assert_eq!(signal.advance_by(5), Ok(()));
+    ///
+    ///     assert_eq!(signal.next(), Some(5));
+    ///     assert_eq!(signal.next(), Some(6));
+    ///
+    ///     // Try to skip ahead 5 more frames.
+    ///     assert_eq!(signal.advance_by(5), Err(3));
+    ///
+    ///     assert_eq!(signal.next(), None);
+    /// }
+    /// ```
+    fn advance_by(&mut self, n: usize) -> Result<(), usize>
+    where
+        Self: Sized,
+    {
+        let mut left = n;
+        while left > 0 {
+            self.next().ok_or_else(|| n - left)?;
+            left -= 1;
+        }
+
+        Ok(())
+    }
+
     /// Converts this [`Signal`] into an [`Iterator`] yielding [`Frame`]s.
     ///
     /// ```
