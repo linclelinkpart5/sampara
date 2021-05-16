@@ -30,6 +30,26 @@ pub trait Signal<const N: usize> {
         self.next().unwrap_or(Frame::EQUILIBRIUM)
     }
 
+    /// Returns the `n`th [`Frame`] from this [`Signal`], starting at 0. This
+    /// will advance the [`Signal`], so multiple calls to `nth` with the same
+    /// `n` will give different results.
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let mut signal = signal::from_frames(0..=9);
+    ///
+    ///     assert_eq!(signal.nth(3), Some(3));
+    ///     assert_eq!(signal.nth(3), Some(7));
+    ///     assert_eq!(signal.nth(3), None);
+    /// }
+    /// ```
+    fn nth(&mut self, n: usize) -> Option<Self::Frame> {
+        self.advance_by(n).ok()?;
+        self.next()
+    }
+
     /// Borrows this [`Signal`] rather than consuming it.
     ///
     /// This is useful for applying adaptors while still retaining ownership of
@@ -285,6 +305,44 @@ pub trait Signal<const N: usize> {
         }
     }
 
+    /// Returns a new [`Signal`] that yields every `n`th [`Frame`] from this
+    /// [`Signal`]. The first [`Frame`] of this [`Signal`] is always returned.
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let mut signal = signal::from_frames(0..=9);
+    ///
+    ///     let mut step_by = signal.step_by(2);
+    ///     assert_eq!(step_by.next(), Some(0));
+    ///     assert_eq!(step_by.next(), Some(2));
+    ///     assert_eq!(step_by.next(), Some(4));
+    ///     assert_eq!(step_by.next(), Some(6));
+    ///     assert_eq!(step_by.next(), Some(8));
+    ///     assert_eq!(step_by.next(), None);
+    /// }
+    /// ```
+    ///
+    /// This method pancis if `n == 0`.
+    ///
+    /// ```should_panic
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let mut signal = signal::from_frames(0..=9);
+    ///
+    ///     let mut step_by = signal.step_by(0);
+    ///     step_by.next();
+    /// }
+    /// ```
+    fn step_by(self, step: usize) -> StepBy<Self, N>
+    where
+        Self: Sized,
+    {
+        StepBy::new(self, step)
+    }
+
     /// Eagerly advances and discards `N` [`Frame`]s from [`Self`]. If there
     /// are fewer than `N` [`Frame`]s found, this will return `Err(X)`, where
     /// `X` is the number of [`Frame`]s actually advanced. Otherwise, returns
@@ -308,10 +366,7 @@ pub trait Signal<const N: usize> {
     ///     assert_eq!(signal.next(), None);
     /// }
     /// ```
-    fn advance_by(&mut self, n: usize) -> Result<(), usize>
-    where
-        Self: Sized,
-    {
+    fn advance_by(&mut self, n: usize) -> Result<(), usize> {
         let mut left = n;
         while left > 0 {
             self.next().ok_or_else(|| n - left)?;

@@ -368,6 +368,51 @@ where
     }
 }
 
+/// Creates a new [`Signal`] that yields every `N`th [`Frame`] from another
+/// [`Signal`].
+#[derive(Clone)]
+pub struct StepBy<S, const N: usize>
+where
+    S: Signal<N>,
+{
+    signal: S,
+    n: usize,
+    started: bool,
+}
+
+impl<S, const N: usize> StepBy<S, N>
+where
+    S: Signal<N>,
+{
+    pub(super) fn new(signal: S, step: usize) -> Self {
+        let n = step.checked_sub(1).expect("step size cannot be 0");
+
+        Self {
+            signal,
+            n,
+            started: false,
+        }
+    }
+}
+
+impl<S, const N: usize> Signal<N> for StepBy<S, N>
+where
+    S: Signal<N>,
+{
+    type Frame = S::Frame;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        if !self.started {
+            self.started = true;
+            self.signal.next()
+        }
+        else {
+            self.signal.nth(self.n)
+        }
+    }
+}
+
 pub struct Biquad<S, const N: usize>
 where
     S: Signal<N>,
