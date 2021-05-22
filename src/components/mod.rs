@@ -1,11 +1,8 @@
+pub mod processors;
+
+pub use processors::Processor;
+
 use crate::Frame;
-
-pub trait Processor<const NI: usize, const NO: usize> {
-    type Input: Frame<NI>;
-    type Output: Frame<NO>;
-
-    fn process(&mut self, input: Self::Input) -> Self::Output;
-}
 
 pub trait Generator<const NO: usize> {
     type Output: Frame<NO>;
