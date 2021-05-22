@@ -5,6 +5,7 @@ mod iterators;
 use crate::{Frame, Sample, Duplex};
 use crate::biquad::Params;
 use crate::buffer::Buffer;
+use crate::components::Processor;
 use crate::sample::FloatSample;
 use crate::interpolate::Interpolator;
 
@@ -443,6 +444,19 @@ pub trait Signal<const N: usize> {
         }
 
         Ok(())
+    }
+
+    /// Creates a new [`Signal`] that passes the [`Frame`]s from an input
+    /// [`Signal`] into a [`Processor`], and yields the output [`Frame`]s.
+    fn process<P, const NO: usize>(self, processor: P) -> Process<Self, P, N, NO>
+    where
+        Self: Sized,
+        P: Processor<N, NO, Input = Self::Frame>,
+    {
+        Process {
+            signal: self,
+            processor,
+        }
     }
 
     /// Performs biquad filtering on this [`Signal`] and yields filtered

@@ -1,4 +1,5 @@
 use crate::{Frame, Sample, Duplex};
+use crate::components::Processor;
 use crate::sample::FloatSample;
 use crate::signal::Signal;
 use crate::biquad::Filter as BQFilter;
@@ -410,6 +411,32 @@ where
         else {
             self.signal.nth(self.n)
         }
+    }
+}
+
+/// A [`Signal`] that processes [`Frame`]s from an input [`Signal`] with a
+/// given [`Processor`] and yields the output [`Frame`]s.
+pub struct Process<S, P, const NI: usize, const NO: usize>
+where
+    S: Signal<NI>,
+    P: Processor<NI, NO, Input = S::Frame>,
+{
+    pub(super) signal: S,
+    pub(super) processor: P,
+}
+
+impl<S, P, const NI: usize, const NO: usize> Signal<NO> for Process<S, P, NI, NO>
+where
+    S: Signal<NI>,
+    P: Processor<NI, NO, Input = S::Frame>,
+{
+    type Frame = P::Output;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        let input = self.signal.next()?;
+        let output = self.processor.process(input);
+        Some(output)
     }
 }
 
