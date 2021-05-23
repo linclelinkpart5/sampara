@@ -1,4 +1,4 @@
-use crate::Frame;
+use crate::{Frame, Processor};
 use crate::sample::FloatSample;
 
 trait Inner: FloatSample {
@@ -141,6 +141,7 @@ where
 }
 
 /// Coefficients for a digital biquad filter.
+///
 /// It is assumed that the `a0` coefficient is always normalized to 1.0,
 /// and thus not included.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -169,6 +170,43 @@ where
 
 /// An implementation of a digital biquad filter, using the Direct Form 2
 /// Transposed (DF2T) representation.
+///
+/// ```
+/// use sampara::Processor;
+/// use sampara::biquad::{Kind, Params, Filter};
+///
+/// fn main() {
+///     // Notch filter.
+///     let params = Params::from_kind(Kind::Notch, 0.25, 0.7071);
+///
+///     let inputs = &[
+///          0.00000,  0.97553,  0.29389, -0.79389,
+///         -0.47553,  0.50000,  0.47553, -0.20611,
+///         -0.29389,  0.02447,  0.00000, -0.02447,
+///          0.29389,  0.20611, -0.47553, -0.50000,
+///     ];
+///
+///     let expected = &[
+///          0.000000000000000000,  0.571449973490183000,
+///          0.172156092287300080,  0.008359170317441045,
+///         -0.135938340413138700, -0.173590260270683420,
+///          0.023322699278900627,  0.201938664486834900,
+///          0.102400391831115600, -0.141048083352848520,
+///         -0.189724745380021540,  0.024199368786658026,
+///          0.204706829399554650,  0.102249983202951780,
+///         -0.141523012483346670, -0.189698940039210730,
+///     ];
+///
+///     let mut filter = Filter::from(params);
+///
+///     let mut produced = vec![];
+///     for &input in inputs.iter() {
+///         produced.push(filter.process(input));
+///     }
+///
+///     assert_eq!(&produced, expected);
+/// }
+/// ```
 pub struct Filter<F, const N: usize>
 where
     F: Frame<N>,
@@ -187,45 +225,34 @@ where
     F: Frame<N>,
     F::Sample: FloatSample,
 {
-    /// Performs a single iteration of this filter, calculating a new filtered
-    /// `Frame` from an input `Frame`.
-    ///
-    /// ```
-    /// use sampara::biquad::{Kind, Params, Filter};
-    ///
-    /// fn main() {
-    ///     // Notch filter.
-    ///     let params = Params::from_kind(Kind::Notch, 0.25, 0.7071);
-    ///
-    ///     let inputs = &[
-    ///          0.00000,  0.97553,  0.29389, -0.79389,
-    ///         -0.47553,  0.50000,  0.47553, -0.20611,
-    ///         -0.29389,  0.02447,  0.00000, -0.02447,
-    ///          0.29389,  0.20611, -0.47553, -0.50000,
-    ///     ];
-    ///
-    ///     let expected = &[
-    ///          0.000000000000000000,  0.571449973490183000,
-    ///          0.172156092287300080,  0.008359170317441045,
-    ///         -0.135938340413138700, -0.173590260270683420,
-    ///          0.023322699278900627,  0.201938664486834900,
-    ///          0.102400391831115600, -0.141048083352848520,
-    ///         -0.189724745380021540,  0.024199368786658026,
-    ///          0.204706829399554650,  0.102249983202951780,
-    ///         -0.141523012483346670, -0.189698940039210730,
-    ///     ];
-    ///
-    ///     let mut filter = Filter::from(params);
-    ///
-    ///     let mut produced = vec![];
-    ///     for &input in inputs.iter() {
-    ///         produced.push(filter.apply(input));
-    ///     }
-    ///
-    ///     assert_eq!(&produced, expected);
-    /// }
-    /// ```
-    pub fn apply(&mut self, input: F) -> F {
+    pub fn process(&mut self, input: F) -> F {
+        Processor::process(self, input)
+    }
+}
+
+impl<F, const N: usize> From<Params<F::Sample>> for Filter<F, N>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+{
+    fn from(params: Params<F::Sample>) -> Self {
+        Self {
+            params,
+            t0: Frame::EQUILIBRIUM,
+            t1: Frame::EQUILIBRIUM,
+        }
+    }
+}
+
+impl<F, const N: usize> Processor<N, N> for Filter<F, N>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+{
+    type Input = F;
+    type Output = F;
+
+    fn process(&mut self, input: Self::Input) -> Self::Output {
         // Calculate scaled inputs.
         let input_by_b0 = input.mul_amp(self.params.b0).into_signed_frame();
         let input_by_b1 = input.mul_amp(self.params.b1).into_signed_frame();
@@ -244,19 +271,5 @@ where
         self.t1 = input_by_b2.add_frame(output_by_neg_a2);
 
         output
-    }
-}
-
-impl<F, const N: usize> From<Params<F::Sample>> for Filter<F, N>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-{
-    fn from(params: Params<F::Sample>) -> Self {
-        Self {
-            params,
-            t0: Frame::EQUILIBRIUM,
-            t1: Frame::EQUILIBRIUM,
-        }
     }
 }

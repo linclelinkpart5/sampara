@@ -62,3 +62,14 @@ where
         (self.func)(input)
     }
 }
+
+impl<M, FI, FO, const NI: usize, const NO: usize> From<M> for Map<FI, FO, M, NI, NO>
+where
+    FI: Frame<NI>,
+    FO: Frame<NO>,
+    M: FnMut(FI) -> FO,
+{
+    fn from(func: M) -> Self {
+        Self::new(func)
+    }
+}

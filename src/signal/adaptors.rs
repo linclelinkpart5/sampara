@@ -1,5 +1,4 @@
-use crate::{Frame, Sample, Duplex};
-use crate::components::Processor;
+use crate::{Frame, Sample, Duplex, Processor};
 use crate::sample::FloatSample;
 use crate::signal::Signal;
 use crate::biquad::Filter as BQFilter;
@@ -458,7 +457,7 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Self::Frame> {
-        Some(self.filter.apply(self.signal.next()?))
+        Some(self.filter.process(self.signal.next()?))
     }
 }
 
