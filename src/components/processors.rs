@@ -73,3 +73,57 @@ where
         Self::new(func)
     }
 }
+
+/// A [`Processor`] that feeds its input to an inner [`Processor`], and then
+/// feeds that output into another inner [`Processor`], like a chain.
+///
+/// ```
+/// use sampara::Processor;
+/// use sampara::components::processors::{Chain, Map};
+///
+/// fn main() {
+///     let mut pa = Map::new(|x| x + 1);
+///     let mut pb = Map::new(|x| x * 2);
+///     let mut p = Chain::new(pa, pb);
+///
+///     assert_eq!(p.process(0), 2);
+///     assert_eq!(p.process(3), 8);
+///     assert_eq!(p.process(-3), -4);
+/// }
+/// ```
+pub struct Chain<PA, PB, const NI: usize, const NX: usize, const NO: usize>
+where
+    PA: Processor<NI, NX>,
+    PB: Processor<NX, NO, Input = PA::Output>,
+{
+    pub(super) processor_a: PA,
+    pub(super) processor_b: PB,
+}
+
+impl<PA, PB, const NI: usize, const NX: usize, const NO: usize> Chain<PA, PB, NI, NX, NO>
+where
+    PA: Processor<NI, NX>,
+    PB: Processor<NX, NO, Input = PA::Output>,
+{
+    pub fn new(processor_a: PA, processor_b: PB) -> Self {
+        Self {
+            processor_a,
+            processor_b,
+        }
+    }
+}
+
+impl<PA, PB, const NI: usize, const NX: usize, const NO: usize> Processor<NI, NO>
+for Chain<PA, PB, NI, NX, NO>
+where
+    PA: Processor<NI, NX>,
+    PB: Processor<NX, NO, Input = PA::Output>,
+{
+    type Input = PA::Input;
+    type Output = PB::Output;
+
+    fn process(&mut self, input: Self::Input) -> Self::Output {
+        let inter = self.processor_a.process(input);
+        self.processor_b.process(inter)
+    }
+}
