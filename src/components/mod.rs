@@ -1,6 +1,8 @@
 pub mod processors;
+pub mod combinators;
 
 pub use processors::Processor;
+pub use combinators::Combinator;
 
 use crate::Frame;
 
@@ -8,14 +10,6 @@ pub trait Generator<const NO: usize> {
     type Output: Frame<NO>;
 
     fn generate(&mut self) -> Self::Output;
-}
-
-pub trait Combinator<const NA: usize, const NB: usize, const NO: usize> {
-    type InputA: Frame<NA>;
-    type InputB: Frame<NB>;
-    type Output: Frame<NO>;
-
-    fn combine(&mut self, input_a: Self::InputA, input_b: Self::InputB) -> Self::Output;
 }
 
 pub trait Splitter<const NI: usize, const NA: usize, const NB: usize> {
