@@ -9,9 +9,19 @@ use crate::components::Processor;
 use crate::sample::FloatSample;
 use crate::interpolate::Interpolator;
 
+// use crate::processors::Map as Mapper;
+
 pub use adaptors::*;
 pub use generators::*;
 pub use iterators::*;
+
+// type PMapper<
+//     S: Signal<NI>,
+//     FO: Frame<NO>,
+//     M: FnMut(S::Frame) -> FO,
+//     const NI: usize,
+//     const NO: usize,
+// > = Process<S, Mapper<S::Frame, FO, M, NI, NO>, NI, NO>;
 
 /// Types that yield a sequence of [`Frame`]s, representing an audio signal.
 ///
@@ -87,6 +97,17 @@ pub trait Signal<const N: usize> {
             func,
         }
     }
+
+    // fn mapper<FO, M, const NO: usize>(self, func: M)
+    //     -> PMapper<Self, FO, M, N, NO>
+    // where
+    //     Self: Sized,
+    //     FO: Frame<NO>,
+    //     M: FnMut(Self::Frame) -> FO,
+    // {
+    //     let processor = Mapper::new(func);
+    //     self.process(processor)
+    // }
 
     /// Creates a new [`Signal`] that applies a function to each pair of
     /// [`Frame`]s in [`Self`] and another [`Signal`].
