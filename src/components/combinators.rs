@@ -13,21 +13,21 @@ pub trait Combinator<const NL: usize, const NR: usize, const NO: usize> {
 ///
 /// ```
 /// use sampara::Combinator;
-/// use sampara::components::combinators::ZipMap;
+/// use sampara::components::combinators::Mix;
 ///
 /// fn main() {
 ///     let func = |x: [i8; 2], y: [i8; 2]| {
 ///         [(x[0] + x[1]) / 2, (y[0] + y[1]) / 2]
 ///     };
 ///
-///     let mut c = ZipMap::new(func);
+///     let mut c = Mix::new(func);
 ///
 ///     assert_eq!(c.combine([10, 20], [20, 30]), [15, 25]);
 ///     assert_eq!(c.combine([-5, 25], [-5, 25]), [10, 10]);
 ///     assert_eq!(c.combine([30, -20], [40, -30]), [5, 5]);
 /// }
 /// ```
-pub struct ZipMap<FL, FR, FO, M, const NL: usize, const NR: usize, const NO: usize>
+pub struct Mix<FL, FR, FO, M, const NL: usize, const NR: usize, const NO: usize>
 where
     FL: Frame<NL>,
     FR: Frame<NR>,
@@ -39,7 +39,7 @@ where
 }
 
 impl<FL, FR, FO, M, const NL: usize, const NR: usize, const NO: usize>
-    ZipMap<FL, FR, FO, M, NL, NR, NO>
+    Mix<FL, FR, FO, M, NL, NR, NO>
 where
     FL: Frame<NL>,
     FR: Frame<NR>,
@@ -55,7 +55,7 @@ where
 }
 
 impl<FL, FR, FO, M, const NL: usize, const NR: usize, const NO: usize> Combinator<NL, NR, NO>
-for ZipMap<FL, FR, FO, M, NL, NR, NO>
+for Mix<FL, FR, FO, M, NL, NR, NO>
 where
     FL: Frame<NL>,
     FR: Frame<NR>,
@@ -72,7 +72,7 @@ where
 }
 
 impl<FL, FR, FO, M, const NL: usize, const NR: usize, const NO: usize> From<M>
-for ZipMap<FL, FR, FO, M, NL, NR, NO>
+for Mix<FL, FR, FO, M, NL, NR, NO>
 where
     FL: Frame<NL>,
     FR: Frame<NR>,
