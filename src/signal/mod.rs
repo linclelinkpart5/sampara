@@ -9,19 +9,14 @@ use crate::components::Processor;
 use crate::sample::FloatSample;
 use crate::interpolate::Interpolator;
 
-// use crate::processors::Map as Mapper;
+use crate::processors as procs;
 
 pub use adaptors::*;
 pub use generators::*;
 pub use iterators::*;
 
-// type PMapper<
-//     S: Signal<NI>,
-//     FO: Frame<NO>,
-//     M: FnMut(S::Frame) -> FO,
-//     const NI: usize,
-//     const NO: usize,
-// > = Process<S, Mapper<S::Frame, FO, M, NI, NO>, NI, NO>;
+pub type Map<S, FO, M, const NI: usize, const NO: usize> =
+    Process<S, procs::Map<<S as Signal<NI>>::Frame, FO, M, NI, NO>, NI, NO>;
 
 /// Types that yield a sequence of [`Frame`]s, representing an audio signal.
 ///
@@ -86,28 +81,31 @@ pub trait Signal<const N: usize> {
 
     /// Creates a new [`Signal`] that applies a function to each [`Frame`] of
     /// [`Self`].
-    fn map<F, M, const NF: usize>(self, func: M) -> Map<Self, F, M, N, NF>
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let signal = signal::from_frames(0i32..=3);
+    ///     let mut mapped = signal.map(|f| f * f);
+    ///
+    ///     assert_eq!(mapped.next(), Some(0));
+    ///     assert_eq!(mapped.next(), Some(1));
+    ///     assert_eq!(mapped.next(), Some(4));
+    ///     assert_eq!(mapped.next(), Some(9));
+    ///     assert_eq!(mapped.next(), None);
+    /// }
+    /// ```
+    fn map<FO, M, const NO: usize>(self, func: M)
+        -> Map<Self, FO, M, N, NO>
     where
         Self: Sized,
-        F: Frame<NF>,
-        M: FnMut(Self::Frame) -> F
+        FO: Frame<NO>,
+        M: FnMut(Self::Frame) -> FO,
     {
-        Map {
-            signal: self,
-            func,
-        }
+        let processor = procs::Map::new(func);
+        self.process(processor)
     }
-
-    // fn mapper<FO, M, const NO: usize>(self, func: M)
-    //     -> PMapper<Self, FO, M, N, NO>
-    // where
-    //     Self: Sized,
-    //     FO: Frame<NO>,
-    //     M: FnMut(Self::Frame) -> FO,
-    // {
-    //     let processor = Mapper::new(func);
-    //     self.process(processor)
-    // }
 
     /// Creates a new [`Signal`] that applies a function to each pair of
     /// [`Frame`]s in [`Self`] and another [`Signal`].

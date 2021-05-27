@@ -20,34 +20,6 @@ where
     Some(func(signal_a.next()?, signal_b.next()?))
 }
 
-/// Maps a function to each [`Frame`] from a [`Signal`] and yields a new
-/// [`Frame`].
-#[derive(Clone)]
-pub struct Map<S, F, M, const N: usize, const NF: usize>
-where
-    S: Signal<N>,
-    F: Frame<NF>,
-    M: FnMut(S::Frame) -> F,
-{
-    pub(super) signal: S,
-    pub(super) func: M,
-}
-
-impl<S, F, M, const N: usize, const NF: usize> Signal<NF>
-for Map<S, F, M, N, NF>
-where
-    S: Signal<N>,
-    F: Frame<NF>,
-    M: FnMut(S::Frame) -> F,
-{
-    type Frame = F;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Frame> {
-        self.signal.next().map(|f| (self.func)(f))
-    }
-}
-
 /// Maps a function to each pair of [`Frame`]s from two [`Signal`]s in lockstep
 /// and yields a new [`Frame`].
 #[derive(Clone)]
