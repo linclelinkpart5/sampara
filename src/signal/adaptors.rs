@@ -1,4 +1,4 @@
-use crate::{Frame, Sample, Duplex, Processor};
+use crate::{Frame, Sample, Duplex, Processor, Combinator};
 use crate::sample::FloatSample;
 use crate::signal::Signal;
 use crate::biquad::Filter as BQFilter;
@@ -396,7 +396,8 @@ where
     pub(super) processor: P,
 }
 
-impl<S, P, const NI: usize, const NO: usize> Signal<NO> for Process<S, P, NI, NO>
+impl<S, P, const NI: usize, const NO: usize> Signal<NO>
+for Process<S, P, NI, NO>
 where
     S: Signal<NI>,
     P: Processor<NI, NO, Input = S::Frame>,
@@ -407,6 +408,37 @@ where
     fn next(&mut self) -> Option<Self::Frame> {
         let input = self.signal.next()?;
         let output = self.processor.process(input);
+        Some(output)
+    }
+}
+
+/// A [`Signal`] that processes pairs of [`Frame`]s in lockstep from two input
+/// [`Signal`]s with a given [`Combinator`] and yields the output [`Frame`]s.
+pub struct Combine<SL, SR, C, const NL: usize, const NR: usize, const NO: usize>
+where
+    SL: Signal<NL>,
+    SR: Signal<NR>,
+    C: Combinator<NL, NR, NO, InputL = SL::Frame, InputR = SR::Frame>,
+{
+    pub(super) signal_l: SL,
+    pub(super) signal_r: SR,
+    pub(super) combinator: C,
+}
+
+impl<SL, SR, C, const NL: usize, const NR: usize, const NO: usize> Signal<NO>
+for Combine<SL, SR, C, NL, NR, NO>
+where
+    SL: Signal<NL>,
+    SR: Signal<NR>,
+    C: Combinator<NL, NR, NO, InputL = SL::Frame, InputR = SR::Frame>,
+{
+    type Frame = C::Output;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        let input_l = self.signal_l.next()?;
+        let input_r = self.signal_r.next()?;
+        let output = self.combinator.combine(input_l, input_r);
         Some(output)
     }
 }

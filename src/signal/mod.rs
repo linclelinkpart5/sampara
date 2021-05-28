@@ -5,7 +5,7 @@ mod iterators;
 use crate::{Frame, Sample, Duplex};
 use crate::biquad::Params;
 use crate::buffer::Buffer;
-use crate::components::Processor;
+use crate::components::{Processor, Combinator};
 use crate::sample::FloatSample;
 use crate::interpolate::Interpolator;
 
@@ -465,7 +465,7 @@ pub trait Signal<const N: usize> {
         Ok(())
     }
 
-    /// Creates a new [`Signal`] that passes the [`Frame`]s from an input
+    /// Creates a new [`Signal`] that passes the [`Frame`]s yielded from this
     /// [`Signal`] into a [`Processor`], and yields the output [`Frame`]s.
     fn process<P, const NO: usize>(self, processor: P) -> Process<Self, P, N, NO>
     where
@@ -475,6 +475,25 @@ pub trait Signal<const N: usize> {
         Process {
             signal: self,
             processor,
+        }
+    }
+
+    /// Creates a new [`Signal`] that passes the [`Frame`]s yielded from this
+    /// [`Signal`] along with the [`Frame`]s yielded from another input
+    /// [`Signal`] into a [`Combinator`], and yields the output [`Frame`]s.
+    ///
+    /// If one of the input [`Signal`]s finishes before the other, this new
+    /// [`Signal`] will finish as well.
+    fn combine<C, S, const NB: usize, const NO: usize>(self, other: S, combinator: C) -> Combine<Self, S, C, N, NB, NO>
+    where
+        Self: Sized,
+        S: Signal<NB>,
+        C: Combinator<N, NB, NO, InputL = Self::Frame, InputR = S::Frame>,
+    {
+        Combine {
+            signal_l: self,
+            signal_r: other,
+            combinator,
         }
     }
 
