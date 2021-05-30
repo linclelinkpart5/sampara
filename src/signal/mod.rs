@@ -37,6 +37,9 @@ pub type Mix<SL, SR, FO, M, const NL: usize, const NR: usize, const NO: usize> =
         NL, NR, NO,
     >;
 
+pub type Select<SL, SR, const N: usize> =
+    Combine<SL, SR, combs::Selector<<SL as Signal<N>>::Frame, N>, N, N, N>;
+
 /// Types that yield a sequence of [`Frame`]s, representing an audio signal.
 ///
 /// This trait is inspired by the [`Iterator`] trait and has similar methods
@@ -158,6 +161,70 @@ pub trait Signal<const N: usize> {
         M: FnMut(Self::Frame, S::Frame) -> FO,
     {
         let combinator = combs::Mix::new(func);
+        self.combine(other, combinator)
+    }
+
+    /// Creates a new [`Signal`] that takes pairs of [`Frame`]s from [`Self`]
+    /// and another input [`Signal`] in lockstep, and returns one of them
+    /// (left or right) based on a selector switch.
+    ///
+    /// The resulting [`Signal`] will start off yielding only [`Frame`]s from
+    /// [`Self`] (left), but this can be changed at runtime.
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let signal_l = signal::from_frames(10i32..);
+    ///     let signal_r = signal::from_frames(20i32..);
+    ///
+    ///     let mut selected = signal_l.select_left(signal_r);
+    ///     assert_eq!(selected.next(), Some(10));
+    ///     assert_eq!(selected.next(), Some(11));
+    ///     assert_eq!(selected.next(), Some(12));
+    ///
+    ///     selected.toggle();
+    ///     assert_eq!(selected.next(), Some(23));
+    ///     assert_eq!(selected.next(), Some(24));
+    ///     assert_eq!(selected.next(), Some(25));
+    /// }
+    /// ```
+    fn select_left<S>(self, other: S) -> Select<Self, S, N>
+    where
+        Self: Sized,
+        S: Signal<N, Frame = Self::Frame>,
+    {
+        let combinator = combs::Selector::left();
+        self.combine(other, combinator)
+    }
+
+    /// Similar to [`select_right`], except starts off yielding the right
+    /// [`Frame`]s.
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let signal_l = signal::from_frames(10i32..);
+    ///     let signal_r = signal::from_frames(20i32..);
+    ///
+    ///     let mut selected = signal_l.select_right(signal_r);
+    ///     assert_eq!(selected.next(), Some(20));
+    ///     assert_eq!(selected.next(), Some(21));
+    ///     assert_eq!(selected.next(), Some(22));
+    ///
+    ///     selected.toggle();
+    ///     assert_eq!(selected.next(), Some(13));
+    ///     assert_eq!(selected.next(), Some(14));
+    ///     assert_eq!(selected.next(), Some(15));
+    /// }
+    /// ```
+    fn select_right<S>(self, other: S) -> Select<Self, S, N>
+    where
+        Self: Sized,
+        S: Signal<N, Frame = Self::Frame>,
+    {
+        let combinator = combs::Selector::right();
         self.combine(other, combinator)
     }
 

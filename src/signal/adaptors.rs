@@ -6,6 +6,9 @@ use crate::buffer::Buffer;
 use crate::interpolate::Interpolator;
 use crate::rms::Rms as RmsEngine;
 
+use crate::processors as procs;
+use crate::combinators as combs;
+
 fn zm_helper<S, O, F, M, const N: usize, const NO: usize, const NF: usize>(
     signal_a: &mut S,
     signal_b: &mut O,
@@ -392,6 +395,25 @@ where
     pub(super) signal_l: SL,
     pub(super) signal_r: SR,
     pub(super) combinator: C,
+}
+
+// `Selector`-specific functionality.
+impl<SL, SR, const N: usize> Combine<SL, SR, combs::Selector<SL::Frame, N>, N, N, N>
+where
+    SL: Signal<N>,
+    SR: Signal<N, Frame = SL::Frame>,
+{
+    pub fn set_left(&mut self) {
+        self.combinator.set_left()
+    }
+
+    pub fn set_right(&mut self) {
+        self.combinator.set_right()
+    }
+
+    pub fn toggle(&mut self) {
+        self.combinator.toggle()
+    }
 }
 
 impl<SL, SR, C, const NL: usize, const NR: usize, const NO: usize> Signal<NO>
