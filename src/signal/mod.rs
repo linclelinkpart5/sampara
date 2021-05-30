@@ -9,6 +9,7 @@ use crate::components::{Processor, Combinator};
 use crate::sample::FloatSample;
 use crate::interpolate::Interpolator;
 
+use crate::combinators as combs;
 use crate::processors as procs;
 
 pub use adaptors::*;
@@ -16,7 +17,25 @@ pub use generators::*;
 pub use iterators::*;
 
 pub type Map<S, FO, M, const NI: usize, const NO: usize> =
-    Process<S, procs::Map<<S as Signal<NI>>::Frame, FO, M, NI, NO>, NI, NO>;
+    Process<
+        S,
+        procs::Map<
+            <S as Signal<NI>>::Frame,
+            FO, M, NI, NO,
+        >,
+        NI, NO,
+    >;
+
+pub type Mix<SL, SR, FO, M, const NL: usize, const NR: usize, const NO: usize> =
+    Combine<
+        SL, SR,
+        combs::Mix<
+            <SL as Signal<NL>>::Frame,
+            <SR as Signal<NR>>::Frame,
+            FO, M, NL, NR, NO,
+        >,
+        NL, NR, NO,
+    >;
 
 /// Types that yield a sequence of [`Frame`]s, representing an audio signal.
 ///
@@ -105,6 +124,41 @@ pub trait Signal<const N: usize> {
     {
         let processor = procs::Map::new(func);
         self.process(processor)
+    }
+
+    /// Creates a new [`Signal`] that applies a function to each pair of
+    /// [`Frame`]s from [`Self`] and another input [`Signal`], in lockstep.
+    ///
+    /// If either input [`Signal`] becomes exhausted, this will also become
+    /// exhausted.
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let signal_l = signal::from_frames(0i32..=3);
+    ///     let signal_r = signal::from_frames(4i32..);
+    ///     let mut mixed = signal_l.mix(signal_r, |l, r| [l + r, l * r]);
+    ///
+    ///     assert_eq!(mixed.next(), Some([4, 0]));
+    ///     assert_eq!(mixed.next(), Some([6, 5]));
+    ///     assert_eq!(mixed.next(), Some([8, 12]));
+    ///     assert_eq!(mixed.next(), Some([10, 21]));
+    ///
+    ///     // At this point `signal_l` is exhausted, so this is as well.
+    ///     assert_eq!(mixed.next(), None);
+    /// }
+    /// ```
+    fn mix<S, FO, M, const NR: usize, const NO: usize>(self, other: S, func: M)
+        -> Mix<Self, S, FO, M, N, NR, NO>
+    where
+        Self: Sized,
+        S: Signal<NR>,
+        FO: Frame<NO>,
+        M: FnMut(Self::Frame, S::Frame) -> FO,
+    {
+        let combinator = combs::Mix::new(func);
+        self.combine(other, combinator)
     }
 
     /// Creates a new [`Signal`] that applies a function to each pair of

@@ -412,7 +412,7 @@ where
     }
 }
 
-/// A [`Signal`] that processes pairs of [`Frame`]s in lockstep from two input
+/// A [`Signal`] that combines pairs of [`Frame`]s in lockstep from two input
 /// [`Signal`]s with a given [`Combinator`] and yields the output [`Frame`]s.
 pub struct Combine<SL, SR, C, const NL: usize, const NR: usize, const NO: usize>
 where
