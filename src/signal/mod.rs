@@ -161,26 +161,6 @@ pub trait Signal<const N: usize> {
         self.combine(other, combinator)
     }
 
-    /// Creates a new [`Signal`] that applies a function to each pair of
-    /// [`Frame`]s in [`Self`] and another [`Signal`].
-    fn zip_map<O, F, M, const NO: usize, const NF: usize>(
-        self,
-        other: O,
-        func: M,
-    ) -> ZipMap<Self, O, F, M, N, NO, NF>
-    where
-        Self: Sized,
-        O: Signal<NO>,
-        F: Frame<NF>,
-        M: FnMut(Self::Frame, O::Frame) -> F
-    {
-        ZipMap {
-            signal_a: self,
-            signal_b: other,
-            func,
-        }
-    }
-
     /// Creates a new [`Signal`] that yields the sum of pairs of [`Frame`]s
     /// yielded by [`Self`] and another [`Signal`] in lockstep.
     fn add_signal<B>(self, other: B) -> AddSignal<Self, B, N>
