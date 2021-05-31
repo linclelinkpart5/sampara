@@ -1,7 +1,7 @@
 use crate::{Frame, Sample, Duplex, Processor, Combinator};
 use crate::sample::FloatSample;
 use crate::signal::Signal;
-use crate::biquad::Filter as BQFilter;
+use crate::biquad::Biquad as BQFilter;
 use crate::buffer::Buffer;
 use crate::interpolate::Interpolator;
 use crate::rms::Rms as RmsEngine;

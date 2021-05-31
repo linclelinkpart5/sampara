@@ -173,7 +173,7 @@ where
 ///
 /// ```
 /// use sampara::Processor;
-/// use sampara::biquad::{Kind, Params, Filter};
+/// use sampara::biquad::{Kind, Params, Biquad};
 ///
 /// fn main() {
 ///     // Notch filter.
@@ -197,7 +197,7 @@ where
 ///         -0.141523012483346670, -0.189698940039210730,
 ///     ];
 ///
-///     let mut filter = Filter::from(params);
+///     let mut filter = Biquad::from(params);
 ///
 ///     let mut produced = vec![];
 ///     for &input in inputs.iter() {
@@ -207,7 +207,7 @@ where
 ///     assert_eq!(&produced, expected);
 /// }
 /// ```
-pub struct Filter<F, const N: usize>
+pub struct Biquad<F, const N: usize>
 where
     F: Frame<N>,
     F::Sample: FloatSample,
@@ -220,7 +220,7 @@ where
     t1: F,
 }
 
-impl<F, const N: usize> Filter<F, N>
+impl<F, const N: usize> Biquad<F, N>
 where
     F: Frame<N>,
     F::Sample: FloatSample,
@@ -230,7 +230,7 @@ where
     }
 }
 
-impl<F, const N: usize> From<Params<F::Sample>> for Filter<F, N>
+impl<F, const N: usize> From<Params<F::Sample>> for Biquad<F, N>
 where
     F: Frame<N>,
     F::Sample: FloatSample,
@@ -244,7 +244,7 @@ where
     }
 }
 
-impl<F, const N: usize> Processor<N, N> for Filter<F, N>
+impl<F, const N: usize> Processor<N, N> for Biquad<F, N>
 where
     F: Frame<N>,
     F::Sample: FloatSample,
