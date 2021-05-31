@@ -190,7 +190,7 @@ where
         self.buffer().as_ref().get(wrapped_index)
     }
 
-    /// Similar to [`get`], but returns a mutable reference instead.
+    /// Similar to [`Self::get`], but returns a mutable reference instead.
     ///
     /// ```
     /// use sampara::buffer::Fixed;
@@ -244,7 +244,7 @@ where
         &self.buffer.as_ref()[wrapped_index]
     }
 
-    /// Similar to [`get_wrapped`], but returns a mutable reference instead.
+    /// Similar to [`Self::get_wrapped`], but returns a mutable reference instead.
     ///
     /// ```
     /// use sampara::buffer::Fixed;
@@ -421,7 +421,7 @@ where
         }
     }
 
-    /// Similar to [`iter`], but with mutable references instead.
+    /// Similar to [`Self::iter`], but with mutable references instead.
     ///
     /// ```
     /// use sampara::buffer::Fixed;

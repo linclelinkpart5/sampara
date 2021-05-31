@@ -52,7 +52,7 @@ pub trait Signal<const N: usize> {
     /// are no more to yield.
     fn next(&mut self) -> Option<Self::Frame>;
 
-    /// Similar to [`next`], but will always yield a [`Frame`]. Yields
+    /// Similar to [`Self::next`], but will always yield a [`Frame`]. Yields
     /// [`Frame::EQUILIBRIUM`] if there are no more actual [`Frame`]s to yield.
     fn sig_next(&mut self) -> Self::Frame {
         self.next().unwrap_or(Frame::EQUILIBRIUM)
@@ -198,7 +198,7 @@ pub trait Signal<const N: usize> {
         self.combine(other, combinator)
     }
 
-    /// Similar to [`select_right`], except starts off yielding the right
+    /// Similar to [`Self::select_left`], except starts off yielding the right
     /// [`Frame`]s.
     ///
     /// ```
@@ -1099,7 +1099,7 @@ where
     FromFrames(iter.into_iter())
 }
 
-/// Creates a new [`Signal`] by wrapping an iterable that yields [`Samples`]s.
+/// Creates a new [`Signal`] by wrapping an iterable that yields [`Sample`]s.
 /// These [`Sample`]s are assumed to be interleaved, and in channel order.
 /// The resulting [`Signal`] will read these [`Sample`]s into [`Frame`]s of the
 /// desired size, and yield them. Any trailing [`Sample`]s that do not fully

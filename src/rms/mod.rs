@@ -109,7 +109,7 @@ where
         self.next_squared(new_frame).apply(Float::sqrt)
     }
 
-    /// Similar to [`next`], but skips the final square root calculation,
+    /// Similar to [`Self::next`], but skips the final square root calculation,
     /// yielding the MS (mean square) as opposed to the RMS (root mean square).
     ///
     /// ```
@@ -157,7 +157,7 @@ where
         self.calc_rms_squared().apply(Float::sqrt)
     }
 
-    /// Similar to [`current`], but skips the final square root calculation,
+    /// Similar to [`Self::current`], but skips the final square root calculation,
     /// yielding the MS (mean square) as opposed to the RMS (root mean square).
     ///
     /// ```
