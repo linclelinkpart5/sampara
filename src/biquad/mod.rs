@@ -220,16 +220,6 @@ where
     t1: F,
 }
 
-impl<F, const N: usize> Biquad<F, N>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-{
-    pub fn process(&mut self, input: F) -> F {
-        Processor::process(self, input)
-    }
-}
-
 impl<F, const N: usize> From<Params<F::Sample>> for Biquad<F, N>
 where
     F: Frame<N>,
