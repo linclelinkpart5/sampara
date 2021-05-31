@@ -1,7 +1,114 @@
 use num_traits::Float;
 
-use crate::{Frame, Sample, sample::FloatSample};
+use crate::{Frame, Sample, Processor};
 use crate::buffer::{Fixed, Buffer};
+use crate::sample::FloatSample;
+
+#[derive(Clone)]
+struct MsInner<F, B, const N: usize>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    window: Fixed<B>,
+    square_sum: F,
+}
+
+impl<F, B, const N: usize> MsInner<F, B, N>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    fn from_full(buffer: B) -> Self {
+        let mut buffer = buffer;
+        let mut square_sum = F::EQUILIBRIUM;
+
+        // Since the passed-in buffer has raw frames, square them inplace and
+        // calculate the square sum.
+        for frame in buffer.as_mut().iter_mut() {
+            frame.transform(|x| x * x);
+
+            // TODO: See if `zip_transform` can make this more efficient.
+            square_sum = square_sum.add_frame(frame.into_signed_frame());
+        }
+
+        Self {
+            window: Fixed::from(buffer),
+            square_sum,
+        }
+    }
+
+    #[inline]
+    fn reset(&mut self) {
+        self.window.fill(Frame::EQUILIBRIUM);
+        self.square_sum = Frame::EQUILIBRIUM;
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.window.capacity()
+    }
+
+    #[inline]
+    fn calc_ms(&self) -> F {
+        let num_frames_f = Sample::from_sample(self.len() as f32);
+        self.square_sum.apply(|s| s / num_frames_f)
+    }
+
+    #[inline]
+    fn current(&self) -> F {
+        self.calc_ms()
+    }
+}
+
+impl<F, B, const N: usize> From<B> for MsInner<F, B, N>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    #[inline]
+    fn from(buffer: B) -> Self {
+        let mut new = Self {
+            window: Fixed::from(buffer),
+            square_sum: Frame::EQUILIBRIUM,
+        };
+
+        new.reset();
+
+        new
+    }
+}
+
+impl<F, B, const N: usize> Processor<N, N> for MsInner<F, B, N>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    type Input = F;
+    type Output = F;
+
+    fn process(&mut self, input: Self::Input) -> Self::Output {
+        // Calculate the square of the new frame and push onto the buffer.
+        let input_sq = input.apply(|s| s * s);
+        let removed_frame_square = self.window.push(input_sq);
+
+        // Add the new frame square and subtract the removed frame square.
+        self.square_sum =
+            self.square_sum
+                .add_frame(input_sq.into_signed_frame())
+                .zip_apply(removed_frame_square, |s, r| {
+                    // In case of floating point rounding errors, floor at
+                    // equilibrium.
+                    (s - r).max(Sample::EQUILIBRIUM)
+                });
+
+        self.calc_ms()
+    }
+}
 
 /// Keeps a running RMS (root mean square) of a window of [`Frame`]s over time.
 #[derive(Clone)]
