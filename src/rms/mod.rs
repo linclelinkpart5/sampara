@@ -5,7 +5,7 @@ use crate::buffer::{Fixed, Buffer};
 use crate::sample::FloatSample;
 
 #[derive(Clone)]
-struct NewMs<F, B, const N: usize>
+pub struct NewMs<F, B, const N: usize>
 where
     F: Frame<N>,
     F::Sample: FloatSample,
@@ -21,6 +21,7 @@ where
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
+    #[inline]
     pub fn from_full(buffer: B) -> Self {
         let mut buffer = buffer;
         let mut square_sum = F::EQUILIBRIUM;
@@ -49,6 +50,23 @@ where
     #[inline]
     pub fn len(&self) -> usize {
         self.window.capacity()
+    }
+
+    #[inline]
+    pub fn advance(&mut self, input: F) {
+        // Calculate the square of the new frame and push onto the buffer.
+        let input_sq = input.apply(|s| s * s);
+        let popped_sq_frame = self.window.push(input_sq);
+
+        // Add the new frame square and subtract the removed frame square.
+        self.square_sum =
+            self.square_sum
+                .add_frame(input_sq.into_signed_frame())
+                .zip_apply(popped_sq_frame, |s, r| {
+                    // In case of floating point rounding errors, floor at
+                    // equilibrium.
+                    (s - r).max(Sample::EQUILIBRIUM)
+                });
     }
 
     #[inline]
@@ -86,21 +104,9 @@ where
     type Input = F;
     type Output = F;
 
+    #[inline]
     fn process(&mut self, input: Self::Input) -> Self::Output {
-        // Calculate the square of the new frame and push onto the buffer.
-        let input_sq = input.apply(|s| s * s);
-        let popped_sq_frame = self.window.push(input_sq);
-
-        // Add the new frame square and subtract the removed frame square.
-        self.square_sum =
-            self.square_sum
-                .add_frame(input_sq.into_signed_frame())
-                .zip_apply(popped_sq_frame, |s, r| {
-                    // In case of floating point rounding errors, floor at
-                    // equilibrium.
-                    (s - r).max(Sample::EQUILIBRIUM)
-                });
-
+        self.advance(input);
         self.current()
     }
 }
@@ -135,11 +141,12 @@ where
     ///     assert_eq!(rms.process([1.0]), [1.0]);
     /// }
     /// ```
+    #[inline]
     pub fn from_full(buffer: B) -> Self {
         Self(NewMs::from_full(buffer))
     }
 
-    /// Resets the window to its zeroed-out state.
+    /// Resets the RMS window to its zeroed-out state.
     ///
     /// ```
     /// use sampara::rms::NewRms;
@@ -157,7 +164,7 @@ where
         self.0.reset()
     }
 
-    /// Returns the length of the window buffer.
+    /// Returns the length of the RMS window buffer.
     ///
     /// ```
     /// use sampara::rms::NewRms;
@@ -173,7 +180,32 @@ where
         self.0.len()
     }
 
-    /// Returns the current calculated value using the current window contents.
+    /// Advances the state of the RMS window buffer by pushing in a new input
+    /// [`Frame`]. The oldest frame will be popped off in order to accomodate
+    /// the new one.
+    ///
+    /// This method does not calculate the current RMS value, so it is useful
+    /// for workflows that process multiple frames in bulk and then calculate
+    /// the RMS value afterwards.
+    ///
+    /// ```
+    /// use sampara::rms::NewRms;
+    ///
+    /// fn main() {
+    ///     let mut rms = NewRms::from([[0.0; 2]; 4]);
+    ///     assert_eq!(rms.current(), [0.0, 0.0]);
+    ///
+    ///     rms.advance([1.0, 1.0]);
+    ///     rms.advance([1.0, 1.0]);
+    ///     assert_eq!(rms.current(), [0.7071067811865476, 0.7071067811865476]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn advance(&mut self, input: F) {
+        self.0.advance(input)
+    }
+
+    /// Calculates the RMS value using the current window contents.
     ///
     /// ```
     /// use sampara::rms::NewRms;
@@ -230,10 +262,11 @@ where
     type Input = F;
     type Output = F;
 
-    /// Adds a new [`Frame`] to the window and returns the root mean square of
-    /// the new window's contents.
+    /// Processes a new input frame by advancing the state of the RMS window
+    /// buffer and then calculating the current RMS value.
     ///
-    /// The oldest frame will be popped off in order to accomodate the new one.
+    /// This is equivalent to a call to [`Self::advance`] followed by a call to
+    /// [`Self::current`].
     ///
     /// ```
     /// use sampara::Processor;
@@ -247,6 +280,7 @@ where
     ///     assert_eq!(rms.process([-1.0]), [1.0]);
     /// }
     /// ```
+    #[inline]
     fn process(&mut self, input: Self::Input) -> Self::Output {
         self.0.process(input).apply(Float::sqrt)
     }
