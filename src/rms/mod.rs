@@ -5,7 +5,7 @@ use crate::buffer::{Fixed, Buffer};
 use crate::sample::FloatSample;
 
 #[derive(Clone)]
-struct MsInner<F, B, const N: usize>
+struct NewMs<F, B, const N: usize>
 where
     F: Frame<N>,
     F::Sample: FloatSample,
@@ -15,13 +15,13 @@ where
     square_sum: F,
 }
 
-impl<F, B, const N: usize> MsInner<F, B, N>
+impl<F, B, const N: usize> NewMs<F, B, N>
 where
     F: Frame<N>,
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
-    fn from_full(buffer: B) -> Self {
+    pub fn from_full(buffer: B) -> Self {
         let mut buffer = buffer;
         let mut square_sum = F::EQUILIBRIUM;
 
@@ -41,29 +41,24 @@ where
     }
 
     #[inline]
-    fn reset(&mut self) {
+    pub fn reset(&mut self) {
         self.window.fill(Frame::EQUILIBRIUM);
         self.square_sum = Frame::EQUILIBRIUM;
     }
 
     #[inline]
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.window.capacity()
     }
 
     #[inline]
-    fn calc_ms(&self) -> F {
+    pub fn current(&self) -> F {
         let num_frames_f = Sample::from_sample(self.len() as f32);
         self.square_sum.apply(|s| s / num_frames_f)
     }
-
-    #[inline]
-    fn current(&self) -> F {
-        self.calc_ms()
-    }
 }
 
-impl<F, B, const N: usize> From<B> for MsInner<F, B, N>
+impl<F, B, const N: usize> From<B> for NewMs<F, B, N>
 where
     F: Frame<N>,
     F::Sample: FloatSample,
@@ -82,7 +77,7 @@ where
     }
 }
 
-impl<F, B, const N: usize> Processor<N, N> for MsInner<F, B, N>
+impl<F, B, const N: usize> Processor<N, N> for NewMs<F, B, N>
 where
     F: Frame<N>,
     F::Sample: FloatSample,
@@ -94,19 +89,166 @@ where
     fn process(&mut self, input: Self::Input) -> Self::Output {
         // Calculate the square of the new frame and push onto the buffer.
         let input_sq = input.apply(|s| s * s);
-        let removed_frame_square = self.window.push(input_sq);
+        let popped_sq_frame = self.window.push(input_sq);
 
         // Add the new frame square and subtract the removed frame square.
         self.square_sum =
             self.square_sum
                 .add_frame(input_sq.into_signed_frame())
-                .zip_apply(removed_frame_square, |s, r| {
+                .zip_apply(popped_sq_frame, |s, r| {
                     // In case of floating point rounding errors, floor at
                     // equilibrium.
                     (s - r).max(Sample::EQUILIBRIUM)
                 });
 
-        self.calc_ms()
+        self.current()
+    }
+}
+
+pub struct NewRms<F, B, const N: usize>(NewMs<F, B, N>)
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+;
+
+impl<F, B, const N: usize> NewRms<F, B, N>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    /// Similar to [`NewRms::from`], but treats the passed-in buffer as already
+    /// filled with input [`Frame`]s.
+    ///
+    /// ```
+    /// use sampara::Processor;
+    /// use sampara::rms::NewRms;
+    ///
+    /// fn main() {
+    ///     let mut rms = NewRms::from_full([[0.5], [0.5], [0.5], [0.5]]);
+    ///     assert_eq!(rms.current(), [0.5]);
+    ///
+    ///     assert_eq!(rms.process([1.0]), [0.6614378277661477]);
+    ///     assert_eq!(rms.process([1.0]), [0.7905694150420949]);
+    ///     assert_eq!(rms.process([1.0]), [0.9013878188659973]);
+    ///     assert_eq!(rms.process([1.0]), [1.0]);
+    /// }
+    /// ```
+    pub fn from_full(buffer: B) -> Self {
+        Self(NewMs::from_full(buffer))
+    }
+
+    /// Resets the window to its zeroed-out state.
+    ///
+    /// ```
+    /// use sampara::rms::NewRms;
+    ///
+    /// fn main() {
+    ///     let mut rms = NewRms::from_full([[0.25], [0.75], [-0.25], [-0.75]]);
+    ///     assert_ne!(rms.current(), [0.0]);
+    ///
+    ///     rms.reset();
+    ///     assert_eq!(rms.current(), [0.0]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn reset(&mut self) {
+        self.0.reset()
+    }
+
+    /// Returns the length of the window buffer.
+    ///
+    /// ```
+    /// use sampara::rms::NewRms;
+    ///
+    /// fn main() {
+    ///     const LEN: usize = 99;
+    ///     let rms = NewRms::from([[0.0; 2]; LEN]);
+    ///     assert_eq!(rms.len(), LEN);
+    /// }
+    /// ```
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns the current calculated value using the current window contents.
+    ///
+    /// ```
+    /// use sampara::rms::NewRms;
+    ///
+    /// fn main() {
+    ///     let mut rms = NewRms::from_full([[0.0], [1.0], [0.0], [1.0]]);
+    ///     assert_eq!(rms.current(), [0.7071067811865476]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn current(&self) -> F {
+        self.0.current().apply(Float::sqrt)
+    }
+}
+
+impl<F, B, const N: usize> From<B> for NewRms<F, B, N>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    /// Creates a new [`NewRms`] using a given [`Buffer`] as a window.
+    ///
+    /// The contents of the buffer will be discarded and overwritten with
+    /// equilibrium values.
+    ///
+    /// ```
+    /// use sampara::Processor;
+    /// use sampara::rms::NewRms;
+    ///
+    /// fn main() {
+    ///     // These values get zeroed out.
+    ///     let mut rms = NewRms::from([[-1.0]; 4]);
+    ///     assert_eq!(rms.current(), [0.0]);
+    ///
+    ///     assert_eq!(rms.process([1.0]), [0.5]);
+    ///     assert_eq!(rms.process([1.0]), [0.7071067811865476]);
+    ///     assert_eq!(rms.process([1.0]), [0.8660254037844386]);
+    ///     assert_eq!(rms.process([1.0]), [1.0]);
+    /// }
+    /// ```
+    #[inline]
+    fn from(buffer: B) -> Self {
+        Self(NewMs::from(buffer))
+    }
+}
+
+impl<F, B, const N: usize> Processor<N, N> for NewRms<F, B, N>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    type Input = F;
+    type Output = F;
+
+    /// Adds a new [`Frame`] to the window and returns the root mean square of
+    /// the new window's contents.
+    ///
+    /// The oldest frame will be popped off in order to accomodate the new one.
+    ///
+    /// ```
+    /// use sampara::Processor;
+    /// use sampara::rms::NewRms;
+    ///
+    /// fn main() {
+    ///     let mut rms = NewRms::from([[0.0]; 4]);
+    ///     assert_eq!(rms.process([1.0]), [0.5]);
+    ///     assert_eq!(rms.process([-1.0]), [0.7071067811865476]);
+    ///     assert_eq!(rms.process([1.0]), [0.8660254037844386]);
+    ///     assert_eq!(rms.process([-1.0]), [1.0]);
+    /// }
+    /// ```
+    fn process(&mut self, input: Self::Input) -> Self::Output {
+        self.0.process(input).apply(Float::sqrt)
     }
 }
 
@@ -128,20 +270,6 @@ where
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
-    /// Similar to [`Rms::from`], but treats the passed-in buffer as already
-    /// filled with raw input [`Frame`]s.
-    ///
-    /// ```
-    /// use sampara::rms::Rms;
-    ///
-    /// fn main() {
-    ///     let rms = Rms::from_full([[0.00], [0.25], [0.50], [0.75]]);
-    ///     assert_eq!(
-    ///         rms.into_window().into_buffer(),
-    ///         [[0.0], [0.0625], [0.25], [0.5625]],
-    ///     );
-    /// }
-    /// ```
     pub fn from_full(buffer: B) -> Self {
         let mut buffer = buffer;
         let mut square_sum: F = Frame::EQUILIBRIUM;
@@ -159,37 +287,12 @@ where
         }
     }
 
-    /// Resets [`Self`] to its zeroed-out state.
-    ///
-    /// ```
-    /// use sampara::rms::Rms;
-    ///
-    /// fn main() {
-    ///     let mut rms = Rms::from([[1.0], [2.0], [3.0], [4.0]]);
-    ///     rms.reset();
-    ///     assert_eq!(
-    ///         rms.into_window().into_buffer(),
-    ///         [[0.0], [0.0], [0.0], [0.0]],
-    ///     );
-    /// }
-    /// ```
     #[inline]
     pub fn reset(&mut self) {
         self.window.fill(Frame::EQUILIBRIUM);
         self.square_sum = Frame::EQUILIBRIUM;
     }
 
-    /// Returns the window size of [`Self`].
-    ///
-    /// ```
-    /// use sampara::rms::Rms;
-    ///
-    /// fn main() {
-    ///     const LEN: usize = 99;
-    ///     let rms = Rms::from([[0.0; 2]; LEN]);
-    ///     assert_eq!(rms.len(), LEN);
-    /// }
-    /// ```
     #[inline]
     pub fn len(&self) -> usize {
         self.window.capacity()
@@ -249,16 +352,6 @@ where
         self.calc_rms_squared()
     }
 
-    /// Returns the RMS of the current contents of the buffer.
-    ///
-    /// ```
-    /// use sampara::rms::Rms;
-    ///
-    /// fn main() {
-    ///     let mut rms = Rms::from_full([[0.0], [1.0], [0.0], [1.0]]);
-    ///     assert_eq!(rms.current(), [0.7071067811865476]);
-    /// }
-    /// ```
     #[inline]
     pub fn current(&self) -> F {
         self.calc_rms_squared().apply(Float::sqrt)
@@ -325,22 +418,6 @@ where
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
-    /// Creates a new [`Rms`] using a given [`Buffer`] as a window.
-    ///
-    /// The contents of the [`Buffer`] will be discarded and overwritten with
-    /// initial values.
-    ///
-    /// ```
-    /// use sampara::rms::Rms;
-    ///
-    /// fn main() {
-    ///     // These values get zeroed out.
-    ///     let mut rms = Rms::from([[-1.0]; 4]);
-    ///
-    ///     assert_eq!(rms.next([1.0]), [0.5]);
-    ///     assert_eq!(rms.next_squared([1.0]), [0.5]);
-    /// }
-    /// ```
     #[inline]
     fn from(buffer: B) -> Self {
         let mut new = Self {
