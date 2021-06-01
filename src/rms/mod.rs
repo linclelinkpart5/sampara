@@ -4,6 +4,7 @@ use crate::{Frame, Sample, Processor};
 use crate::buffer::{Fixed, Buffer};
 use crate::sample::FloatSample;
 
+/// Keeps a running MS (mean square) of a window of [`Frame`]s over time.
 #[derive(Clone)]
 pub struct NewMs<F, B, const N: usize>
 where
@@ -21,6 +22,23 @@ where
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
+    /// Similar to [`NewMs::from`], but treats the passed-in buffer as already
+    /// filled with input [`Frame`]s.
+    ///
+    /// ```
+    /// use sampara::Processor;
+    /// use sampara::rms::NewMs;
+    ///
+    /// fn main() {
+    ///     let mut ms = NewMs::from_full([[0.5], [0.5], [0.5], [0.5]]);
+    ///     assert_eq!(ms.current(), [0.25]);
+    ///
+    ///     assert_eq!(ms.process([1.0]), [0.4375]);
+    ///     assert_eq!(ms.process([1.0]), [0.6250]);
+    ///     assert_eq!(ms.process([1.0]), [0.8125]);
+    ///     assert_eq!(ms.process([1.0]), [1.0]);
+    /// }
+    /// ```
     #[inline]
     pub fn from_full(buffer: B) -> Self {
         let mut buffer = buffer;
@@ -41,17 +59,61 @@ where
         }
     }
 
+    /// Resets the MS window to its zeroed-out state.
+    ///
+    /// ```
+    /// use sampara::rms::NewMs;
+    ///
+    /// fn main() {
+    ///     let mut ms = NewMs::from_full([[0.25], [0.75], [-0.25], [-0.75]]);
+    ///     assert_ne!(ms.current(), [0.0]);
+    ///
+    ///     ms.reset();
+    ///     assert_eq!(ms.current(), [0.0]);
+    /// }
+    /// ```
     #[inline]
     pub fn reset(&mut self) {
         self.window.fill(Frame::EQUILIBRIUM);
         self.square_sum = Frame::EQUILIBRIUM;
     }
 
+    /// Returns the length of the MS window buffer.
+    ///
+    /// ```
+    /// use sampara::rms::NewMs;
+    ///
+    /// fn main() {
+    ///     const LEN: usize = 99;
+    ///     let ms = NewMs::from([[0.0; 2]; LEN]);
+    ///     assert_eq!(ms.len(), LEN);
+    /// }
+    /// ```
     #[inline]
     pub fn len(&self) -> usize {
         self.window.capacity()
     }
 
+    /// Advances the state of the MS window buffer by pushing in a new input
+    /// [`Frame`]. The oldest frame will be popped off in order to accomodate
+    /// the new one.
+    ///
+    /// This method does not calculate the current MS value, so it is useful
+    /// for workflows that process multiple frames in bulk and then calculate
+    /// the MS value afterwards.
+    ///
+    /// ```
+    /// use sampara::rms::NewMs;
+    ///
+    /// fn main() {
+    ///     let mut ms = NewMs::from([[0.0; 2]; 4]);
+    ///     assert_eq!(ms.current(), [0.0, 0.0]);
+    ///
+    ///     ms.advance([1.0, 1.0]);
+    ///     ms.advance([1.0, 1.0]);
+    ///     assert_eq!(ms.current(), [0.5, 0.5]);
+    /// }
+    /// ```
     #[inline]
     pub fn advance(&mut self, input: F) {
         // Calculate the square of the new frame and push onto the buffer.
@@ -69,6 +131,16 @@ where
                 });
     }
 
+    /// Calculates the MS value using the current window contents.
+    ///
+    /// ```
+    /// use sampara::rms::NewMs;
+    ///
+    /// fn main() {
+    ///     let mut ms = NewMs::from_full([[0.0], [1.0], [0.0], [1.0]]);
+    ///     assert_eq!(ms.current(), [0.5]);
+    /// }
+    /// ```
     #[inline]
     pub fn current(&self) -> F {
         let num_frames_f = Sample::from_sample(self.len() as f32);
@@ -82,6 +154,26 @@ where
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
+    /// Creates a new [`NewMs`] using a given [`Buffer`] as a window.
+    ///
+    /// The contents of the buffer will be discarded and overwritten with
+    /// equilibrium values.
+    ///
+    /// ```
+    /// use sampara::Processor;
+    /// use sampara::rms::NewMs;
+    ///
+    /// fn main() {
+    ///     // These values get zeroed out.
+    ///     let mut ms = NewMs::from([[-1.0]; 4]);
+    ///     assert_eq!(ms.current(), [0.0]);
+    ///
+    ///     assert_eq!(ms.process([1.0]), [0.25]);
+    ///     assert_eq!(ms.process([1.0]), [0.5]);
+    ///     assert_eq!(ms.process([1.0]), [0.75]);
+    ///     assert_eq!(ms.process([1.0]), [1.0]);
+    /// }
+    /// ```
     #[inline]
     fn from(buffer: B) -> Self {
         let mut new = Self {
@@ -104,6 +196,24 @@ where
     type Input = F;
     type Output = F;
 
+    /// Processes a new input frame by advancing the state of the MS window
+    /// buffer and then calculating the current MS value.
+    ///
+    /// This is equivalent to a call to [`Self::advance`] followed by a call to
+    /// [`Self::current`].
+    ///
+    /// ```
+    /// use sampara::Processor;
+    /// use sampara::rms::NewMs;
+    ///
+    /// fn main() {
+    ///     let mut ms = NewMs::from([[0.0]; 4]);
+    ///     assert_eq!(ms.process([1.0]), [0.25]);
+    ///     assert_eq!(ms.process([-1.0]), [0.5]);
+    ///     assert_eq!(ms.process([1.0]), [0.75]);
+    ///     assert_eq!(ms.process([-1.0]), [1.0]);
+    /// }
+    /// ```
     #[inline]
     fn process(&mut self, input: Self::Input) -> Self::Output {
         self.advance(input);
@@ -111,6 +221,7 @@ where
     }
 }
 
+/// Keeps a running RMS (root mean square) of a window of [`Frame`]s over time.
 pub struct NewRms<F, B, const N: usize>(NewMs<F, B, N>)
 where
     F: Frame<N>,
