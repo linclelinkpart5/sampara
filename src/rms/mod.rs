@@ -26,7 +26,6 @@ where
     /// filled with input [`Frame`]s.
     ///
     /// ```
-    /// use sampara::Processor;
     /// use sampara::rms::NewMs;
     ///
     /// fn main() {
@@ -146,6 +145,29 @@ where
         let num_frames_f = Sample::from_sample(self.len() as f32);
         self.square_sum.apply(|s| s / num_frames_f)
     }
+
+    /// Processes a new input frame by advancing the state of the MS window
+    /// buffer and then calculating the current MS value.
+    ///
+    /// This is equivalent to a call to [`Self::advance`] followed by a call to
+    /// [`Self::current`].
+    ///
+    /// ```
+    /// use sampara::rms::NewMs;
+    ///
+    /// fn main() {
+    ///     let mut ms = NewMs::from([[0.0]; 4]);
+    ///     assert_eq!(ms.process([1.0]), [0.25]);
+    ///     assert_eq!(ms.process([-1.0]), [0.5]);
+    ///     assert_eq!(ms.process([1.0]), [0.75]);
+    ///     assert_eq!(ms.process([-1.0]), [1.0]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn process(&mut self, input: F) -> F {
+        self.advance(input);
+        self.current()
+    }
 }
 
 impl<F, B, const N: usize> From<B> for NewMs<F, B, N>
@@ -160,7 +182,6 @@ where
     /// equilibrium values.
     ///
     /// ```
-    /// use sampara::Processor;
     /// use sampara::rms::NewMs;
     ///
     /// fn main() {
@@ -196,28 +217,9 @@ where
     type Input = F;
     type Output = F;
 
-    /// Processes a new input frame by advancing the state of the MS window
-    /// buffer and then calculating the current MS value.
-    ///
-    /// This is equivalent to a call to [`Self::advance`] followed by a call to
-    /// [`Self::current`].
-    ///
-    /// ```
-    /// use sampara::Processor;
-    /// use sampara::rms::NewMs;
-    ///
-    /// fn main() {
-    ///     let mut ms = NewMs::from([[0.0]; 4]);
-    ///     assert_eq!(ms.process([1.0]), [0.25]);
-    ///     assert_eq!(ms.process([-1.0]), [0.5]);
-    ///     assert_eq!(ms.process([1.0]), [0.75]);
-    ///     assert_eq!(ms.process([-1.0]), [1.0]);
-    /// }
-    /// ```
     #[inline]
     fn process(&mut self, input: Self::Input) -> Self::Output {
-        self.advance(input);
-        self.current()
+        self.process(input)
     }
 }
 
@@ -239,7 +241,6 @@ where
     /// filled with input [`Frame`]s.
     ///
     /// ```
-    /// use sampara::Processor;
     /// use sampara::rms::NewRms;
     ///
     /// fn main() {
@@ -330,6 +331,28 @@ where
     pub fn current(&self) -> F {
         self.0.current().apply(Float::sqrt)
     }
+
+    /// Processes a new input frame by advancing the state of the RMS window
+    /// buffer and then calculating the current RMS value.
+    ///
+    /// This is equivalent to a call to [`Self::advance`] followed by a call to
+    /// [`Self::current`].
+    ///
+    /// ```
+    /// use sampara::rms::NewRms;
+    ///
+    /// fn main() {
+    ///     let mut rms = NewRms::from([[0.0]; 4]);
+    ///     assert_eq!(rms.process([1.0]), [0.5]);
+    ///     assert_eq!(rms.process([-1.0]), [0.7071067811865476]);
+    ///     assert_eq!(rms.process([1.0]), [0.8660254037844386]);
+    ///     assert_eq!(rms.process([-1.0]), [1.0]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn process(&mut self, input: F) -> F {
+        self.0.process(input).apply(Float::sqrt)
+    }
 }
 
 impl<F, B, const N: usize> From<B> for NewRms<F, B, N>
@@ -344,7 +367,6 @@ where
     /// equilibrium values.
     ///
     /// ```
-    /// use sampara::Processor;
     /// use sampara::rms::NewRms;
     ///
     /// fn main() {
@@ -373,27 +395,9 @@ where
     type Input = F;
     type Output = F;
 
-    /// Processes a new input frame by advancing the state of the RMS window
-    /// buffer and then calculating the current RMS value.
-    ///
-    /// This is equivalent to a call to [`Self::advance`] followed by a call to
-    /// [`Self::current`].
-    ///
-    /// ```
-    /// use sampara::Processor;
-    /// use sampara::rms::NewRms;
-    ///
-    /// fn main() {
-    ///     let mut rms = NewRms::from([[0.0]; 4]);
-    ///     assert_eq!(rms.process([1.0]), [0.5]);
-    ///     assert_eq!(rms.process([-1.0]), [0.7071067811865476]);
-    ///     assert_eq!(rms.process([1.0]), [0.8660254037844386]);
-    ///     assert_eq!(rms.process([-1.0]), [1.0]);
-    /// }
-    /// ```
     #[inline]
     fn process(&mut self, input: Self::Input) -> Self::Output {
-        self.0.process(input).apply(Float::sqrt)
+        self.process(input)
     }
 }
 
