@@ -77,6 +77,83 @@ where
         self.square_sum = Frame::EQUILIBRIUM;
     }
 
+    /// Fills the MS window with a single constant [`Frame`] value.
+    ///
+    /// ```
+    /// use sampara::rms::NewMs;
+    ///
+    /// fn main() {
+    ///     let mut ms = NewMs::from([[0.0]; 4]);
+    ///
+    ///     ms.fill([0.5]);
+    ///     assert_eq!(ms.current(), [0.25]);
+    ///
+    ///     ms.advance([1.0]);
+    ///     ms.advance([1.0]);
+    ///     assert_eq!(ms.current(), [0.625]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn fill(&mut self, fill: F) {
+        let mut fill = fill;
+
+        // Calculate the squared frame, as that is what will actually be stored
+        // in the window.
+        fill.transform(|x| x * x);
+
+        self.window.fill(fill);
+
+        let num_frames_f: F::Sample = Sample::from_sample(self.len() as f32);
+        self.square_sum = fill.apply(|x| num_frames_f * x);
+    }
+
+    /// Fills the MS window by repeatedly calling a closure that produces
+    /// [`Frame`] values.
+    ///
+    /// ```
+    /// use sampara::rms::NewMs;
+    ///
+    /// fn main() {
+    ///     let mut ms = NewMs::from([[0.0]; 4]);
+    ///
+    ///     let mut zero = true;
+    ///     ms.fill_with(|| {
+    ///         zero = !zero;
+    ///         if zero { [0.0] }
+    ///         else { [1.0] }
+    ///     });
+    ///     assert_eq!(ms.current(), [0.5]);
+    ///
+    ///     ms.advance([1.0]);
+    ///     ms.advance([1.0]);
+    ///     assert_eq!(ms.current(), [0.75]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn fill_with<M>(&mut self, func: M)
+    where
+        M: FnMut() -> F,
+    {
+        let mut func = func;
+        let mut sq_sum = F::EQUILIBRIUM;
+
+        let sq_func = || {
+            let mut f = func();
+
+            // Square the frame.
+            f.transform(|x| x * x);
+
+            // Before yielding the squared frame, add it to the running square
+            // sum.
+            sq_sum = sq_sum.add_frame(f.into_signed_frame());
+
+            f
+        };
+
+        self.window.fill_with(sq_func);
+        self.square_sum = sq_sum;
+    }
+
     /// Returns the length of the MS window buffer.
     ///
     /// ```
@@ -274,6 +351,57 @@ where
     #[inline]
     pub fn reset(&mut self) {
         self.0.reset()
+    }
+
+    /// Fills the RMS window with a single constant [`Frame`] value.
+    ///
+    /// ```
+    /// use sampara::rms::NewRms;
+    ///
+    /// fn main() {
+    ///     let mut rms = NewRms::from([[0.0]; 4]);
+    ///
+    ///     rms.fill([0.5]);
+    ///     assert_eq!(rms.current(), [0.5]);
+    ///
+    ///     rms.advance([1.0]);
+    ///     rms.advance([1.0]);
+    ///     assert_eq!(rms.current(), [0.7905694150420949]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn fill(&mut self, fill: F) {
+        self.0.fill(fill)
+    }
+
+    /// Fills the RMS window by repeatedly calling a closure that produces
+    /// [`Frame`] values.
+    ///
+    /// ```
+    /// use sampara::rms::NewRms;
+    ///
+    /// fn main() {
+    ///     let mut rms = NewRms::from([[0.0]; 4]);
+    ///
+    ///     let mut zero = true;
+    ///     rms.fill_with(|| {
+    ///         zero = !zero;
+    ///         if zero { [0.0] }
+    ///         else { [1.0] }
+    ///     });
+    ///     assert_eq!(rms.current(), [0.7071067811865476]);
+    ///
+    ///     rms.advance([1.0]);
+    ///     rms.advance([1.0]);
+    ///     assert_eq!(rms.current(), [0.8660254037844386]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn fill_with<M>(&mut self, func: M)
+    where
+        M: FnMut() -> F,
+    {
+        self.0.fill_with(func)
     }
 
     /// Returns the length of the RMS window buffer.
