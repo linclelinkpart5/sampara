@@ -2,11 +2,8 @@ use crate::{Frame, Sample, Duplex, Processor, Combinator};
 use crate::sample::FloatSample;
 use crate::signal::Signal;
 use crate::biquad::Biquad as BQFilter;
-use crate::buffer::Buffer;
 use crate::interpolate::Interpolator;
-use crate::rms::Rms as RmsEngine;
 
-use crate::processors as procs;
 use crate::combinators as combs;
 
 fn zm_helper<S, O, F, M, const N: usize, const NO: usize, const NF: usize>(
