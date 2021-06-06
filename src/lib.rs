@@ -7,6 +7,7 @@ pub mod interpolate;
 pub mod rms;
 pub mod sample;
 pub mod signal;
+pub mod wavegen;
 pub mod window;
 
 pub use components::*;
