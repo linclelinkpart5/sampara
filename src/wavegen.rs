@@ -45,7 +45,7 @@ where
     <S::Frame as Frame<N>>::Sample: FloatSample,
 {
     Hzs(S, <S::Frame as Frame<N>>::Sample),
-    Deltas(S),
+    Steps(S),
 }
 
 impl<S, const N: usize> Step<<S::Frame as Frame<N>>::Sample, N> for VarInner<S, N>
@@ -60,8 +60,8 @@ where
             Self::Hzs(hz_signal, rate) => {
                 hz_signal.next().map(|f| f.mul_amp(rate.recip()))
             },
-            Self::Deltas(delta_signal) => {
-                delta_signal.next()
+            Self::Steps(steps_signal) => {
+                steps_signal.next()
             },
         }
     }
@@ -120,36 +120,113 @@ where
     }
 }
 
-pub fn fixed_hz<X, F, const N: usize>(rate: X, hz: F) -> Phase<X, Fixed<F, N>, N>
+impl<X, F, const N: usize> Phase<X, Fixed<F, N>, N>
 where
     X: FloatSample,
     F: Frame<N, Sample = X>,
 {
-    Fixed(hz.apply(|x| x / rate)).into()
+    /// Creates a [`Phase`] with a constant [`Frame`] of frequencies.
+    ///
+    /// This [`Phase`] does not terminate, it will always return a step value.
+    ///
+    /// ```
+    /// use sampara::Signal;
+    /// use sampara::wavegen::Phase;
+    ///
+    /// fn main() {
+    ///     let mut phase = Phase::fixed_hz(4.0, [0.5, 1.0, 1.5]);
+    ///
+    ///     assert_eq!(phase.next(), Some([0.125, 0.250, 0.375]));
+    ///     assert_eq!(phase.next(), Some([0.250, 0.500, 0.750]));
+    ///     assert_eq!(phase.next(), Some([0.375, 0.750, 0.125]));
+    /// }
+    /// ```
+    pub fn fixed_hz(rate: X, hz: F) -> Self {
+        Fixed(hz.apply(|x| x / rate)).into()
+    }
+
+    /// Creates a [`Phase`] with a constant [`Frame`] of time steps.
+    ///
+    /// This [`Phase`] does not terminate, it will always return a step value.
+    ///
+    /// ```
+    /// use sampara::Signal;
+    /// use sampara::wavegen::Phase;
+    ///
+    /// fn main() {
+    ///     let mut phase = Phase::fixed_step([0.125, 0.250, 0.375]);
+    ///
+    ///     assert_eq!(phase.next(), Some([0.125, 0.250, 0.375]));
+    ///     assert_eq!(phase.next(), Some([0.250, 0.500, 0.750]));
+    ///     assert_eq!(phase.next(), Some([0.375, 0.750, 0.125]));
+    /// }
+    /// ```
+    pub fn fixed_step(step: F) -> Self {
+        Fixed(step).into()
+    }
 }
 
-pub fn fixed_step<X, F, const N: usize>(step: F) -> Phase<X, Fixed<F, N>, N>
-where
-    X: FloatSample,
-    F: Frame<N, Sample = X>,
-{
-    Fixed(step).into()
-}
-
-pub fn variable_hz<X, S, const N: usize>(rate: X, hz_signal: S) -> Phase<X, Variable<S, N>, N>
+impl<X, S, const N: usize> Phase<X, Variable<S, N>, N>
 where
     X: FloatSample,
     S: Signal<N>,
     S::Frame: Frame<N, Sample = X>,
 {
-    Variable(VarInner::Hzs(hz_signal, rate)).into()
-}
+    /// Creates a [`Phase`] with [`Frame`]s of frequencies over time, as
+    /// yielded by a [`Signal`].
+    ///
+    /// Unlike [`Phase::fixed_hz`], this [`Phase`] will terminate and stop
+    /// yielding step values once the contained [`Signal`] is fully consumed.
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    /// use sampara::wavegen::Phase;
+    ///
+    /// fn main() {
+    ///     let freq_signal = signal::from_frames(vec![
+    ///         [0.125, 0.250],
+    ///         [0.375, 0.500],
+    ///         [0.625, 0.750],
+    ///     ]);
+    ///
+    ///     let mut phase = Phase::variable_hz(4.0, freq_signal);
+    ///
+    ///     assert_eq!(phase.next(), Some([0.03125, 0.0625]));
+    ///     assert_eq!(phase.next(), Some([0.12500, 0.1875]));
+    ///     assert_eq!(phase.next(), Some([0.28125, 0.3750]));
+    ///     assert_eq!(phase.next(), None);
+    /// }
+    /// ```
+    pub fn variable_hz(rate: X, hz_signal: S) -> Self {
+        Variable(VarInner::Hzs(hz_signal, rate)).into()
+    }
 
-pub fn variable_step<X, S, const N: usize>(delta_signal: S) -> Phase<X, Variable<S, N>, N>
-where
-    X: FloatSample,
-    S: Signal<N>,
-    S::Frame: Frame<N, Sample = X>,
-{
-    Variable(VarInner::Deltas(delta_signal)).into()
+    /// Creates a [`Phase`] with [`Frame`]s of time steps over time, as
+    /// yielded by a [`Signal`].
+    ///
+    /// Unlike [`Phase::fixed_step`], this [`Phase`] will terminate and stop
+    /// yielding step values once the contained [`Signal`] is fully consumed.
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    /// use sampara::wavegen::Phase;
+    ///
+    /// fn main() {
+    ///     let step_signal = signal::from_frames(vec![
+    ///         [0.03125, 0.06250],
+    ///         [0.37500, 0.50000],
+    ///         [0.62500, 0.75000],
+    ///     ]);
+    ///
+    ///     let mut phase = Phase::variable_step(step_signal);
+    ///
+    ///     assert_eq!(phase.next(), Some([0.03125, 0.0625]));
+    ///     assert_eq!(phase.next(), Some([0.40625, 0.5625]));
+    ///     assert_eq!(phase.next(), Some([0.03125, 0.3125]));
+    ///     assert_eq!(phase.next(), None);
+    /// }
+    /// ```
+    pub fn variable_step(step_signal: S) -> Self {
+        Variable(VarInner::Steps(step_signal)).into()
+    }
 }
