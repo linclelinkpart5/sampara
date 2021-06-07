@@ -230,3 +230,83 @@ where
         Variable(VarInner::Steps(step_signal)).into()
     }
 }
+
+pub trait WaveFunc<X>
+where
+    X: FloatSample,
+{
+    fn calculate(&self, x_phase: X) -> X;
+}
+
+impl<M, X> WaveFunc<X> for M
+where
+    X: FloatSample,
+    M: Fn(X) -> X,
+{
+    fn calculate(&self, x_phase: X) -> X {
+        self(x_phase)
+    }
+}
+
+pub struct Sine;
+
+impl<X> WaveFunc<X> for Sine
+where
+    X: FloatSample,
+{
+    fn calculate(&self, x_phase: X) -> X {
+        (X::TAU() * x_phase).sin()
+    }
+}
+
+pub struct Saw;
+
+impl<X> WaveFunc<X> for Saw
+where
+    X: FloatSample,
+{
+    fn calculate(&self, x_phase: X) -> X {
+        -(x_phase + x_phase) + X::one()
+    }
+}
+
+pub struct Square;
+
+impl<X> WaveFunc<X> for Square
+where
+    X: FloatSample,
+{
+    fn calculate(&self, x_phase: X) -> X {
+        if x_phase < X::from(0.5).unwrap() {
+            X::one()
+        }
+        else {
+            -X::one()
+        }
+    }
+}
+
+pub struct WaveGen<W, S, X, const N: usize>
+where
+    W: WaveFunc<X>,
+    X: FloatSample,
+    S: Step<X, N>,
+{
+    wave_func: W,
+    phase: Phase<X, S, N>,
+}
+
+impl<W, S, X, const N: usize> Signal<N> for WaveGen<W, S, X, N>
+where
+    W: WaveFunc<X>,
+    X: FloatSample,
+    S: Step<X, N>,
+{
+    type Frame = S::Step;
+
+    fn next(&mut self) -> Option<Self::Frame> {
+        self.phase.next().map(|x_phases| {
+            x_phases.apply(|x_phase| self.wave_func.calculate(x_phase))
+        })
+    }
+}
