@@ -93,6 +93,16 @@ where
     accum: S::Step,
 }
 
+impl<X, S, const N: usize> Phase<X, S, N>
+where
+    X: FloatSample,
+    S: Step<X, N>,
+{
+    pub fn gen_wave<W: WaveFunc<X>>(self, wave_func: W) -> WaveGen<W, S, X, N> {
+        WaveGen { wave_func, phase: self }
+    }
+}
+
 impl<X, S, const N: usize> From<S> for Phase<X, S, N>
 where
     X: FloatSample,
@@ -248,6 +258,28 @@ where
     }
 }
 
+/// A sine wave function.
+///
+/// ```
+/// use std::f32::consts::PI;
+///
+/// use sampara::Signal;
+/// use sampara::wavegen::{WaveFunc, Phase, Sine};
+///
+/// fn main() {
+///     const STEP: f32 = 440.0 / 44100.0;
+///
+///     let mut gen = Phase::fixed_step(STEP).gen_wave(Sine);
+///     let (mut x, mut y) = (0.0, 0.0);
+///
+///     for _ in 0..1000 {
+///         x = (x + STEP) % 1.0;
+///         y = (2.0 * PI * x).sin();
+///
+///         assert_eq!(gen.next(), Some(y));
+///     }
+/// }
+/// ```
 pub struct Sine;
 
 impl<X> WaveFunc<X> for Sine
@@ -259,6 +291,28 @@ where
     }
 }
 
+/// A saw wave function.
+///
+/// ```
+/// use std::f32::consts::PI;
+///
+/// use sampara::Signal;
+/// use sampara::wavegen::{WaveFunc, Phase, Saw};
+///
+/// fn main() {
+///     const STEP: f32 = 440.0 / 44100.0;
+///
+///     let mut gen = Phase::fixed_step(STEP).gen_wave(Saw);
+///     let (mut x, mut y) = (0.0, 0.0);
+///
+///     for _ in 0..1000 {
+///         x = (x + STEP) % 1.0;
+///         y = -2.0 * x + 1.0;
+///
+///         assert_eq!(gen.next(), Some(y));
+///     }
+/// }
+/// ```
 pub struct Saw;
 
 impl<X> WaveFunc<X> for Saw
@@ -270,6 +324,28 @@ where
     }
 }
 
+/// A square wave function.
+///
+/// ```
+/// use std::f32::consts::PI;
+///
+/// use sampara::Signal;
+/// use sampara::wavegen::{WaveFunc, Phase, Square};
+///
+/// fn main() {
+///     const STEP: f32 = 440.0 / 44100.0;
+///
+///     let mut gen = Phase::fixed_step(STEP).gen_wave(Square);
+///     let (mut x, mut y) = (0.0, 0.0);
+///
+///     for _ in 0..1000 {
+///         x = (x + STEP) % 1.0;
+///         y = if x < 0.5 { 1.0 } else { -1.0 };
+///
+///         assert_eq!(gen.next(), Some(y));
+///     }
+/// }
+/// ```
 pub struct Square;
 
 impl<X> WaveFunc<X> for Square
@@ -278,6 +354,45 @@ where
 {
     fn calculate(&self, x_phase: X) -> X {
         if x_phase < X::from(0.5).unwrap() {
+            X::one()
+        }
+        else {
+            -X::one()
+        }
+    }
+}
+
+/// A pulse wave (aka pulse train) function.
+///
+/// ```
+/// use std::f32::consts::PI;
+///
+/// use sampara::Signal;
+/// use sampara::wavegen::{WaveFunc, Phase, Pulse};
+///
+/// fn main() {
+///     const STEP: f32 = 440.0 / 44100.0;
+///     const DUTY: f32 = 0.65;
+///
+///     let mut gen = Phase::fixed_step(STEP).gen_wave(Pulse(DUTY));
+///     let (mut x, mut y) = (0.0, 0.0);
+///
+///     for _ in 0..1000 {
+///         x = (x + STEP) % 1.0;
+///         y = if x < DUTY { 1.0 } else { -1.0 };
+///
+///         assert_eq!(gen.next(), Some(y));
+///     }
+/// }
+/// ```
+pub struct Pulse<X: FloatSample>(pub X);
+
+impl<X> WaveFunc<X> for Pulse<X>
+where
+    X: FloatSample,
+{
+    fn calculate(&self, x_phase: X) -> X {
+        if x_phase < self.0 {
             X::one()
         }
         else {
