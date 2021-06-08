@@ -267,6 +267,40 @@ where
     {
         phase.gen_wave(self)
     }
+
+    fn fixed_hz<F, const N: usize>(self, rate: X, hz: F) -> WaveGen<Self, Fixed<F, N>, X, N>
+    where
+        Self: Sized,
+        F: Frame<N, Sample = X>,
+    {
+        self.with_phase(Phase::fixed_hz(rate, hz))
+    }
+
+    fn fixed_step<F, const N: usize>(self, step: F) -> WaveGen<Self, Fixed<F, N>, X, N>
+    where
+        Self: Sized,
+        F: Frame<N, Sample = X>,
+    {
+        self.with_phase(Phase::fixed_step(step))
+    }
+
+    fn variable_hz<S, const N: usize>(self, rate: X, hz_signal: S) -> WaveGen<Self, Variable<S, N>, X, N>
+    where
+        Self: Sized,
+        S: Signal<N>,
+        S::Frame: Frame<N, Sample = X>,
+    {
+        self.with_phase(Phase::variable_hz(rate, hz_signal))
+    }
+
+    fn variable_step<S, const N: usize>(self, step_signal: S) -> WaveGen<Self, Variable<S, N>, X, N>
+    where
+        Self: Sized,
+        S: Signal<N>,
+        S::Frame: Frame<N, Sample = X>,
+    {
+        self.with_phase(Phase::variable_step(step_signal))
+    }
 }
 
 impl<M, X> WaveFunc<X> for M
