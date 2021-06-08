@@ -13,11 +13,11 @@ use crate::sample::FloatSample;
 //     fn step(&mut self) -> Option<F>;
 // }
 
-pub trait Step<S, const N: usize>
+pub trait Step<X, const N: usize>
 where
-    S: FloatSample,
+    X: FloatSample,
 {
-    type Step: Frame<N, Sample = S>;
+    type Step: Frame<N, Sample = X>;
 
     fn step(&mut self) -> Option<Self::Step>;
 }
@@ -246,6 +246,14 @@ where
     X: FloatSample,
 {
     fn calculate(&self, x_phase: X) -> X;
+
+    fn with_phase<S, const N: usize>(self, phase: Phase<X, S, N>) -> WaveGen<Self, S, X, N>
+    where
+        Self: Sized,
+        S: Step<X, N>,
+    {
+        phase.gen_wave(self)
+    }
 }
 
 impl<M, X> WaveFunc<X> for M
