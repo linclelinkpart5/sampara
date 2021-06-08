@@ -91,6 +91,7 @@ where
 {
     stepper: S,
     accum: S::Step,
+    is_first: bool,
 }
 
 impl<X, S, const N: usize> Phase<X, S, N>
@@ -109,7 +110,7 @@ where
     S: Step<X, N>,
 {
     fn from(stepper: S) -> Self {
-        Self { stepper, accum: Frame::EQUILIBRIUM }
+        Self { stepper, accum: Frame::EQUILIBRIUM, is_first: true }
     }
 }
 
@@ -121,12 +122,16 @@ where
     type Frame = S::Step;
 
     fn next(&mut self) -> Option<Self::Frame> {
-        let phase = self.accum
-            .add_frame(self.stepper.step()?.into_signed_frame())
-            .apply(|x| x % X::one());
+        if self.is_first {
+            self.is_first = false;
+        }
+        else {
+            self.accum = self.accum
+                .add_frame(self.stepper.step()?.into_signed_frame())
+                .apply(|x| x % X::one());
+        }
 
-        self.accum = phase;
-        Some(phase)
+        Some(self.accum)
     }
 }
 
@@ -146,6 +151,7 @@ where
     /// fn main() {
     ///     let mut phase = Phase::fixed_hz(4.0, [0.5, 1.0, 1.5]);
     ///
+    ///     assert_eq!(phase.next(), Some([0.000, 0.000, 0.000]));
     ///     assert_eq!(phase.next(), Some([0.125, 0.250, 0.375]));
     ///     assert_eq!(phase.next(), Some([0.250, 0.500, 0.750]));
     ///     assert_eq!(phase.next(), Some([0.375, 0.750, 0.125]));
@@ -166,6 +172,7 @@ where
     /// fn main() {
     ///     let mut phase = Phase::fixed_step([0.125, 0.250, 0.375]);
     ///
+    ///     assert_eq!(phase.next(), Some([0.000, 0.000, 0.000]));
     ///     assert_eq!(phase.next(), Some([0.125, 0.250, 0.375]));
     ///     assert_eq!(phase.next(), Some([0.250, 0.500, 0.750]));
     ///     assert_eq!(phase.next(), Some([0.375, 0.750, 0.125]));
@@ -187,6 +194,8 @@ where
     ///
     /// Unlike [`Phase::fixed_hz`], this [`Phase`] will terminate and stop
     /// yielding step values once the contained [`Signal`] is fully consumed.
+    /// If the contained [`Signal`] yields `N` values, then this [`Phase`] will
+    /// yield `N + 1` values.
     ///
     /// ```
     /// use sampara::{signal, Signal};
@@ -201,6 +210,7 @@ where
     ///
     ///     let mut phase = Phase::variable_hz(4.0, freq_signal);
     ///
+    ///     assert_eq!(phase.next(), Some([0.00000, 0.0000]));
     ///     assert_eq!(phase.next(), Some([0.03125, 0.0625]));
     ///     assert_eq!(phase.next(), Some([0.12500, 0.1875]));
     ///     assert_eq!(phase.next(), Some([0.28125, 0.3750]));
@@ -216,6 +226,8 @@ where
     ///
     /// Unlike [`Phase::fixed_step`], this [`Phase`] will terminate and stop
     /// yielding step values once the contained [`Signal`] is fully consumed.
+    /// If the contained [`Signal`] yields `N` values, then this [`Phase`] will
+    /// yield `N + 1` values.
     ///
     /// ```
     /// use sampara::{signal, Signal};
@@ -230,6 +242,7 @@ where
     ///
     ///     let mut phase = Phase::variable_step(step_signal);
     ///
+    ///     assert_eq!(phase.next(), Some([0.00000, 0.0000]));
     ///     assert_eq!(phase.next(), Some([0.03125, 0.0625]));
     ///     assert_eq!(phase.next(), Some([0.40625, 0.5625]));
     ///     assert_eq!(phase.next(), Some([0.03125, 0.3125]));
@@ -281,8 +294,8 @@ where
 ///     let (mut x, mut y) = (0.0, 0.0);
 ///
 ///     for _ in 0..1000 {
-///         x = (x + STEP) % 1.0;
 ///         y = (2.0 * PI * x).sin();
+///         x = (x + STEP) % 1.0;
 ///
 ///         assert_eq!(gen.next(), Some(y));
 ///     }
@@ -314,8 +327,8 @@ where
 ///     let (mut x, mut y) = (0.0, 0.0);
 ///
 ///     for _ in 0..1000 {
-///         x = (x + STEP) % 1.0;
 ///         y = -2.0 * x + 1.0;
+///         x = (x + STEP) % 1.0;
 ///
 ///         assert_eq!(gen.next(), Some(y));
 ///     }
@@ -347,8 +360,8 @@ where
 ///     let (mut x, mut y) = (0.0, 0.0);
 ///
 ///     for _ in 0..1000 {
-///         x = (x + STEP) % 1.0;
 ///         y = if x < 0.5 { 1.0 } else { -1.0 };
+///         x = (x + STEP) % 1.0;
 ///
 ///         assert_eq!(gen.next(), Some(y));
 ///     }
@@ -386,8 +399,8 @@ where
 ///     let (mut x, mut y) = (0.0, 0.0);
 ///
 ///     for _ in 0..1000 {
-///         x = (x + STEP) % 1.0;
 ///         y = if x < DUTY { 1.0 } else { -1.0 };
+///         x = (x + STEP) % 1.0;
 ///
 ///         assert_eq!(gen.next(), Some(y));
 ///     }
