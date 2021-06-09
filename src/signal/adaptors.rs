@@ -362,7 +362,7 @@ where
     P: Processor<NI, NO, Input = S::Frame>,
 {
     pub(super) signal: S,
-    pub(super) processor: P,
+    pub(crate) processor: P,
 }
 
 impl<S, P, const NI: usize, const NO: usize> Signal<NO>

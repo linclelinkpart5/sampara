@@ -1,8 +1,9 @@
 use num_traits::Float;
 
-use crate::{Frame, Sample, Processor};
+use crate::{Frame, Sample, Processor, Signal};
 use crate::buffer::{Fixed, Buffer};
 use crate::sample::FloatSample;
+use crate::signal::Process;
 
 /// Keeps a running MS (mean square) of a window of [`Frame`]s over time.
 #[derive(Clone)]
@@ -526,5 +527,29 @@ where
     #[inline]
     fn process(&mut self, input: Self::Input) -> Self::Output {
         self.process(input)
+    }
+}
+
+impl<S, B, const N: usize> Process<S, Ms<S::Frame, B, N>, N, N>
+where
+    S: Signal<N>,
+    <S::Frame as Frame<N>>::Sample: FloatSample,
+    B: Buffer<Item = S::Frame>,
+{
+    #[inline]
+    pub fn current(&self) -> S::Frame {
+        self.processor.current()
+    }
+}
+
+impl<S, B, const N: usize> Process<S, Rms<S::Frame, B, N>, N, N>
+where
+    S: Signal<N>,
+    <S::Frame as Frame<N>>::Sample: FloatSample,
+    B: Buffer<Item = S::Frame>,
+{
+    #[inline]
+    pub fn current(&self) -> S::Frame {
+        self.processor.current()
     }
 }
