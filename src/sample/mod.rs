@@ -133,6 +133,26 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq + Debug {
         (self_s + amp).into_sample()
     }
 
+    /// Subtracts/offsets the amplitude of this [`Sample`] by a signed amplitude.
+    ///
+    /// This value will be converted into [`Self::Signed`], then subtracted. The
+    /// result will then be converted back into [`Self`]. This double conversion
+    /// is to correctly handle the subtraction of unsigned signal formats.
+    ///
+    /// ```
+    /// use sampara::Sample;
+    ///
+    /// fn main() {
+    ///     assert_eq!(0.25.sub_amp(0.5), -0.25);
+    ///     assert_eq!(192u16.sub_amp(-128), 320);
+    /// }
+    /// ```
+    #[inline]
+    fn sub_amp(self, amp: Self::Signed) -> Self {
+        let self_s = self.into_signed_sample();
+        (self_s - amp).into_sample()
+    }
+
     /// Multiplies/scales the amplitude of this [`Sample`] by a float amplitude.
     ///
     /// This value will be converted into [`Self::Float`], then multiplied. The
@@ -152,6 +172,27 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq + Debug {
     fn mul_amp(self, amp: Self::Float) -> Self {
         let self_f = self.into_float_sample();
         (self_f * amp).into_sample()
+    }
+
+    /// Divides/scales the amplitude of this [`Sample`] by a float amplitude.
+    ///
+    /// This value will be converted into [`Self::Float`], then divided. The
+    /// result will then be converted back into [`Self`]. This double conversion
+    /// is to correctly handle the division of integer signal formats.
+    ///
+    /// ```
+    /// use sampara::Sample;
+    ///
+    /// fn main() {
+    ///     assert_eq!(64_i16.div_amp(0.5), 128);
+    ///     assert_eq!(0.5.div_amp(-2.0), -0.25);
+    ///     assert_eq!(64_u8.div_amp(0.5), 0);
+    /// }
+    /// ```
+    #[inline]
+    fn div_amp(self, amp: Self::Float) -> Self {
+        let self_f = self.into_float_sample();
+        (self_f / amp).into_sample()
     }
 }
 

@@ -330,6 +330,23 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
         self.apply(|s| Sample::add_amp(s, amp))
     }
 
+    /// Subtracts/offsets the amplitude of each channel in [`Self`] by a signed
+    /// amplitude.
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].sub_amp(0.5), [-0.25, -1.0]);
+    ///     assert_eq!([0.5, -0.25].sub_amp(-0.25), [0.75, 0.0]);
+    ///     assert_eq!([128u8, 64].sub_amp(-64), [192, 128]);
+    /// }
+    /// ```
+    #[inline]
+    fn sub_amp(self, amp: <Self::Sample as Sample>::Signed) -> Self {
+        self.apply(|s| Sample::sub_amp(s, amp))
+    }
+
     /// Multiplies/scales the amplitude of each channel in [`Self`] by a float
     /// amplitude.
     ///
@@ -345,6 +362,23 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
     #[inline]
     fn mul_amp(self, amp: <Self::Sample as Sample>::Float) -> Self {
         self.apply(|s| Sample::mul_amp(s, amp))
+    }
+
+    /// Divides/scales the amplitude of each channel in [`Self`] by a float
+    /// amplitude.
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].div_amp(0.5), [0.5, -1.0]);
+    ///     assert_eq!([0.5, -0.25].div_amp(-0.25), [-2.0, 1.0]);
+    ///     assert_eq!([128u8, 64].div_amp(0.8), [128, 48]);
+    /// }
+    /// ```
+    #[inline]
+    fn div_amp(self, amp: <Self::Sample as Sample>::Float) -> Self {
+        self.apply(|s| Sample::div_amp(s, amp))
     }
 
     /// Adds/offsets the amplitude of each channel in [`Self`] with each
@@ -364,6 +398,23 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
         self.zip_apply(amps, |a, b| Sample::add_amp(a, b))
     }
 
+    /// Subtracts/offsets the amplitude of each channel in [`Self`] with each
+    /// corresponding channel in a given [`Self::Signed`].
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].sub_frame([-0.5, -0.75]), [0.75, 0.25]);
+    ///     assert_eq!([0.5, -0.25].sub_frame([0.25, -0.5]), [0.25, 0.25]);
+    ///     assert_eq!([128u8, 192].sub_frame([64i8, 64]), [64, 128]);
+    /// }
+    /// ```
+    #[inline]
+    fn sub_frame(self, amps: Self::Signed) -> Self {
+        self.zip_apply(amps, |a, b| Sample::sub_amp(a, b))
+    }
+
     /// Multiplies/scales the amplitude of each channel in [`Self`] with each
     /// corresponding channel in a given [`Self::Float`].
     ///
@@ -379,6 +430,23 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
     #[inline]
     fn mul_frame(self, amps: Self::Float) -> Self {
         self.zip_apply(amps, |a, b| Sample::mul_amp(a, b))
+    }
+
+    /// Divides/scales the amplitude of each channel in [`Self`] with each
+    /// corresponding channel in a given [`Self::Float`].
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].div_frame([2.0, 0.25]), [0.125, -2.0]);
+    ///     assert_eq!([0.5, -0.25].div_frame([-0.25, 0.5]), [-2.0, -0.5]);
+    ///     assert_eq!([128u8, 192].div_frame([0.4, 2.0]), [128, 160]);
+    /// }
+    /// ```
+    #[inline]
+    fn div_frame(self, amps: Self::Float) -> Self {
+        self.zip_apply(amps, |a, b| Sample::div_amp(a, b))
     }
 
     /// Converts this [`Frame`] into another of the same size but different
