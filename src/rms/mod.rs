@@ -5,6 +5,80 @@ use crate::buffer::{Fixed, Buffer};
 use crate::sample::FloatSample;
 use crate::signal::Process;
 
+const DO_SQRT: bool = true;
+const NO_SQRT: bool = false;
+const DO_POW2: bool = true;
+const NO_POW2: bool = false;
+
+struct StatsInner<F, B, const N: usize, const SQRT: bool, const POW2: bool>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    window: Fixed<B>,
+    sum: F,
+}
+
+impl<F, B, const N: usize, const SQRT: bool, const POW2: bool> StatsInner<F, B, N, SQRT, POW2>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    #[inline]
+    fn from_full(buffer: B) -> Self {
+        let mut buffer = buffer;
+        let mut sum = F::EQUILIBRIUM;
+
+        for frame in buffer.as_mut().iter_mut() {
+            if POW2 {
+                // Since the passed-in buffer has raw frames, square them
+                // in-place.
+                frame.transform(|x| x * x);
+            }
+
+            // TODO: See if `zip_transform` can make this more efficient.
+            sum = sum.add_frame(frame.into_signed_frame());
+        }
+
+        Self {
+            window: Fixed::from(buffer),
+            sum,
+        }
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.window.capacity()
+    }
+
+    #[inline]
+    fn reset(&mut self) {
+        // ASSERT: `Frame::EQUILIBRIUM` for float samples is a mathematical 0.
+        self.window.fill(Frame::EQUILIBRIUM);
+        self.sum = Frame::EQUILIBRIUM;
+    }
+
+    #[inline]
+    fn fill(&mut self, fill_val: F) {
+        let mut fill_val = fill_val;
+
+        if POW2 {
+            // Calculate the squared frame, as that is what will actually be
+            // stored in the window.
+            fill_val.transform(|x| x * x);
+        }
+
+        self.window.fill(fill_val);
+
+        // Since the buffer is filled with a constant value, just multiply to
+        // calculate the sum.
+        let len_f: F::Sample = Sample::from_sample(self.len() as f32);
+        self.sum = fill_val.mul_amp(len_f);
+    }
+}
+
 /// Keeps a running MS (mean square) of a window of [`Frame`]s over time.
 #[derive(Clone)]
 pub struct Ms<F, B, const N: usize>
