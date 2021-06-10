@@ -206,13 +206,15 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
     ///     assert_eq!(frame, 0.25);
     /// }
     /// ```
-    fn transform<M>(&mut self, mut func: M)
+    fn transform<M>(&mut self, mut func: M) -> &mut Self
     where
         M: FnMut(Self::Sample) -> Self::Sample,
     {
         for x in self.channels_mut() {
             *x = func(*x);
         }
+
+        self
     }
 
     /// Creates a new `Frame<N>` by applying a function to each pair of
@@ -275,7 +277,7 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
     ///     assert_eq!(frame_a, 0.62);
     /// }
     /// ```
-    fn zip_transform<O, M>(&mut self, other: O, mut func: M)
+    fn zip_transform<O, M>(&mut self, other: O, mut func: M) -> &mut Self
     where
         O: Frame<N>,
         M: FnMut(Self::Sample, O::Sample) -> Self::Sample,
@@ -283,6 +285,8 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
         for (x, o) in self.channels_mut().zip(other.into_channels()) {
             *x = func(*x, o);
         }
+
+        self
     }
 
     /// Converts [`Self`] into its equivalent [`Self::Signed`] format.
@@ -330,6 +334,23 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
         self.apply(|s| Sample::add_amp(s, amp))
     }
 
+    /// Adds/offsets the amplitude of each channel in [`Self`] by a signed
+    /// amplitude, in place.
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].add_assign_amp(0.5), &mut [0.75, 0.0]);
+    ///     assert_eq!([0.5, -0.25].add_assign_amp(-0.25), &mut [0.25, -0.5]);
+    ///     assert_eq!([128u8, 192].add_assign_amp(-64), &mut [64, 128]);
+    /// }
+    /// ```
+    #[inline]
+    fn add_assign_amp(&mut self, amp: <Self::Sample as Sample>::Signed) -> &mut Self {
+        self.transform(|s| Sample::add_amp(s, amp))
+    }
+
     /// Subtracts/offsets the amplitude of each channel in [`Self`] by a signed
     /// amplitude.
     ///
@@ -345,6 +366,23 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
     #[inline]
     fn sub_amp(self, amp: <Self::Sample as Sample>::Signed) -> Self {
         self.apply(|s| Sample::sub_amp(s, amp))
+    }
+
+    /// Subtracts/offsets the amplitude of each channel in [`Self`] by a signed
+    /// amplitude, in place.
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].sub_assign_amp(0.5), &mut [-0.25, -1.0]);
+    ///     assert_eq!([0.5, -0.25].sub_assign_amp(-0.25), &mut [0.75, 0.0]);
+    ///     assert_eq!([128u8, 64].sub_assign_amp(-64), &mut [192, 128]);
+    /// }
+    /// ```
+    #[inline]
+    fn sub_assign_amp(&mut self, amp: <Self::Sample as Sample>::Signed) -> &mut Self {
+        self.transform(|s| Sample::sub_amp(s, amp))
     }
 
     /// Multiplies/scales the amplitude of each channel in [`Self`] by a float
@@ -364,6 +402,23 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
         self.apply(|s| Sample::mul_amp(s, amp))
     }
 
+    /// Multiplies/scales the amplitude of each channel in [`Self`] by a float
+    /// amplitude, in place.
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].mul_assign_amp(0.5), &mut [0.125, -0.25]);
+    ///     assert_eq!([0.5, -0.25].mul_assign_amp(-0.25), &mut [-0.125, 0.0625]);
+    ///     assert_eq!([128u8, 192].mul_assign_amp(0.4), &mut [128, 153]);
+    /// }
+    /// ```
+    #[inline]
+    fn mul_assign_amp(&mut self, amp: <Self::Sample as Sample>::Float) -> &mut Self {
+        self.transform(|s| Sample::mul_amp(s, amp))
+    }
+
     /// Divides/scales the amplitude of each channel in [`Self`] by a float
     /// amplitude.
     ///
@@ -379,6 +434,23 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
     #[inline]
     fn div_amp(self, amp: <Self::Sample as Sample>::Float) -> Self {
         self.apply(|s| Sample::div_amp(s, amp))
+    }
+
+    /// Divides/scales the amplitude of each channel in [`Self`] by a float
+    /// amplitude, in place.
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].div_assign_amp(0.5), &mut [0.5, -1.0]);
+    ///     assert_eq!([0.5, -0.25].div_assign_amp(-0.25), &mut [-2.0, 1.0]);
+    ///     assert_eq!([128u8, 64].div_assign_amp(0.8), &mut [128, 48]);
+    /// }
+    /// ```
+    #[inline]
+    fn div_assign_amp(&mut self, amp: <Self::Sample as Sample>::Float) -> &mut Self {
+        self.transform(|s| Sample::div_amp(s, amp))
     }
 
     /// Adds/offsets the amplitude of each channel in [`Self`] with each
@@ -398,6 +470,23 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
         self.zip_apply(amps, |a, b| Sample::add_amp(a, b))
     }
 
+    /// Adds/offsets the amplitude of each channel in [`Self`] with each
+    /// corresponding channel in a given [`Self::Signed`], in place.
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].add_assign_frame([0.5, 0.75]), &mut [0.75, 0.25]);
+    ///     assert_eq!([0.5, -0.25].add_assign_frame([-0.25, 0.5]), &mut [0.25, 0.25]);
+    ///     assert_eq!([128u8, 192].add_assign_frame([-64i8, -64]), &mut [64, 128]);
+    /// }
+    /// ```
+    #[inline]
+    fn add_assign_frame(&mut self, amps: Self::Signed) -> &mut Self {
+        self.zip_transform(amps, |a, b| Sample::add_amp(a, b))
+    }
+
     /// Subtracts/offsets the amplitude of each channel in [`Self`] with each
     /// corresponding channel in a given [`Self::Signed`].
     ///
@@ -413,6 +502,23 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
     #[inline]
     fn sub_frame(self, amps: Self::Signed) -> Self {
         self.zip_apply(amps, |a, b| Sample::sub_amp(a, b))
+    }
+
+    /// Subtracts/offsets the amplitude of each channel in [`Self`] with each
+    /// corresponding channel in a given [`Self::Signed`], in place.
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].sub_assign_frame([-0.5, -0.75]), &mut [0.75, 0.25]);
+    ///     assert_eq!([0.5, -0.25].sub_assign_frame([0.25, -0.5]), &mut [0.25, 0.25]);
+    ///     assert_eq!([128u8, 192].sub_assign_frame([64i8, 64]), &mut [64, 128]);
+    /// }
+    /// ```
+    #[inline]
+    fn sub_assign_frame(&mut self, amps: Self::Signed) -> &mut Self {
+        self.zip_transform(amps, |a, b| Sample::sub_amp(a, b))
     }
 
     /// Multiplies/scales the amplitude of each channel in [`Self`] with each
@@ -432,6 +538,23 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
         self.zip_apply(amps, |a, b| Sample::mul_amp(a, b))
     }
 
+    /// Multiplies/scales the amplitude of each channel in [`Self`] with each
+    /// corresponding channel in a given [`Self::Float`], in place.
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].mul_assign_frame([0.5, 0.75]), &mut [0.125, -0.375]);
+    ///     assert_eq!([0.5, -0.25].mul_assign_frame([-0.25, 0.5]), &mut [-0.125, -0.125]);
+    ///     assert_eq!([128u8, 192].mul_assign_frame([0.4, 0.2]), &mut [128, 140]);
+    /// }
+    /// ```
+    #[inline]
+    fn mul_assign_frame(&mut self, amps: Self::Float) -> &mut Self {
+        self.zip_transform(amps, |a, b| Sample::mul_amp(a, b))
+    }
+
     /// Divides/scales the amplitude of each channel in [`Self`] with each
     /// corresponding channel in a given [`Self::Float`].
     ///
@@ -447,6 +570,23 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
     #[inline]
     fn div_frame(self, amps: Self::Float) -> Self {
         self.zip_apply(amps, |a, b| Sample::div_amp(a, b))
+    }
+
+    /// Multiplies/scales the amplitude of each channel in [`Self`] with each
+    /// corresponding channel in a given [`Self::Float`], in place.
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     assert_eq!([0.25, -0.5].div_assign_frame([2.0, 0.25]), &mut [0.125, -2.0]);
+    ///     assert_eq!([0.5, -0.25].div_assign_frame([-0.25, 0.5]), &mut [-2.0, -0.5]);
+    ///     assert_eq!([128u8, 192].div_assign_frame([0.4, 2.0]), &mut [128, 160]);
+    /// }
+    /// ```
+    #[inline]
+    fn div_assign_frame(&mut self, amps: Self::Float) -> &mut Self {
+        self.zip_transform(amps, |a, b| Sample::div_amp(a, b))
     }
 
     /// Converts this [`Frame`] into another of the same size but different
