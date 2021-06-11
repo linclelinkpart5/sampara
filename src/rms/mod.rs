@@ -10,6 +10,7 @@ const NO_SQRT: bool = false;
 const DO_POW2: bool = true;
 const NO_POW2: bool = false;
 
+#[derive(Clone)]
 struct StatsInner<F, B, const N: usize, const SQRT: bool, const POW2: bool>
 where
     F: Frame<N>,
@@ -181,15 +182,12 @@ where
 
 /// Keeps a running MS (mean square) of a window of [`Frame`]s over time.
 #[derive(Clone)]
-pub struct Ms<F, B, const N: usize>
+pub struct Ms<F, B, const N: usize>(StatsInner<F, B, N, NO_SQRT, DO_POW2>)
 where
     F: Frame<N>,
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
-{
-    window: Fixed<B>,
-    square_sum: F,
-}
+;
 
 impl<F, B, const N: usize> Ms<F, B, N>
 where
@@ -215,22 +213,7 @@ where
     /// ```
     #[inline]
     pub fn from_full(buffer: B) -> Self {
-        let mut buffer = buffer;
-        let mut square_sum = F::EQUILIBRIUM;
-
-        // Since the passed-in buffer has raw frames, square them inplace and
-        // calculate the square sum.
-        for frame in buffer.as_mut().iter_mut() {
-            frame.transform(|x| x * x);
-
-            // TODO: See if `zip_transform` can make this more efficient.
-            square_sum = square_sum.add_frame(frame.into_signed_frame());
-        }
-
-        Self {
-            window: Fixed::from(buffer),
-            square_sum,
-        }
+        Self(StatsInner::from_full(buffer))
     }
 
     /// Resets the MS window to its zeroed-out state.
@@ -248,8 +231,7 @@ where
     /// ```
     #[inline]
     pub fn reset(&mut self) {
-        self.window.fill(Frame::EQUILIBRIUM);
-        self.square_sum = Frame::EQUILIBRIUM;
+        self.0.reset()
     }
 
     /// Fills the MS window with a single constant [`Frame`] value.
@@ -269,17 +251,8 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn fill(&mut self, fill: F) {
-        let mut fill = fill;
-
-        // Calculate the squared frame, as that is what will actually be stored
-        // in the window.
-        fill.transform(|x| x * x);
-
-        self.window.fill(fill);
-
-        let num_frames_f: F::Sample = Sample::from_sample(self.len() as f32);
-        self.square_sum = fill.apply(|x| num_frames_f * x);
+    pub fn fill(&mut self, fill_val: F) {
+        self.0.fill(fill_val)
     }
 
     /// Fills the MS window by repeatedly calling a closure that produces
@@ -305,28 +278,11 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn fill_with<M>(&mut self, func: M)
+    pub fn fill_with<M>(&mut self, fill_func: M)
     where
         M: FnMut() -> F,
     {
-        let mut func = func;
-        let mut sq_sum = F::EQUILIBRIUM;
-
-        let sq_func = || {
-            let mut f = func();
-
-            // Square the frame.
-            f.transform(|x| x * x);
-
-            // Before yielding the squared frame, add it to the running square
-            // sum.
-            sq_sum = sq_sum.add_frame(f.into_signed_frame());
-
-            f
-        };
-
-        self.window.fill_with(sq_func);
-        self.square_sum = sq_sum;
+        self.0.fill_with(fill_func)
     }
 
     /// Returns the length of the MS window buffer.
@@ -342,7 +298,7 @@ where
     /// ```
     #[inline]
     pub fn len(&self) -> usize {
-        self.window.capacity()
+        self.0.len()
     }
 
     /// Advances the state of the MS window buffer by pushing in a new input
@@ -367,19 +323,7 @@ where
     /// ```
     #[inline]
     pub fn advance(&mut self, input: F) {
-        // Calculate the square of the new frame and push onto the buffer.
-        let input_sq = input.apply(|s| s * s);
-        let popped_sq_frame = self.window.push(input_sq);
-
-        // Add the new frame square and subtract the removed frame square.
-        self.square_sum =
-            self.square_sum
-                .add_frame(input_sq.into_signed_frame())
-                .zip_apply(popped_sq_frame, |s, r| {
-                    // In case of floating point rounding errors, floor at
-                    // equilibrium.
-                    (s - r).max(Sample::EQUILIBRIUM)
-                });
+        self.0.advance(input)
     }
 
     /// Calculates the MS value using the current window contents.
@@ -394,8 +338,7 @@ where
     /// ```
     #[inline]
     pub fn current(&self) -> F {
-        let num_frames_f = Sample::from_sample(self.len() as f32);
-        self.square_sum.apply(|s| s / num_frames_f)
+        self.0.current()
     }
 
     /// Processes a new input frame by advancing the state of the MS window
@@ -417,8 +360,7 @@ where
     /// ```
     #[inline]
     pub fn process(&mut self, input: F) -> F {
-        self.advance(input);
-        self.current()
+        self.0.process(input)
     }
 }
 
@@ -449,14 +391,7 @@ where
     /// ```
     #[inline]
     fn from(buffer: B) -> Self {
-        let mut new = Self {
-            window: Fixed::from(buffer),
-            square_sum: Frame::EQUILIBRIUM,
-        };
-
-        new.reset();
-
-        new
+        Self(StatsInner::from(buffer))
     }
 }
 
@@ -476,7 +411,8 @@ where
 }
 
 /// Keeps a running RMS (root mean square) of a window of [`Frame`]s over time.
-pub struct Rms<F, B, const N: usize>(Ms<F, B, N>)
+#[derive(Clone)]
+pub struct Rms<F, B, const N: usize>(StatsInner<F, B, N, DO_SQRT, DO_POW2>)
 where
     F: Frame<N>,
     F::Sample: FloatSample,
@@ -507,7 +443,7 @@ where
     /// ```
     #[inline]
     pub fn from_full(buffer: B) -> Self {
-        Self(Ms::from_full(buffer))
+        Self(StatsInner::from_full(buffer))
     }
 
     /// Resets the RMS window to its zeroed-out state.
@@ -545,8 +481,8 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn fill(&mut self, fill: F) {
-        self.0.fill(fill)
+    pub fn fill(&mut self, fill_val: F) {
+        self.0.fill(fill_val)
     }
 
     /// Fills the RMS window by repeatedly calling a closure that produces
@@ -572,11 +508,11 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn fill_with<M>(&mut self, func: M)
+    pub fn fill_with<M>(&mut self, fill_func: M)
     where
         M: FnMut() -> F,
     {
-        self.0.fill_with(func)
+        self.0.fill_with(fill_func)
     }
 
     /// Returns the length of the RMS window buffer.
@@ -632,7 +568,7 @@ where
     /// ```
     #[inline]
     pub fn current(&self) -> F {
-        self.0.current().apply(Float::sqrt)
+        self.0.current()
     }
 
     /// Processes a new input frame by advancing the state of the RMS window
@@ -654,7 +590,7 @@ where
     /// ```
     #[inline]
     pub fn process(&mut self, input: F) -> F {
-        self.0.process(input).apply(Float::sqrt)
+        self.0.process(input)
     }
 }
 
@@ -685,7 +621,7 @@ where
     /// ```
     #[inline]
     fn from(buffer: B) -> Self {
-        Self(Ms::from(buffer))
+        Self(StatsInner::from(buffer))
     }
 }
 
