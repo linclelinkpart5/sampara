@@ -28,7 +28,7 @@ where
     B: Buffer<Item = F>,
 {
     #[inline]
-    fn from_full(buffer: B) -> Self {
+    fn __from_full(buffer: B) -> Self {
         let mut buffer = buffer;
         let mut sum = F::EQUILIBRIUM;
 
@@ -49,12 +49,12 @@ where
     }
 
     #[inline]
-    fn len(&self) -> usize {
+    fn __len(&self) -> usize {
         self.window.capacity()
     }
 
     #[inline]
-    fn reset(&mut self) {
+    fn __reset(&mut self) {
         // ASSUME: All float samples have an equilibrium of 0. That way this
         // code as written works for any combo of (SQRT, POW2).
         self.window.fill(Frame::EQUILIBRIUM);
@@ -62,7 +62,7 @@ where
     }
 
     #[inline]
-    fn fill(&mut self, fill_val: F) {
+    fn __fill(&mut self, fill_val: F) {
         let mut fill_val = fill_val;
 
         if POW2 {
@@ -75,12 +75,12 @@ where
 
         // Since the buffer is filled with a constant value, just multiply to
         // calculate the sum.
-        let len_f: F::Sample = Sample::from_sample(self.len() as f32);
+        let len_f: F::Sample = Sample::from_sample(self.__len() as f32);
         self.sum = fill_val.mul_amp(len_f);
     }
 
     #[inline]
-    fn fill_with<M>(&mut self, fill_func: M)
+    fn __fill_with<M>(&mut self, fill_func: M)
     where
         M: FnMut() -> F,
     {
@@ -106,7 +106,7 @@ where
     }
 
     #[inline]
-    fn advance(&mut self, input: F) {
+    fn __advance(&mut self, input: F) {
         let mut input = input;
 
         if POW2 {
@@ -128,8 +128,8 @@ where
     }
 
     #[inline]
-    fn current(&self) -> F {
-        let len_f = Sample::from_sample(self.len() as f32);
+    fn __current(&self) -> F {
+        let len_f = Sample::from_sample(self.__len() as f32);
         let mut ret: F = self.sum.apply(|s| s / len_f);
 
         if SQRT {
@@ -140,45 +140,24 @@ where
     }
 
     #[inline]
-    fn process(&mut self, input: F) -> F {
-        self.advance(input);
-        self.current()
+    fn __process(&mut self, input: F) -> F {
+        self.__advance(input);
+        self.__current()
     }
-}
 
-impl<F, B, const N: usize, const SQRT: bool, const POW2: bool> From<B> for StatsInner<F, B, N, SQRT, POW2>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-{
     #[inline]
-    fn from(buffer: B) -> Self {
+    fn __from(buffer: B) -> Self {
         let mut new = Self {
             window: Fixed::from(buffer),
             sum: Frame::EQUILIBRIUM,
         };
 
-        new.reset();
+        new.__reset();
 
         new
     }
 }
 
-impl<F, B, const N: usize, const SQRT: bool, const POW2: bool> Processor<N, N> for StatsInner<F, B, N, SQRT, POW2>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-{
-    type Input = F;
-    type Output = F;
-
-    #[inline]
-    fn process(&mut self, input: Self::Input) -> Self::Output {
-        self.process(input)
-    }
-}
 
 /// Keeps a running MS (mean square) of a window of [`Frame`]s over time.
 #[derive(Clone)]
@@ -213,7 +192,7 @@ where
     /// ```
     #[inline]
     pub fn from_full(buffer: B) -> Self {
-        Self(StatsInner::from_full(buffer))
+        Self(StatsInner::__from_full(buffer))
     }
 
     /// Resets the MS window to its zeroed-out state.
@@ -231,7 +210,7 @@ where
     /// ```
     #[inline]
     pub fn reset(&mut self) {
-        self.0.reset()
+        self.0.__reset()
     }
 
     /// Fills the MS window with a single constant [`Frame`] value.
@@ -252,7 +231,7 @@ where
     /// ```
     #[inline]
     pub fn fill(&mut self, fill_val: F) {
-        self.0.fill(fill_val)
+        self.0.__fill(fill_val)
     }
 
     /// Fills the MS window by repeatedly calling a closure that produces
@@ -282,7 +261,7 @@ where
     where
         M: FnMut() -> F,
     {
-        self.0.fill_with(fill_func)
+        self.0.__fill_with(fill_func)
     }
 
     /// Returns the length of the MS window buffer.
@@ -298,7 +277,7 @@ where
     /// ```
     #[inline]
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.0.__len()
     }
 
     /// Advances the state of the MS window buffer by pushing in a new input
@@ -323,7 +302,7 @@ where
     /// ```
     #[inline]
     pub fn advance(&mut self, input: F) {
-        self.0.advance(input)
+        self.0.__advance(input)
     }
 
     /// Calculates the MS value using the current window contents.
@@ -338,7 +317,7 @@ where
     /// ```
     #[inline]
     pub fn current(&self) -> F {
-        self.0.current()
+        self.0.__current()
     }
 
     /// Processes a new input frame by advancing the state of the MS window
@@ -360,7 +339,7 @@ where
     /// ```
     #[inline]
     pub fn process(&mut self, input: F) -> F {
-        self.0.process(input)
+        self.0.__process(input)
     }
 }
 
@@ -391,7 +370,7 @@ where
     /// ```
     #[inline]
     fn from(buffer: B) -> Self {
-        Self(StatsInner::from(buffer))
+        Self(StatsInner::__from(buffer))
     }
 }
 
@@ -443,7 +422,7 @@ where
     /// ```
     #[inline]
     pub fn from_full(buffer: B) -> Self {
-        Self(StatsInner::from_full(buffer))
+        Self(StatsInner::__from_full(buffer))
     }
 
     /// Resets the RMS window to its zeroed-out state.
@@ -461,7 +440,7 @@ where
     /// ```
     #[inline]
     pub fn reset(&mut self) {
-        self.0.reset()
+        self.0.__reset()
     }
 
     /// Fills the RMS window with a single constant [`Frame`] value.
@@ -482,7 +461,7 @@ where
     /// ```
     #[inline]
     pub fn fill(&mut self, fill_val: F) {
-        self.0.fill(fill_val)
+        self.0.__fill(fill_val)
     }
 
     /// Fills the RMS window by repeatedly calling a closure that produces
@@ -512,7 +491,7 @@ where
     where
         M: FnMut() -> F,
     {
-        self.0.fill_with(fill_func)
+        self.0.__fill_with(fill_func)
     }
 
     /// Returns the length of the RMS window buffer.
@@ -528,7 +507,7 @@ where
     /// ```
     #[inline]
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.0.__len()
     }
 
     /// Advances the state of the RMS window buffer by pushing in a new input
@@ -553,7 +532,7 @@ where
     /// ```
     #[inline]
     pub fn advance(&mut self, input: F) {
-        self.0.advance(input)
+        self.0.__advance(input)
     }
 
     /// Calculates the RMS value using the current window contents.
@@ -568,7 +547,7 @@ where
     /// ```
     #[inline]
     pub fn current(&self) -> F {
-        self.0.current()
+        self.0.__current()
     }
 
     /// Processes a new input frame by advancing the state of the RMS window
@@ -590,7 +569,7 @@ where
     /// ```
     #[inline]
     pub fn process(&mut self, input: F) -> F {
-        self.0.process(input)
+        self.0.__process(input)
     }
 }
 
@@ -621,7 +600,7 @@ where
     /// ```
     #[inline]
     fn from(buffer: B) -> Self {
-        Self(StatsInner::from(buffer))
+        Self(StatsInner::__from(buffer))
     }
 }
 
