@@ -158,6 +158,54 @@ where
     }
 }
 
+macro_rules! gen_doc_comment {
+    ($cls:ty, $text:expr, $test_body:block) => {
+        concat!(
+            $text, "\n",
+            "```\n",
+            "use sampara::rms::", stringify!($cls), ";\n\n",
+            "fn main() ", stringify!($test_body), "\n",
+            "```\n",
+        )
+    };
+}
+
+macro_rules! apply_doc_comment {
+    ($doc_comment:expr, [ $($tt:tt)* ]) => {
+        #[doc = $doc_comment]
+        $($tt)*
+    };
+}
+
+macro_rules! define__from_full {
+    ($cls:ident, $curr:expr, $p1:expr, $p2:expr, $p3:expr, $p4:expr) => {
+        apply_doc_comment! {
+            gen_doc_comment!(
+                $cls,
+                concat!(
+                    "Similar to [`", stringify!($cls), "::from`], but treats the
+                    passed-in buffer as already filled with input [`Frame`]s."
+                ),
+                {
+                    let mut window = $cls::from_full([[0.5], [0.5], [0.5], [0.5]]);
+
+                    assert_eq!(window.current(), $curr);
+                    assert_eq!(window.process([1.0]), $p1);
+                    assert_eq!(window.process([1.0]), $p2);
+                    assert_eq!(window.process([1.0]), $p3);
+                    assert_eq!(window.process([1.0]), $p4);
+                }
+            ),
+            [
+                #[inline]
+                pub fn from_full(buffer: B) -> Self {
+                    Self(StatsInner::__from_full(buffer))
+                }
+            ]
+        }
+    }
+}
+
 /// Keeps a running mean of a window of [`Frame`]s over time.
 #[derive(Clone)]
 pub struct Mean<F, B, const N: usize>(StatsInner<F, B, N, NO_SQRT, NO_POW2>)
@@ -173,26 +221,7 @@ where
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
-    /// Similar to [`Self::from`], but treats the passed-in buffer as already
-    /// filled with input [`Frame`]s.
-    ///
-    /// ```
-    /// use sampara::rms::Mean;
-    ///
-    /// fn main() {
-    ///     let mut window = Mean::from_full([[0.5], [0.5], [0.5], [0.5]]);
-    ///     assert_eq!(window.current(), [0.5]);
-    ///
-    ///     assert_eq!(window.process([1.0]), [0.625]);
-    ///     assert_eq!(window.process([1.0]), [0.75]);
-    ///     assert_eq!(window.process([1.0]), [0.875]);
-    ///     assert_eq!(window.process([1.0]), [1.0]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn from_full(buffer: B) -> Self {
-        Self(StatsInner::__from_full(buffer))
-    }
+    define__from_full!(Mean, [0.5], [0.625], [0.75], [0.875], [1.0]);
 
     /// Resets the window to its zeroed-out state.
     ///
