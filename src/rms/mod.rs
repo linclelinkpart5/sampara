@@ -158,6 +158,234 @@ where
     }
 }
 
+/// Keeps a running mean of a window of [`Frame`]s over time.
+#[derive(Clone)]
+pub struct Mean<F, B, const N: usize>(StatsInner<F, B, N, NO_SQRT, NO_POW2>)
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+;
+
+impl<F, B, const N: usize> Mean<F, B, N>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    /// Similar to [`Self::from`], but treats the passed-in buffer as already
+    /// filled with input [`Frame`]s.
+    ///
+    /// ```
+    /// use sampara::rms::Mean;
+    ///
+    /// fn main() {
+    ///     let mut window = Mean::from_full([[0.5], [0.5], [0.5], [0.5]]);
+    ///     assert_eq!(window.current(), [0.5]);
+    ///
+    ///     assert_eq!(window.process([1.0]), [0.625]);
+    ///     assert_eq!(window.process([1.0]), [0.75]);
+    ///     assert_eq!(window.process([1.0]), [0.875]);
+    ///     assert_eq!(window.process([1.0]), [1.0]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn from_full(buffer: B) -> Self {
+        Self(StatsInner::__from_full(buffer))
+    }
+
+    /// Resets the window to its zeroed-out state.
+    ///
+    /// ```
+    /// use sampara::rms::Mean;
+    ///
+    /// fn main() {
+    ///     let mut window = Mean::from_full([[0.25], [0.75], [0.25], [0.75]]);
+    ///     assert_eq!(window.current(), [0.5]);
+    ///
+    ///     window.reset();
+    ///     assert_eq!(window.current(), [0.0]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn reset(&mut self) {
+        self.0.__reset()
+    }
+
+    /// Fills the window with a single constant [`Frame`] value.
+    ///
+    /// ```
+    /// use sampara::rms::Mean;
+    ///
+    /// fn main() {
+    ///     let mut window = Mean::from([[-1.0]; 4]);
+    ///
+    ///     window.fill([0.5]);
+    ///     assert_eq!(window.current(), [0.5]);
+    ///
+    ///     window.advance([1.0]);
+    ///     window.advance([1.0]);
+    ///     assert_eq!(window.current(), [0.75]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn fill(&mut self, fill_val: F) {
+        self.0.__fill(fill_val)
+    }
+
+    /// Fills the window by repeatedly calling a closure that produces
+    /// [`Frame`]s.
+    ///
+    /// ```
+    /// use sampara::rms::Mean;
+    ///
+    /// fn main() {
+    ///     let mut window = Mean::from([[0.0]; 4]);
+    ///
+    ///     let mut zero = true;
+    ///     window.fill_with(|| {
+    ///         zero = !zero;
+    ///         if zero { [0.0] }
+    ///         else { [1.0] }
+    ///     });
+    ///     assert_eq!(window.current(), [0.5]);
+    ///
+    ///     window.advance([1.0]);
+    ///     window.advance([1.0]);
+    ///     assert_eq!(window.current(), [0.75]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn fill_with<M>(&mut self, fill_func: M)
+    where
+        M: FnMut() -> F,
+    {
+        self.0.__fill_with(fill_func)
+    }
+
+    /// Returns the length of the window.
+    ///
+    /// ```
+    /// use sampara::rms::Mean;
+    ///
+    /// fn main() {
+    ///     let window = Mean::from([[0.0; 2]; 99]);
+    ///     assert_eq!(window.len(), 99);
+    /// }
+    /// ```
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.0.__len()
+    }
+
+    /// Advances the state of the window buffer by pushing in a new input
+    /// [`Frame`]. The oldest frame will be popped off in order to accomodate
+    /// the new one.
+    ///
+    /// This method does not calculate the current value, so it is useful for
+    /// workflows that process multiple frames in bulk and then calculate the
+    /// final resultant value afterwards.
+    ///
+    /// ```
+    /// use sampara::rms::Mean;
+    ///
+    /// fn main() {
+    ///     let mut window = Mean::from([[0.0; 2]; 4]);
+    ///     assert_eq!(window.current(), [0.0, 0.0]);
+    ///
+    ///     window.advance([1.0, 1.0]);
+    ///     window.advance([1.0, 1.0]);
+    ///     assert_eq!(window.current(), [0.5, 0.5]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn advance(&mut self, input: F) {
+        self.0.__advance(input)
+    }
+
+    /// Calculates the current value using the current window contents.
+    ///
+    /// ```
+    /// use sampara::rms::Mean;
+    ///
+    /// fn main() {
+    ///     let mut window = Mean::from_full([[0.0], [1.0], [0.0], [1.0]]);
+    ///     assert_eq!(window.current(), [0.5]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn current(&self) -> F {
+        self.0.__current()
+    }
+
+    /// Processes a new input frame by advancing the state of the window buffer
+    /// and then calculating the current value.
+    ///
+    /// This is equivalent to a call to [`Self::advance`] followed by a call to
+    /// [`Self::current`].
+    ///
+    /// ```
+    /// use sampara::rms::Mean;
+    ///
+    /// fn main() {
+    ///     let mut window = Mean::from([[0.0]; 4]);
+    ///     assert_eq!(window.process([1.0]), [0.25]);
+    ///     assert_eq!(window.process([-1.0]), [0.0]);
+    ///     assert_eq!(window.process([1.0]), [0.25]);
+    ///     assert_eq!(window.process([1.0]), [0.5]);
+    /// }
+    /// ```
+    #[inline]
+    pub fn process(&mut self, input: F) -> F {
+        self.0.__process(input)
+    }
+}
+
+impl<F, B, const N: usize> From<B> for Mean<F, B, N>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    /// Creates a new [`Self`] using a given [`Buffer`] as a window.
+    ///
+    /// The contents of the buffer will be discarded and overwritten with
+    /// equilibrium values.
+    ///
+    /// ```
+    /// use sampara::rms::Mean;
+    ///
+    /// fn main() {
+    ///     // These values get zeroed out.
+    ///     let mut window = Mean::from([[-1.0]; 4]);
+    ///     assert_eq!(window.current(), [0.0]);
+    ///
+    ///     assert_eq!(window.process([1.0]), [0.25]);
+    ///     assert_eq!(window.process([1.0]), [0.5]);
+    ///     assert_eq!(window.process([1.0]), [0.75]);
+    ///     assert_eq!(window.process([1.0]), [1.0]);
+    /// }
+    /// ```
+    #[inline]
+    fn from(buffer: B) -> Self {
+        Self(StatsInner::__from(buffer))
+    }
+}
+
+impl<F, B, const N: usize> Processor<N, N> for Mean<F, B, N>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    type Input = F;
+    type Output = F;
+
+    #[inline]
+    fn process(&mut self, input: Self::Input) -> Self::Output {
+        self.process(input)
+    }
+}
 
 /// Keeps a running MS (mean square) of a window of [`Frame`]s over time.
 #[derive(Clone)]
