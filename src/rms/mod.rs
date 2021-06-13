@@ -159,12 +159,16 @@ where
 }
 
 macro_rules! gen_doc_comment {
-    ($cls:ty, $text:expr, $test_body:block) => {
+    ($cls:ty, $text:expr, { $($test_stmt:expr),* $(,)? }) => {
         concat!(
             $text, "\n",
             "```\n",
             "use sampara::rms::", stringify!($cls), ";\n\n",
-            "fn main() ", stringify!($test_body), "\n",
+            "fn main() {\n",
+            $(
+                concat!("    ", $test_stmt, "\n"),
+            )*
+            "}\n",
             "```\n",
         )
     };
@@ -187,13 +191,12 @@ macro_rules! define__from_full {
                     passed-in buffer as already filled with input [`Frame`]s."
                 ),
                 {
-                    let mut window = $cls::from_full([[0.5], [0.5], [0.5], [0.5]]);
-
-                    assert_eq!(window.current(), $curr);
-                    assert_eq!(window.process([1.0]), $p1);
-                    assert_eq!(window.process([1.0]), $p2);
-                    assert_eq!(window.process([1.0]), $p3);
-                    assert_eq!(window.process([1.0]), $p4);
+                    concat!("let mut window = ", stringify!($cls), "::from_full([[0.5], [0.5], [0.5], [0.5]]);\n"),
+                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
+                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p1), ");"),
+                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p2), ");"),
+                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p3), ");"),
+                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p4), ");"),
                 }
             ),
             [
