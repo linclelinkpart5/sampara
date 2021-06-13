@@ -434,26 +434,7 @@ where
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
-    /// Similar to [`Ms::from`], but treats the passed-in buffer as already
-    /// filled with input [`Frame`]s.
-    ///
-    /// ```
-    /// use sampara::rms::Ms;
-    ///
-    /// fn main() {
-    ///     let mut ms = Ms::from_full([[0.5], [0.5], [0.5], [0.5]]);
-    ///     assert_eq!(ms.current(), [0.25]);
-    ///
-    ///     assert_eq!(ms.process([1.0]), [0.4375]);
-    ///     assert_eq!(ms.process([1.0]), [0.6250]);
-    ///     assert_eq!(ms.process([1.0]), [0.8125]);
-    ///     assert_eq!(ms.process([1.0]), [1.0]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn from_full(buffer: B) -> Self {
-        Self(StatsInner::__from_full(buffer))
-    }
+    define__from_full!(Ms, [0.25], [0.4375], [0.6250], [0.8125], [1.0]);
 
     /// Resets the MS window to its zeroed-out state.
     ///
@@ -664,26 +645,7 @@ where
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
-    /// Similar to [`Rms::from`], but treats the passed-in buffer as already
-    /// filled with input [`Frame`]s.
-    ///
-    /// ```
-    /// use sampara::rms::Rms;
-    ///
-    /// fn main() {
-    ///     let mut rms = Rms::from_full([[0.5], [0.5], [0.5], [0.5]]);
-    ///     assert_eq!(rms.current(), [0.5]);
-    ///
-    ///     assert_eq!(rms.process([1.0]), [0.6614378277661477]);
-    ///     assert_eq!(rms.process([1.0]), [0.7905694150420949]);
-    ///     assert_eq!(rms.process([1.0]), [0.9013878188659973]);
-    ///     assert_eq!(rms.process([1.0]), [1.0]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn from_full(buffer: B) -> Self {
-        Self(StatsInner::__from_full(buffer))
-    }
+    define__from_full!(Rms, [0.5], [0.6614378277661477], [0.7905694150420949], [0.9013878188659973], [1.0]);
 
     /// Resets the RMS window to its zeroed-out state.
     ///
