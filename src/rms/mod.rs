@@ -209,6 +209,29 @@ macro_rules! define__from_full {
     }
 }
 
+macro_rules! define__reset {
+    ($cls:ident, $curr:expr, $after:expr) => {
+        apply_doc_comment! {
+            gen_doc_comment!(
+                $cls,
+                "Resets the window to its zeroed-out state.",
+                {
+                    concat!("let mut window = ", stringify!($cls), "::from_full([[0.25], [0.75], [0.25], [0.75]]);"),
+                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");\n"),
+                    concat!("window.reset();"),
+                    concat!("assert_eq!(window.current(), ", stringify!($after), ");"),
+                }
+            ),
+            {
+                #[inline]
+                pub fn reset(&mut self) {
+                    self.0.__reset()
+                }
+            }
+        }
+    }
+}
+
 /// Keeps a running mean of a window of [`Frame`]s over time.
 #[derive(Clone)]
 pub struct Mean<F, B, const N: usize>(StatsInner<F, B, N, NO_SQRT, NO_POW2>)
@@ -226,23 +249,7 @@ where
 {
     define__from_full!(Mean, [0.5], [0.625], [0.75], [0.875], [1.0]);
 
-    /// Resets the window to its zeroed-out state.
-    ///
-    /// ```
-    /// use sampara::rms::Mean;
-    ///
-    /// fn main() {
-    ///     let mut window = Mean::from_full([[0.25], [0.75], [0.25], [0.75]]);
-    ///     assert_eq!(window.current(), [0.5]);
-    ///
-    ///     window.reset();
-    ///     assert_eq!(window.current(), [0.0]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn reset(&mut self) {
-        self.0.__reset()
-    }
+    define__reset!(Mean, [0.5], [0.0]);
 
     /// Fills the window with a single constant [`Frame`] value.
     ///
@@ -436,23 +443,7 @@ where
 {
     define__from_full!(Ms, [0.25], [0.4375], [0.6250], [0.8125], [1.0]);
 
-    /// Resets the MS window to its zeroed-out state.
-    ///
-    /// ```
-    /// use sampara::rms::Ms;
-    ///
-    /// fn main() {
-    ///     let mut ms = Ms::from_full([[0.25], [0.75], [-0.25], [-0.75]]);
-    ///     assert_ne!(ms.current(), [0.0]);
-    ///
-    ///     ms.reset();
-    ///     assert_eq!(ms.current(), [0.0]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn reset(&mut self) {
-        self.0.__reset()
-    }
+    define__reset!(Ms, [0.3125], [0.0]);
 
     /// Fills the MS window with a single constant [`Frame`] value.
     ///
@@ -647,23 +638,7 @@ where
 {
     define__from_full!(Rms, [0.5], [0.6614378277661477], [0.7905694150420949], [0.9013878188659973], [1.0]);
 
-    /// Resets the RMS window to its zeroed-out state.
-    ///
-    /// ```
-    /// use sampara::rms::Rms;
-    ///
-    /// fn main() {
-    ///     let mut rms = Rms::from_full([[0.25], [0.75], [-0.25], [-0.75]]);
-    ///     assert_ne!(rms.current(), [0.0]);
-    ///
-    ///     rms.reset();
-    ///     assert_eq!(rms.current(), [0.0]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn reset(&mut self) {
-        self.0.__reset()
-    }
+    define__reset!(Rms, [0.5590169943749475], [0.0]);
 
     /// Fills the RMS window with a single constant [`Frame`] value.
     ///
