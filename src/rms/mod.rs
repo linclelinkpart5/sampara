@@ -175,7 +175,7 @@ macro_rules! gen_doc_comment {
 }
 
 macro_rules! apply_doc_comment {
-    ($doc_comment:expr, [ $($tt:tt)* ]) => {
+    ($doc_comment:expr, { $($tt:tt)* }) => {
         #[doc = $doc_comment]
         $($tt)*
     };
@@ -199,12 +199,12 @@ macro_rules! define__from_full {
                     concat!("assert_eq!(window.process([1.0]), ", stringify!($p4), ");"),
                 }
             ),
-            [
+            {
                 #[inline]
                 pub fn from_full(buffer: B) -> Self {
                     Self(StatsInner::__from_full(buffer))
                 }
-            ]
+            }
         }
     }
 }
