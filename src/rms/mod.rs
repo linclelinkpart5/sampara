@@ -285,6 +285,27 @@ macro_rules! define__fill_with {
     }
 }
 
+macro_rules! define__len {
+    ($cls:ident) => {
+        apply_doc_comment! {
+            gen_doc_comment!(
+                $cls,
+                "Returns the length of the window.",
+                {
+                    concat!("let window = ", stringify!($cls), "::from([[0.0]; 99]);"),
+                    "assert_eq!(window.len(), 99);",
+                }
+            ),
+            {
+                #[inline]
+                pub fn len(&self) -> usize {
+                    self.0.__len()
+                }
+            }
+        }
+    }
+}
+
 /// Keeps a running mean of a window of [`Frame`]s over time.
 #[derive(Clone)]
 pub struct Mean<F, B, const N: usize>(StatsInner<F, B, N, NO_SQRT, NO_POW2>)
@@ -308,20 +329,7 @@ where
 
     define__fill_with!(Mean, [0.0], [0.375]);
 
-    /// Returns the length of the window.
-    ///
-    /// ```
-    /// use sampara::rms::Mean;
-    ///
-    /// fn main() {
-    ///     let window = Mean::from([[0.0; 2]; 99]);
-    ///     assert_eq!(window.len(), 99);
-    /// }
-    /// ```
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.__len()
-    }
+    define__len!(Mean);
 
     /// Advances the state of the window buffer by pushing in a new input
     /// [`Frame`]. The oldest frame will be popped off in order to accomodate
@@ -455,21 +463,7 @@ where
 
     define__fill_with!(Ms, [0.0], [0.21875]);
 
-    /// Returns the length of the MS window buffer.
-    ///
-    /// ```
-    /// use sampara::rms::Ms;
-    ///
-    /// fn main() {
-    ///     const LEN: usize = 99;
-    ///     let ms = Ms::from([[0.0; 2]; LEN]);
-    ///     assert_eq!(ms.len(), LEN);
-    /// }
-    /// ```
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.__len()
-    }
+    define__len!(Ms);
 
     /// Advances the state of the MS window buffer by pushing in a new input
     /// [`Frame`]. The oldest frame will be popped off in order to accomodate
@@ -603,21 +597,7 @@ where
 
     define__fill_with!(Rms, [0.0], [0.46770717334674267]);
 
-    /// Returns the length of the RMS window buffer.
-    ///
-    /// ```
-    /// use sampara::rms::Rms;
-    ///
-    /// fn main() {
-    ///     const LEN: usize = 99;
-    ///     let rms = Rms::from([[0.0; 2]; LEN]);
-    ///     assert_eq!(rms.len(), LEN);
-    /// }
-    /// ```
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.__len()
-    }
+    define__len!(Rms);
 
     /// Advances the state of the RMS window buffer by pushing in a new input
     /// [`Frame`]. The oldest frame will be popped off in order to accomodate
