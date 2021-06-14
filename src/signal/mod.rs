@@ -8,7 +8,7 @@ use crate::buffer::Buffer;
 use crate::components::{Processor, Combinator};
 use crate::sample::FloatSample;
 use crate::interpolate::Interpolator;
-use crate::rms;
+use crate::stats;
 
 use crate::combinators as combs;
 use crate::processors as procs;
@@ -28,10 +28,10 @@ pub type Map<S, FO, M, const NI: usize, const NO: usize> =
     >;
 
 pub type Ms<S, B, const N: usize> =
-    Process<S, rms::Ms<<S as Signal<N>>::Frame, B, N>, N, N>;
+    Process<S, stats::Ms<<S as Signal<N>>::Frame, B, N>, N, N>;
 
 pub type Rms<S, B, const N: usize> =
-    Process<S, rms::Rms<<S as Signal<N>>::Frame, B, N>, N, N>;
+    Process<S, stats::Rms<<S as Signal<N>>::Frame, B, N>, N, N>;
 
 pub type Mix<SL, SR, FO, M, const NL: usize, const NR: usize, const NO: usize> =
     Combine<
@@ -744,7 +744,7 @@ pub trait Signal<const N: usize> {
         <Self::Frame as Frame<N>>::Sample: FloatSample,
         B: Buffer<Item = Self::Frame>,
     {
-        let processor = rms::Rms::from(window);
+        let processor = stats::Rms::from(window);
         self.process(processor)
     }
 
@@ -780,7 +780,7 @@ pub trait Signal<const N: usize> {
         <Self::Frame as Frame<N>>::Sample: FloatSample,
         B: Buffer<Item = Self::Frame>,
     {
-        let processor = rms::Rms::from_full(window);
+        let processor = stats::Rms::from_full(window);
         self.process(processor)
     }
 
@@ -813,7 +813,7 @@ pub trait Signal<const N: usize> {
         <Self::Frame as Frame<N>>::Sample: FloatSample,
         B: Buffer<Item = Self::Frame>,
     {
-        let processor = rms::Ms::from(window);
+        let processor = stats::Ms::from(window);
         self.process(processor)
     }
 
@@ -846,7 +846,7 @@ pub trait Signal<const N: usize> {
         <Self::Frame as Frame<N>>::Sample: FloatSample,
         B: Buffer<Item = Self::Frame>,
     {
-        let processor = rms::Ms::from_full(window);
+        let processor = stats::Ms::from_full(window);
         self.process(processor)
     }
 }

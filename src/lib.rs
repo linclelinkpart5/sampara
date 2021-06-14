@@ -4,9 +4,9 @@ pub mod components;
 pub mod frame;
 pub mod generator;
 pub mod interpolate;
-pub mod rms;
 pub mod sample;
 pub mod signal;
+pub mod stats;
 pub mod wavegen;
 pub mod window;
 

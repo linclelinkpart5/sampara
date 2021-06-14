@@ -162,7 +162,7 @@ macro_rules! gen_doc_comment {
         concat!(
             $text, "\n",
             "```\n",
-            "use sampara::rms::", stringify!($cls), ";\n\n",
+            "use sampara::stats::", stringify!($cls), ";\n\n",
             "fn main() {\n",
             $(
                 concat!("    ", $test_stmt, "\n"),
