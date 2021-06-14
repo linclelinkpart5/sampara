@@ -306,6 +306,40 @@ macro_rules! define__len {
     }
 }
 
+macro_rules! define__advance {
+    ($cls:ident, $prose:literal, $p1:expr, $p2:expr, $p3:expr, $p4:expr) => {
+        apply_doc_comment! {
+            gen_doc_comment!(
+                $cls,
+                concat!(
+                    "Advances the state of the window buffer by pushing in a new input [`Frame`]. ",
+                    "The oldest frame will be popped off in order to accomodate the new one.\n\n",
+                    "This method does not calculate the current ", $prose, " value, ",
+                    "which can be more performant for workflows that process multiple frames in bulk ",
+                    "and do not need the intermediate ", $prose, " values.",
+                ),
+                {
+                    concat!("let mut window = ", stringify!($cls), "::from_full([[0.0], [0.25], [0.50], [0.75]]);\n"),
+                    "window.advance([1.0]);",
+                    concat!("assert_eq!(window.current(), ", stringify!($p1), ");"),
+                    "window.advance([1.0]);",
+                    concat!("assert_eq!(window.current(), ", stringify!($p2), ");"),
+                    "window.advance([1.0]);",
+                    concat!("assert_eq!(window.current(), ", stringify!($p3), ");"),
+                    "window.advance([1.0]);",
+                    concat!("assert_eq!(window.current(), ", stringify!($p4), ");"),
+                }
+            ),
+            {
+                #[inline]
+                pub fn advance(&mut self, input: F) {
+                    self.0.__advance(input)
+                }
+            }
+        }
+    }
+}
+
 /// Keeps a running mean of a window of [`Frame`]s over time.
 #[derive(Clone)]
 pub struct Mean<F, B, const N: usize>(StatsInner<F, B, N, NO_SQRT, NO_POW2>)
@@ -331,30 +365,7 @@ where
 
     define__len!(Mean);
 
-    /// Advances the state of the window buffer by pushing in a new input
-    /// [`Frame`]. The oldest frame will be popped off in order to accomodate
-    /// the new one.
-    ///
-    /// This method does not calculate the current value, so it is useful for
-    /// workflows that process multiple frames in bulk and then calculate the
-    /// final resultant value afterwards.
-    ///
-    /// ```
-    /// use sampara::rms::Mean;
-    ///
-    /// fn main() {
-    ///     let mut window = Mean::from([[0.0; 2]; 4]);
-    ///     assert_eq!(window.current(), [0.0, 0.0]);
-    ///
-    ///     window.advance([1.0, 1.0]);
-    ///     window.advance([1.0, 1.0]);
-    ///     assert_eq!(window.current(), [0.5, 0.5]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn advance(&mut self, input: F) {
-        self.0.__advance(input)
-    }
+    define__advance!(Mean, "mean", [0.625], [0.8125], [0.9375], [1.0]);
 
     /// Calculates the current value using the current window contents.
     ///
@@ -465,30 +476,7 @@ where
 
     define__len!(Ms);
 
-    /// Advances the state of the MS window buffer by pushing in a new input
-    /// [`Frame`]. The oldest frame will be popped off in order to accomodate
-    /// the new one.
-    ///
-    /// This method does not calculate the current MS value, so it is useful
-    /// for workflows that process multiple frames in bulk and then calculate
-    /// the MS value afterwards.
-    ///
-    /// ```
-    /// use sampara::rms::Ms;
-    ///
-    /// fn main() {
-    ///     let mut ms = Ms::from([[0.0; 2]; 4]);
-    ///     assert_eq!(ms.current(), [0.0, 0.0]);
-    ///
-    ///     ms.advance([1.0, 1.0]);
-    ///     ms.advance([1.0, 1.0]);
-    ///     assert_eq!(ms.current(), [0.5, 0.5]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn advance(&mut self, input: F) {
-        self.0.__advance(input)
-    }
+    define__advance!(Ms, "MS", [0.46875], [0.703125], [0.890625], [1.0]);
 
     /// Calculates the MS value using the current window contents.
     ///
@@ -599,30 +587,7 @@ where
 
     define__len!(Rms);
 
-    /// Advances the state of the RMS window buffer by pushing in a new input
-    /// [`Frame`]. The oldest frame will be popped off in order to accomodate
-    /// the new one.
-    ///
-    /// This method does not calculate the current RMS value, so it is useful
-    /// for workflows that process multiple frames in bulk and then calculate
-    /// the RMS value afterwards.
-    ///
-    /// ```
-    /// use sampara::rms::Rms;
-    ///
-    /// fn main() {
-    ///     let mut rms = Rms::from([[0.0; 2]; 4]);
-    ///     assert_eq!(rms.current(), [0.0, 0.0]);
-    ///
-    ///     rms.advance([1.0, 1.0]);
-    ///     rms.advance([1.0, 1.0]);
-    ///     assert_eq!(rms.current(), [0.7071067811865476, 0.7071067811865476]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn advance(&mut self, input: F) {
-        self.0.__advance(input)
-    }
+    define__advance!(Rms, "RMS", [0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]);
 
     /// Calculates the RMS value using the current window contents.
     ///
