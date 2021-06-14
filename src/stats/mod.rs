@@ -27,7 +27,7 @@ where
     B: Buffer<Item = F>,
 {
     #[inline]
-    fn __from_full(buffer: B) -> Self {
+    fn __from(buffer: B) -> Self {
         let mut buffer = buffer;
         let mut sum = F::EQUILIBRIUM;
 
@@ -45,6 +45,18 @@ where
             window: Fixed::from(buffer),
             sum,
         }
+    }
+
+    #[inline]
+    fn __empty(buffer: B) -> Self {
+        let mut new = Self {
+            window: Fixed::from(buffer),
+            sum: Frame::EQUILIBRIUM,
+        };
+
+        new.__reset();
+
+        new
     }
 
     #[inline]
@@ -143,18 +155,6 @@ where
         self.__advance(input);
         self.__current()
     }
-
-    #[inline]
-    fn __from(buffer: B) -> Self {
-        let mut new = Self {
-            window: Fixed::from(buffer),
-            sum: Frame::EQUILIBRIUM,
-        };
-
-        new.__reset();
-
-        new
-    }
 }
 
 macro_rules! gen_doc_comment {
@@ -180,18 +180,42 @@ macro_rules! apply_doc_comment {
     };
 }
 
+macro_rules! define__empty {
+    ($cls:ident, $curr:expr) => {
+        apply_doc_comment! {
+            gen_doc_comment!(
+                $cls,
+                concat!(
+                    "Similar to [`", stringify!($cls), "::from`], but treats the provided buffer as ",
+                    "empty and fills it with [`Frame::EQUILIBRIUM`].",
+                ),
+                {
+                    "// These values get zeroed out.",
+                    concat!("let mut window = ", stringify!($cls), "::empty([[-1.0]; 4]);"),
+                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
+                }
+            ),
+            {
+                #[inline]
+                pub fn empty(buffer: B) -> Self {
+                    Self(StatsInner::__empty(buffer))
+                }
+            }
+        }
+    }
+}
+
 macro_rules! define__from {
     ($cls:ident, $curr:expr) => {
         apply_doc_comment! {
             gen_doc_comment!(
                 $cls,
                 concat!(
-                    "Creates a new [`", stringify!($cls), "`] using a given [`Buffer`] as a window.\n\n",
-                    "Any existing buffer contents will be overwritten with equilibrium frames.",
+                    "Creates a new [`", stringify!($cls), "`] using a given [`Buffer`] as a window. ",
+                    "The provided buffer is assumed to be filled with the initial window buffer [`Frame`]s.",
                 ),
                 {
-                    "// These values get zeroed out.",
-                    concat!("let mut window = ", stringify!($cls), "::from([[-1.0]; 4]);"),
+                    concat!("let mut window = ", stringify!($cls), "::from([[0.5], [0.5], [0.5], [0.5]]);\n"),
                     concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
                 }
             ),
@@ -205,30 +229,6 @@ macro_rules! define__from {
     }
 }
 
-macro_rules! define__from_full {
-    ($cls:ident, $curr:expr) => {
-        apply_doc_comment! {
-            gen_doc_comment!(
-                $cls,
-                concat!(
-                    "Similar to [`", stringify!($cls), "::from`], but treats the
-                    passed-in buffer as already filled with input [`Frame`]s."
-                ),
-                {
-                    concat!("let mut window = ", stringify!($cls), "::from_full([[0.5], [0.5], [0.5], [0.5]]);\n"),
-                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
-                }
-            ),
-            {
-                #[inline]
-                pub fn from_full(buffer: B) -> Self {
-                    Self(StatsInner::__from_full(buffer))
-                }
-            }
-        }
-    }
-}
-
 macro_rules! define__reset {
     ($cls:ident, $curr:expr, $after:expr) => {
         apply_doc_comment! {
@@ -236,7 +236,7 @@ macro_rules! define__reset {
                 $cls,
                 "Resets the window to its zeroed-out state.",
                 {
-                    concat!("let mut window = ", stringify!($cls), "::from_full([[0.25], [0.75], [0.25], [0.75]]);"),
+                    concat!("let mut window = ", stringify!($cls), "::from([[0.25], [0.75], [0.25], [0.75]]);"),
                     concat!("assert_eq!(window.current(), ", stringify!($curr), ");\n"),
                     concat!("window.reset();"),
                     concat!("assert_eq!(window.current(), ", stringify!($after), ");"),
@@ -259,7 +259,7 @@ macro_rules! define__fill {
                 $cls,
                 "Fills the window with a single constant [`Frame`] value.",
                 {
-                    concat!("let mut window = ", stringify!($cls), "::from([[-1.0]; 4]);"),
+                    concat!("let mut window = ", stringify!($cls), "::empty([[-1.0]; 4]);"),
                     concat!("assert_eq!(window.current(), ", stringify!($curr), ");\n"),
                     concat!("window.fill([0.5]);"),
                     concat!("assert_eq!(window.current(), ", stringify!($after), ");"),
@@ -282,7 +282,7 @@ macro_rules! define__fill_with {
                 $cls,
                 "Fills the window by repeatedly calling a closure that produces [`Frame`]s.",
                 {
-                    concat!("let mut window = ", stringify!($cls), "::from([[-1.0]; 4]);"),
+                    concat!("let mut window = ", stringify!($cls), "::empty([[-1.0]; 4]);"),
                     concat!("assert_eq!(window.current(), ", stringify!($curr), ");\n"),
                     "let mut x = 1.0;",
                     "window.fill_with(|| {",
@@ -312,7 +312,7 @@ macro_rules! define__len {
                 $cls,
                 "Returns the length of the window.",
                 {
-                    concat!("let window = ", stringify!($cls), "::from([[0.0]; 99]);"),
+                    concat!("let window = ", stringify!($cls), "::empty([[0.0]; 99]);"),
                     "assert_eq!(window.len(), 99);",
                 }
             ),
@@ -339,7 +339,7 @@ macro_rules! define__advance {
                     "and do not need the intermediate ", $prose, " values.",
                 ),
                 {
-                    concat!("let mut window = ", stringify!($cls), "::from_full([[0.0], [0.25], [0.50], [0.75]]);\n"),
+                    concat!("let mut window = ", stringify!($cls), "::from([[0.0], [0.25], [0.50], [0.75]]);\n"),
                     "window.advance([1.0]);",
                     concat!("assert_eq!(window.current(), ", stringify!($p1), ");"),
                     "window.advance([1.0]);",
@@ -369,7 +369,7 @@ macro_rules! define__current {
                     "Calculates the current ", $prose, " value using the current window contents.",
                 ),
                 {
-                    concat!("let mut window = ", stringify!($cls), "::from_full([[0.0], [0.25], [0.50], [0.75]]);\n"),
+                    concat!("let mut window = ", stringify!($cls), "::from([[0.0], [0.25], [0.50], [0.75]]);\n"),
                     concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
                 }
             ),
@@ -395,7 +395,7 @@ macro_rules! define__process {
                     "by a call to [`", stringify!($cls), "::current`].",
                 ),
                 {
-                    concat!("let mut window = ", stringify!($cls), "::from_full([[0.0], [0.25], [0.50], [0.75]]);\n"),
+                    concat!("let mut window = ", stringify!($cls), "::from([[0.0], [0.25], [0.50], [0.75]]);\n"),
                     concat!("assert_eq!(window.process([1.0]), ", stringify!($p1), ");"),
                     concat!("assert_eq!(window.process([1.0]), ", stringify!($p2), ");"),
                     concat!("assert_eq!(window.process([1.0]), ", stringify!($p3), ");"),
@@ -420,7 +420,7 @@ macro_rules! calculator {
         $is_pow2:expr,
         {
             args_from => ( $($ta_from:expr),* ),
-            args_from_full => ( $($ta_from_full:expr),* ),
+            args_empty => ( $($ta_empty:expr),* ),
             args_reset => ( $($ta_reset:expr),* ),
             args_fill => ( $($ta_fill:expr),* ),
             args_fill_with => ( $($ta_fill_with:expr),* ),
@@ -448,7 +448,7 @@ macro_rules! calculator {
             F::Sample: FloatSample,
             B: Buffer<Item = F>,
         {
-            define__from_full!($cls, $($ta_from_full),*);
+            define__empty!($cls, $($ta_empty),*);
             define__reset!($cls, $($ta_reset),*);
             define__fill!($cls, $($ta_fill),*);
             define__fill_with!($cls, $($ta_fill_with),*);
@@ -486,8 +486,8 @@ macro_rules! calculator {
 }
 
 calculator!(Mean, "mean", NO_SQRT, NO_POW2, {
-    args_from => ([0.0]),
-    args_from_full => ([0.5]),
+    args_from => ([0.5]),
+    args_empty => ([0.0]),
     args_reset => ([0.5], [0.0]),
     args_fill => ([0.0], [0.5]),
     args_fill_with => ([0.0], [0.375]),
@@ -497,8 +497,8 @@ calculator!(Mean, "mean", NO_SQRT, NO_POW2, {
 });
 
 calculator!(Ms, "MS", NO_SQRT, DO_POW2, {
-    args_from => ([0.0]),
-    args_from_full => ([0.25]),
+    args_from => ([0.25]),
+    args_empty => ([0.0]),
     args_reset => ([0.3125], [0.0]),
     args_fill => ([0.0], [0.25]),
     args_fill_with => ([0.0], [0.21875]),
@@ -508,8 +508,8 @@ calculator!(Ms, "MS", NO_SQRT, DO_POW2, {
 });
 
 calculator!(Rms, "RMS", DO_SQRT, DO_POW2, {
-    args_from => ([0.0]),
-    args_from_full => ([0.5]),
+    args_from => ([0.5]),
+    args_empty => ([0.0]),
     args_reset => ([0.5590169943749475], [0.0]),
     args_fill => ([0.0], [0.5]),
     args_fill_with => ([0.0], [0.46770717334674267]),

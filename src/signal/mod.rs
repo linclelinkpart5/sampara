@@ -729,7 +729,7 @@ pub trait Signal<const N: usize> {
     ///         [0.75, -0.25],
     ///     ]);
     ///
-    ///     let mut rms_signal = signal.rms([[0.0, 0.0]; 4]);
+    ///     let mut rms_signal = signal.rms([[-1.0, -1.0]; 4]);
     ///
     ///     assert_eq!(rms_signal.next(), Some([0.25, 0.25]));
     ///     assert_eq!(rms_signal.next(), Some([0.2795084971874737, 0.45069390943299864]));
@@ -744,7 +744,7 @@ pub trait Signal<const N: usize> {
         <Self::Frame as Frame<N>>::Sample: FloatSample,
         B: Buffer<Item = Self::Frame>,
     {
-        let processor = stats::Rms::from(window);
+        let processor = stats::Rms::empty(window);
         self.process(processor)
     }
 
@@ -780,7 +780,7 @@ pub trait Signal<const N: usize> {
         <Self::Frame as Frame<N>>::Sample: FloatSample,
         B: Buffer<Item = Self::Frame>,
     {
-        let processor = stats::Rms::from_full(window);
+        let processor = stats::Rms::from(window);
         self.process(processor)
     }
 
@@ -798,7 +798,7 @@ pub trait Signal<const N: usize> {
     ///         [0.75, -0.25],
     ///     ]);
     ///
-    ///     let mut ms_signal = signal.ms([[0.0, 0.0]; 4]);
+    ///     let mut ms_signal = signal.ms([[-1.0, -1.0]; 4]);
     ///
     ///     assert_eq!(ms_signal.next(), Some([0.0625, 0.0625]));
     ///     assert_eq!(ms_signal.next(), Some([0.078125, 0.203125]));
@@ -813,7 +813,7 @@ pub trait Signal<const N: usize> {
         <Self::Frame as Frame<N>>::Sample: FloatSample,
         B: Buffer<Item = Self::Frame>,
     {
-        let processor = stats::Ms::from(window);
+        let processor = stats::Ms::empty(window);
         self.process(processor)
     }
 
@@ -846,7 +846,7 @@ pub trait Signal<const N: usize> {
         <Self::Frame as Frame<N>>::Sample: FloatSample,
         B: Buffer<Item = Self::Frame>,
     {
-        let processor = stats::Ms::from_full(window);
+        let processor = stats::Ms::from(window);
         self.process(processor)
     }
 }
