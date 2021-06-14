@@ -413,42 +413,6 @@ macro_rules! define__process {
     }
 }
 
-macro_rules! make_struct {
-    ($cls:ident, $prose:literal, $is_sqrt:expr, $is_pow2:expr) => {
-        apply_doc_comment! {
-            concat!("Keeps a running ", $prose, " of a window of [`Frame`]s over time."),
-            {
-                #[derive(Clone)]
-                pub struct $cls<F, B, const N: usize>(StatsInner<F, B, N, $is_sqrt, $is_pow2>)
-                where
-                    F: Frame<N>,
-                    F::Sample: FloatSample,
-                    B: Buffer<Item = F>,
-                ;
-            }
-        }
-    };
-}
-
-macro_rules! impl_processor {
-    ($cls:ident) => {
-        impl<F, B, const N: usize> Processor<N, N> for $cls<F, B, N>
-        where
-            F: Frame<N>,
-            F::Sample: FloatSample,
-            B: Buffer<Item = F>,
-        {
-            type Input = F;
-            type Output = F;
-
-            #[inline]
-            fn process(&mut self, input: Self::Input) -> Self::Output {
-                self.process(input)
-            }
-        }
-    };
-}
-
 macro_rules! calculator {
     (
         $cls:ident,
@@ -466,7 +430,18 @@ macro_rules! calculator {
             args_process => ( $($ta_process:expr),* ),
         }
     ) => {
-        make_struct!($cls, $prose, $is_sqrt, $is_pow2);
+        apply_doc_comment! {
+            concat!("Keeps a running ", $prose, " of a window of [`Frame`]s over time."),
+            {
+                #[derive(Clone)]
+                pub struct $cls<F, B, const N: usize>(StatsInner<F, B, N, $is_sqrt, $is_pow2>)
+                where
+                    F: Frame<N>,
+                    F::Sample: FloatSample,
+                    B: Buffer<Item = F>,
+                ;
+            }
+        }
 
         impl<F, B, const N: usize> $cls<F, B, N>
         where
@@ -493,7 +468,52 @@ macro_rules! calculator {
             define__from!($cls, $($ta_from),*);
         }
 
-        impl_processor!($cls);
+        // Forward `Processor::process` to `Self::process`.
+        impl<F, B, const N: usize> Processor<N, N> for $cls<F, B, N>
+        where
+            F: Frame<N>,
+            F::Sample: FloatSample,
+            B: Buffer<Item = F>,
+        {
+            type Input = F;
+            type Output = F;
+
+            #[inline]
+            fn process(&mut self, input: Self::Input) -> Self::Output {
+                self.process(input)
+            }
+        }
+
+        // Expose some `Self` methods on `Process<Self>`.
+        impl<S, B, const N: usize> Process<S, $cls<S::Frame, B, N>, N, N>
+        where
+            S: Signal<N>,
+            <S::Frame as Frame<N>>::Sample: FloatSample,
+            B: Buffer<Item = S::Frame>,
+        {
+            #[inline]
+            pub fn reset(&mut self) {
+                self.processor.reset()
+            }
+
+            #[inline]
+            pub fn fill(&mut self, fill_val: S::Frame) {
+                self.processor.fill(fill_val)
+            }
+
+            #[inline]
+            pub fn fill_with<M>(&mut self, fill_func: M)
+            where
+                M: FnMut() -> S::Frame,
+            {
+                self.processor.fill_with(fill_func)
+            }
+
+            #[inline]
+            pub fn current(&self) -> S::Frame {
+                self.processor.current()
+            }
+        }
     };
 }
 
@@ -529,27 +549,3 @@ calculator!(Rms, "RMS", DO_SQRT, DO_POW2, {
     args_current => ([0.46770717334674267]),
     args_process => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
 });
-
-impl<S, B, const N: usize> Process<S, Ms<S::Frame, B, N>, N, N>
-where
-    S: Signal<N>,
-    <S::Frame as Frame<N>>::Sample: FloatSample,
-    B: Buffer<Item = S::Frame>,
-{
-    #[inline]
-    pub fn current(&self) -> S::Frame {
-        self.processor.current()
-    }
-}
-
-impl<S, B, const N: usize> Process<S, Rms<S::Frame, B, N>, N, N>
-where
-    S: Signal<N>,
-    <S::Frame as Frame<N>>::Sample: FloatSample,
-    B: Buffer<Item = S::Frame>,
-{
-    #[inline]
-    pub fn current(&self) -> S::Frame {
-        self.processor.current()
-    }
-}
