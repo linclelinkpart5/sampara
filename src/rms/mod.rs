@@ -232,6 +232,29 @@ macro_rules! define__reset {
     }
 }
 
+macro_rules! define__fill {
+    ($cls:ident, $curr:expr, $after:expr) => {
+        apply_doc_comment! {
+            gen_doc_comment!(
+                $cls,
+                "Fills the window with a single constant [`Frame`] value.",
+                {
+                    concat!("let mut window = ", stringify!($cls), "::from([[-1.0]; 4]);"),
+                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");\n"),
+                    concat!("window.fill([0.5]);"),
+                    concat!("assert_eq!(window.current(), ", stringify!($after), ");"),
+                }
+            ),
+            {
+                #[inline]
+                pub fn fill(&mut self, fill_val: F) {
+                    self.0.__fill(fill_val)
+                }
+            }
+        }
+    }
+}
+
 /// Keeps a running mean of a window of [`Frame`]s over time.
 #[derive(Clone)]
 pub struct Mean<F, B, const N: usize>(StatsInner<F, B, N, NO_SQRT, NO_POW2>)
@@ -251,26 +274,7 @@ where
 
     define__reset!(Mean, [0.5], [0.0]);
 
-    /// Fills the window with a single constant [`Frame`] value.
-    ///
-    /// ```
-    /// use sampara::rms::Mean;
-    ///
-    /// fn main() {
-    ///     let mut window = Mean::from([[-1.0]; 4]);
-    ///
-    ///     window.fill([0.5]);
-    ///     assert_eq!(window.current(), [0.5]);
-    ///
-    ///     window.advance([1.0]);
-    ///     window.advance([1.0]);
-    ///     assert_eq!(window.current(), [0.75]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn fill(&mut self, fill_val: F) {
-        self.0.__fill(fill_val)
-    }
+    define__fill!(Mean, [0.0], [0.5]);
 
     /// Fills the window by repeatedly calling a closure that produces
     /// [`Frame`]s.
@@ -445,26 +449,7 @@ where
 
     define__reset!(Ms, [0.3125], [0.0]);
 
-    /// Fills the MS window with a single constant [`Frame`] value.
-    ///
-    /// ```
-    /// use sampara::rms::Ms;
-    ///
-    /// fn main() {
-    ///     let mut ms = Ms::from([[0.0]; 4]);
-    ///
-    ///     ms.fill([0.5]);
-    ///     assert_eq!(ms.current(), [0.25]);
-    ///
-    ///     ms.advance([1.0]);
-    ///     ms.advance([1.0]);
-    ///     assert_eq!(ms.current(), [0.625]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn fill(&mut self, fill_val: F) {
-        self.0.__fill(fill_val)
-    }
+    define__fill!(Ms, [0.0], [0.25]);
 
     /// Fills the MS window by repeatedly calling a closure that produces
     /// [`Frame`] values.
@@ -640,26 +625,7 @@ where
 
     define__reset!(Rms, [0.5590169943749475], [0.0]);
 
-    /// Fills the RMS window with a single constant [`Frame`] value.
-    ///
-    /// ```
-    /// use sampara::rms::Rms;
-    ///
-    /// fn main() {
-    ///     let mut rms = Rms::from([[0.0]; 4]);
-    ///
-    ///     rms.fill([0.5]);
-    ///     assert_eq!(rms.current(), [0.5]);
-    ///
-    ///     rms.advance([1.0]);
-    ///     rms.advance([1.0]);
-    ///     assert_eq!(rms.current(), [0.7905694150420949]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn fill(&mut self, fill_val: F) {
-        self.0.__fill(fill_val)
-    }
+    define__fill!(Rms, [0.0], [0.5]);
 
     /// Fills the RMS window by repeatedly calling a closure that produces
     /// [`Frame`] values.
