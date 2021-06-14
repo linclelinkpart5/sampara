@@ -413,14 +413,49 @@ macro_rules! define__process {
     }
 }
 
-/// Keeps a running mean of a window of [`Frame`]s over time.
-#[derive(Clone)]
-pub struct Mean<F, B, const N: usize>(StatsInner<F, B, N, NO_SQRT, NO_POW2>)
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-;
+macro_rules! make_struct {
+    ($cls:ident, $prose:literal, $is_sqrt:expr, $is_pow2:expr) => {
+        apply_doc_comment! {
+            concat!("Keeps a running ", $prose, " of a window of [`Frame`]s over time."),
+            {
+                #[derive(Clone)]
+                pub struct $cls<F, B, const N: usize>(StatsInner<F, B, N, $is_sqrt, $is_pow2>)
+                where
+                    F: Frame<N>,
+                    F::Sample: FloatSample,
+                    B: Buffer<Item = F>,
+                ;
+            }
+        }
+    };
+}
+
+macro_rules! impl_processor {
+    ($cls:ident) => {
+        impl<F, B, const N: usize> Processor<N, N> for $cls<F, B, N>
+        where
+            F: Frame<N>,
+            F::Sample: FloatSample,
+            B: Buffer<Item = F>,
+        {
+            type Input = F;
+            type Output = F;
+
+            #[inline]
+            fn process(&mut self, input: Self::Input) -> Self::Output {
+                self.process(input)
+            }
+        }
+    };
+}
+
+make_struct!(Mean, "mean", NO_SQRT, NO_POW2);
+make_struct!(Ms, "MS", NO_SQRT, DO_POW2);
+make_struct!(Rms, "RMS", DO_SQRT, DO_POW2);
+
+impl_processor!(Mean);
+impl_processor!(Ms);
+impl_processor!(Rms);
 
 impl<F, B, const N: usize> Mean<F, B, N>
 where
@@ -429,19 +464,12 @@ where
     B: Buffer<Item = F>,
 {
     define__from_full!(Mean, [0.5]);
-
     define__reset!(Mean, [0.5], [0.0]);
-
     define__fill!(Mean, [0.0], [0.5]);
-
     define__fill_with!(Mean, [0.0], [0.375]);
-
     define__len!(Mean);
-
     define__advance!(Mean, "mean", [0.625], [0.8125], [0.9375], [1.0]);
-
     define__current!(Mean, "mean", [0.375]);
-
     define__process!(Mean, "mean", [0.625], [0.8125], [0.9375], [1.0]);
 }
 
@@ -454,30 +482,6 @@ where
     define__from!(Mean, [0.0]);
 }
 
-impl<F, B, const N: usize> Processor<N, N> for Mean<F, B, N>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-{
-    type Input = F;
-    type Output = F;
-
-    #[inline]
-    fn process(&mut self, input: Self::Input) -> Self::Output {
-        self.process(input)
-    }
-}
-
-/// Keeps a running MS (mean square) of a window of [`Frame`]s over time.
-#[derive(Clone)]
-pub struct Ms<F, B, const N: usize>(StatsInner<F, B, N, NO_SQRT, DO_POW2>)
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-;
-
 impl<F, B, const N: usize> Ms<F, B, N>
 where
     F: Frame<N>,
@@ -485,19 +489,12 @@ where
     B: Buffer<Item = F>,
 {
     define__from_full!(Ms, [0.25]);
-
     define__reset!(Ms, [0.3125], [0.0]);
-
     define__fill!(Ms, [0.0], [0.25]);
-
     define__fill_with!(Ms, [0.0], [0.21875]);
-
     define__len!(Ms);
-
     define__advance!(Ms, "MS", [0.46875], [0.703125], [0.890625], [1.0]);
-
     define__current!(Ms, "MS", [0.21875]);
-
     define__process!(Ms, "MS", [0.46875], [0.703125], [0.890625], [1.0]);
 }
 
@@ -510,30 +507,6 @@ where
     define__from!(Ms, [0.0]);
 }
 
-impl<F, B, const N: usize> Processor<N, N> for Ms<F, B, N>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-{
-    type Input = F;
-    type Output = F;
-
-    #[inline]
-    fn process(&mut self, input: Self::Input) -> Self::Output {
-        self.process(input)
-    }
-}
-
-/// Keeps a running RMS (root mean square) of a window of [`Frame`]s over time.
-#[derive(Clone)]
-pub struct Rms<F, B, const N: usize>(StatsInner<F, B, N, DO_SQRT, DO_POW2>)
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-;
-
 impl<F, B, const N: usize> Rms<F, B, N>
 where
     F: Frame<N>,
@@ -541,19 +514,12 @@ where
     B: Buffer<Item = F>,
 {
     define__from_full!(Rms, [0.5]);
-
     define__reset!(Rms, [0.5590169943749475], [0.0]);
-
     define__fill!(Rms, [0.0], [0.5]);
-
     define__fill_with!(Rms, [0.0], [0.46770717334674267]);
-
     define__len!(Rms);
-
     define__advance!(Rms, "RMS", [0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]);
-
     define__current!(Rms, "RMS", [0.46770717334674267]);
-
     define__process!(Rms, "RMS", [0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]);
 }
 
@@ -564,21 +530,6 @@ where
     B: Buffer<Item = F>,
 {
     define__from!(Rms, [0.0]);
-}
-
-impl<F, B, const N: usize> Processor<N, N> for Rms<F, B, N>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-{
-    type Input = F;
-    type Output = F;
-
-    #[inline]
-    fn process(&mut self, input: Self::Input) -> Self::Output {
-        self.process(input)
-    }
 }
 
 impl<S, B, const N: usize> Process<S, Ms<S::Frame, B, N>, N, N>
