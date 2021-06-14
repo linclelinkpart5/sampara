@@ -449,6 +449,54 @@ macro_rules! impl_processor {
     };
 }
 
+macro_rules! calculator {
+    (
+        $cls:ident,
+        $prose:literal,
+        $is_sqrt:expr,
+        $is_pow2:expr,
+        {
+            args_from => ( $($ta_from:expr),* ),
+            args_from_full => ( $($ta_from_full:expr),* ),
+            args_reset => ( $($ta_reset:expr),* ),
+            args_fill => ( $($ta_fill:expr),* ),
+            args_fill_with => ( $($ta_fill_with:expr),* ),
+            args_advance => ( $($ta_advance:expr),* ),
+            args_current => ( $($ta_current:expr),* ),
+            args_process => ( $($ta_process:expr),* ),
+        }
+    ) => {
+        make_struct!($cls, $prose, $is_sqrt, $is_pow2);
+
+        impl<F, B, const N: usize> $cls<F, B, N>
+        where
+            F: Frame<N>,
+            F::Sample: FloatSample,
+            B: Buffer<Item = F>,
+        {
+            define__from_full!($cls, $($ta_from_full),*);
+            define__reset!($cls, $($ta_reset),*);
+            define__fill!($cls, $($ta_fill),*);
+            define__fill_with!($cls, $($ta_fill_with),*);
+            define__len!($cls);
+            define__advance!($cls, $prose, $($ta_advance),*);
+            define__current!($cls, $prose, $($ta_current),*);
+            define__process!($cls, $prose, $($ta_process),*);
+        }
+
+        impl<F, B, const N: usize> From<B> for $cls<F, B, N>
+        where
+            F: Frame<N>,
+            F::Sample: FloatSample,
+            B: Buffer<Item = F>,
+        {
+            define__from!($cls, $($ta_from),*);
+        }
+
+        impl_processor!($cls);
+    };
+}
+
 make_struct!(Mean, "mean", NO_SQRT, NO_POW2);
 make_struct!(Ms, "MS", NO_SQRT, DO_POW2);
 make_struct!(Rms, "RMS", DO_SQRT, DO_POW2);
