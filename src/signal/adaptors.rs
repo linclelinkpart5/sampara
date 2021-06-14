@@ -368,10 +368,12 @@ where
     S: Signal<NI>,
     P: Processor<NI, NO, Input = S::Frame>,
 {
+    /// Returns a reference to the internal [`Processor`] state.
     pub fn state(&self) -> &P {
         &self.processor
     }
 
+    /// Returns a mutable reference to the internal [`Processor`] state.
     pub fn state_mut(&mut self) -> &mut P {
         &mut self.processor
     }
@@ -412,10 +414,12 @@ where
     SR: Signal<NR>,
     C: Combinator<NL, NR, NO, InputL = SL::Frame, InputR = SR::Frame>,
 {
+    /// Returns a reference to the internal [`Combinator`] state.
     pub fn state(&self) -> &C {
         &self.combinator
     }
 
+    /// Returns a mutable reference to the internal [`Combinator`] state.
     pub fn state_mut(&mut self) -> &mut C {
         &mut self.combinator
     }
