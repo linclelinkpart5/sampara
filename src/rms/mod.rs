@@ -497,88 +497,38 @@ macro_rules! calculator {
     };
 }
 
-make_struct!(Mean, "mean", NO_SQRT, NO_POW2);
-make_struct!(Ms, "MS", NO_SQRT, DO_POW2);
-make_struct!(Rms, "RMS", DO_SQRT, DO_POW2);
+calculator!(Mean, "mean", NO_SQRT, NO_POW2, {
+    args_from => ([0.0]),
+    args_from_full => ([0.5]),
+    args_reset => ([0.5], [0.0]),
+    args_fill => ([0.0], [0.5]),
+    args_fill_with => ([0.0], [0.375]),
+    args_advance => ([0.625], [0.8125], [0.9375], [1.0]),
+    args_current => ([0.375]),
+    args_process => ([0.625], [0.8125], [0.9375], [1.0]),
+});
 
-impl_processor!(Mean);
-impl_processor!(Ms);
-impl_processor!(Rms);
+calculator!(Ms, "MS", NO_SQRT, DO_POW2, {
+    args_from => ([0.0]),
+    args_from_full => ([0.25]),
+    args_reset => ([0.3125], [0.0]),
+    args_fill => ([0.0], [0.25]),
+    args_fill_with => ([0.0], [0.21875]),
+    args_advance => ([0.46875], [0.703125], [0.890625], [1.0]),
+    args_current => ([0.21875]),
+    args_process => ([0.46875], [0.703125], [0.890625], [1.0]),
+});
 
-impl<F, B, const N: usize> Mean<F, B, N>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-{
-    define__from_full!(Mean, [0.5]);
-    define__reset!(Mean, [0.5], [0.0]);
-    define__fill!(Mean, [0.0], [0.5]);
-    define__fill_with!(Mean, [0.0], [0.375]);
-    define__len!(Mean);
-    define__advance!(Mean, "mean", [0.625], [0.8125], [0.9375], [1.0]);
-    define__current!(Mean, "mean", [0.375]);
-    define__process!(Mean, "mean", [0.625], [0.8125], [0.9375], [1.0]);
-}
-
-impl<F, B, const N: usize> From<B> for Mean<F, B, N>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-{
-    define__from!(Mean, [0.0]);
-}
-
-impl<F, B, const N: usize> Ms<F, B, N>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-{
-    define__from_full!(Ms, [0.25]);
-    define__reset!(Ms, [0.3125], [0.0]);
-    define__fill!(Ms, [0.0], [0.25]);
-    define__fill_with!(Ms, [0.0], [0.21875]);
-    define__len!(Ms);
-    define__advance!(Ms, "MS", [0.46875], [0.703125], [0.890625], [1.0]);
-    define__current!(Ms, "MS", [0.21875]);
-    define__process!(Ms, "MS", [0.46875], [0.703125], [0.890625], [1.0]);
-}
-
-impl<F, B, const N: usize> From<B> for Ms<F, B, N>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-{
-    define__from!(Ms, [0.0]);
-}
-
-impl<F, B, const N: usize> Rms<F, B, N>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-{
-    define__from_full!(Rms, [0.5]);
-    define__reset!(Rms, [0.5590169943749475], [0.0]);
-    define__fill!(Rms, [0.0], [0.5]);
-    define__fill_with!(Rms, [0.0], [0.46770717334674267]);
-    define__len!(Rms);
-    define__advance!(Rms, "RMS", [0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]);
-    define__current!(Rms, "RMS", [0.46770717334674267]);
-    define__process!(Rms, "RMS", [0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]);
-}
-
-impl<F, B, const N: usize> From<B> for Rms<F, B, N>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-{
-    define__from!(Rms, [0.0]);
-}
+calculator!(Rms, "RMS", DO_SQRT, DO_POW2, {
+    args_from => ([0.0]),
+    args_from_full => ([0.5]),
+    args_reset => ([0.5590169943749475], [0.0]),
+    args_fill => ([0.0], [0.5]),
+    args_fill_with => ([0.0], [0.46770717334674267]),
+    args_advance => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
+    args_current => ([0.46770717334674267]),
+    args_process => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
+});
 
 impl<S, B, const N: usize> Process<S, Ms<S::Frame, B, N>, N, N>
 where
