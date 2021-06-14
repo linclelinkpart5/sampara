@@ -349,7 +349,7 @@ macro_rules! define__current {
                     "Calculates the current ", $prose, " value using the current window contents.",
                 ),
                 {
-                    concat!("let mut window = ", stringify!($cls), "::from_full([[0.0], [0.25], [0.50], [0.75]]);"),
+                    concat!("let mut window = ", stringify!($cls), "::from_full([[0.0], [0.25], [0.50], [0.75]]);\n"),
                     concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
                 }
             ),
@@ -357,6 +357,35 @@ macro_rules! define__current {
                 #[inline]
                 pub fn current(&self) -> F {
                     self.0.__current()
+                }
+            }
+        }
+    }
+}
+
+macro_rules! define__process {
+    ($cls:ident, $prose:literal, $p1:expr, $p2:expr, $p3:expr, $p4:expr) => {
+        apply_doc_comment! {
+            gen_doc_comment!(
+                $cls,
+                concat!(
+                    "Processes a new input frame by advancing the state of the window buffer ",
+                    "and then calculating the current ", $prose, " value.\n\n",
+                    "This is equivalent to a call to [`", stringify!($cls), "::advance`] followed ",
+                    "by a call to [`", stringify!($cls), "::current`].",
+                ),
+                {
+                    concat!("let mut window = ", stringify!($cls), "::from_full([[0.0], [0.25], [0.50], [0.75]]);\n"),
+                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p1), ");"),
+                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p2), ");"),
+                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p3), ");"),
+                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p4), ");"),
+                }
+            ),
+            {
+                #[inline]
+                pub fn process(&mut self, input: F) -> F {
+                    self.0.__process(input)
                 }
             }
         }
@@ -392,27 +421,7 @@ where
 
     define__current!(Mean, "mean", [0.375]);
 
-    /// Processes a new input frame by advancing the state of the window buffer
-    /// and then calculating the current value.
-    ///
-    /// This is equivalent to a call to [`Self::advance`] followed by a call to
-    /// [`Self::current`].
-    ///
-    /// ```
-    /// use sampara::rms::Mean;
-    ///
-    /// fn main() {
-    ///     let mut window = Mean::from([[0.0]; 4]);
-    ///     assert_eq!(window.process([1.0]), [0.25]);
-    ///     assert_eq!(window.process([-1.0]), [0.0]);
-    ///     assert_eq!(window.process([1.0]), [0.25]);
-    ///     assert_eq!(window.process([1.0]), [0.5]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn process(&mut self, input: F) -> F {
-        self.0.__process(input)
-    }
+    define__process!(Mean, "mean", [0.625], [0.8125], [0.9375], [1.0]);
 }
 
 impl<F, B, const N: usize> From<B> for Mean<F, B, N>
@@ -490,27 +499,7 @@ where
 
     define__current!(Ms, "MS", [0.21875]);
 
-    /// Processes a new input frame by advancing the state of the MS window
-    /// buffer and then calculating the current MS value.
-    ///
-    /// This is equivalent to a call to [`Self::advance`] followed by a call to
-    /// [`Self::current`].
-    ///
-    /// ```
-    /// use sampara::rms::Ms;
-    ///
-    /// fn main() {
-    ///     let mut ms = Ms::from([[0.0]; 4]);
-    ///     assert_eq!(ms.process([1.0]), [0.25]);
-    ///     assert_eq!(ms.process([-1.0]), [0.5]);
-    ///     assert_eq!(ms.process([1.0]), [0.75]);
-    ///     assert_eq!(ms.process([-1.0]), [1.0]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn process(&mut self, input: F) -> F {
-        self.0.__process(input)
-    }
+    define__process!(Ms, "MS", [0.46875], [0.703125], [0.890625], [1.0]);
 }
 
 impl<F, B, const N: usize> From<B> for Ms<F, B, N>
@@ -588,27 +577,7 @@ where
 
     define__current!(Rms, "RMS", [0.46770717334674267]);
 
-    /// Processes a new input frame by advancing the state of the RMS window
-    /// buffer and then calculating the current RMS value.
-    ///
-    /// This is equivalent to a call to [`Self::advance`] followed by a call to
-    /// [`Self::current`].
-    ///
-    /// ```
-    /// use sampara::rms::Rms;
-    ///
-    /// fn main() {
-    ///     let mut rms = Rms::from([[0.0]; 4]);
-    ///     assert_eq!(rms.process([1.0]), [0.5]);
-    ///     assert_eq!(rms.process([-1.0]), [0.7071067811865476]);
-    ///     assert_eq!(rms.process([1.0]), [0.8660254037844386]);
-    ///     assert_eq!(rms.process([-1.0]), [1.0]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn process(&mut self, input: F) -> F {
-        self.0.__process(input)
-    }
+    define__process!(Rms, "RMS", [0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]);
 }
 
 impl<F, B, const N: usize> From<B> for Rms<F, B, N>
