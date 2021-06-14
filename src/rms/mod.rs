@@ -340,6 +340,29 @@ macro_rules! define__advance {
     }
 }
 
+macro_rules! define__current {
+    ($cls:ident, $prose:literal, $curr:expr) => {
+        apply_doc_comment! {
+            gen_doc_comment!(
+                $cls,
+                concat!(
+                    "Calculates the current ", $prose, " value using the current window contents.",
+                ),
+                {
+                    concat!("let mut window = ", stringify!($cls), "::from_full([[0.0], [0.25], [0.50], [0.75]]);"),
+                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
+                }
+            ),
+            {
+                #[inline]
+                pub fn current(&self) -> F {
+                    self.0.__current()
+                }
+            }
+        }
+    }
+}
+
 /// Keeps a running mean of a window of [`Frame`]s over time.
 #[derive(Clone)]
 pub struct Mean<F, B, const N: usize>(StatsInner<F, B, N, NO_SQRT, NO_POW2>)
@@ -367,20 +390,7 @@ where
 
     define__advance!(Mean, "mean", [0.625], [0.8125], [0.9375], [1.0]);
 
-    /// Calculates the current value using the current window contents.
-    ///
-    /// ```
-    /// use sampara::rms::Mean;
-    ///
-    /// fn main() {
-    ///     let mut window = Mean::from_full([[0.0], [1.0], [0.0], [1.0]]);
-    ///     assert_eq!(window.current(), [0.5]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn current(&self) -> F {
-        self.0.__current()
-    }
+    define__current!(Mean, "mean", [0.375]);
 
     /// Processes a new input frame by advancing the state of the window buffer
     /// and then calculating the current value.
@@ -478,20 +488,7 @@ where
 
     define__advance!(Ms, "MS", [0.46875], [0.703125], [0.890625], [1.0]);
 
-    /// Calculates the MS value using the current window contents.
-    ///
-    /// ```
-    /// use sampara::rms::Ms;
-    ///
-    /// fn main() {
-    ///     let mut ms = Ms::from_full([[0.0], [1.0], [0.0], [1.0]]);
-    ///     assert_eq!(ms.current(), [0.5]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn current(&self) -> F {
-        self.0.__current()
-    }
+    define__current!(Ms, "MS", [0.21875]);
 
     /// Processes a new input frame by advancing the state of the MS window
     /// buffer and then calculating the current MS value.
@@ -589,20 +586,7 @@ where
 
     define__advance!(Rms, "RMS", [0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]);
 
-    /// Calculates the RMS value using the current window contents.
-    ///
-    /// ```
-    /// use sampara::rms::Rms;
-    ///
-    /// fn main() {
-    ///     let mut rms = Rms::from_full([[0.0], [1.0], [0.0], [1.0]]);
-    ///     assert_eq!(rms.current(), [0.7071067811865476]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn current(&self) -> F {
-        self.0.__current()
-    }
+    define__current!(Rms, "RMS", [0.46770717334674267]);
 
     /// Processes a new input frame by advancing the state of the RMS window
     /// buffer and then calculating the current RMS value.
