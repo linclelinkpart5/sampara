@@ -207,7 +207,7 @@ macro_rules! define__from {
 }
 
 macro_rules! define__from_full {
-    ($cls:ident, $curr:expr, $p1:expr, $p2:expr, $p3:expr, $p4:expr) => {
+    ($cls:ident, $curr:expr) => {
         apply_doc_comment! {
             gen_doc_comment!(
                 $cls,
@@ -218,10 +218,6 @@ macro_rules! define__from_full {
                 {
                     concat!("let mut window = ", stringify!($cls), "::from_full([[0.5], [0.5], [0.5], [0.5]]);\n"),
                     concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
-                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p1), ");"),
-                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p2), ");"),
-                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p3), ");"),
-                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p4), ");"),
                 }
             ),
             {
@@ -432,7 +428,7 @@ where
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
-    define__from_full!(Mean, [0.5], [0.625], [0.75], [0.875], [1.0]);
+    define__from_full!(Mean, [0.5]);
 
     define__reset!(Mean, [0.5], [0.0]);
 
@@ -488,7 +484,7 @@ where
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
-    define__from_full!(Ms, [0.25], [0.4375], [0.6250], [0.8125], [1.0]);
+    define__from_full!(Ms, [0.25]);
 
     define__reset!(Ms, [0.3125], [0.0]);
 
@@ -544,7 +540,7 @@ where
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
-    define__from_full!(Rms, [0.5], [0.6614378277661477], [0.7905694150420949], [0.9013878188659973], [1.0]);
+    define__from_full!(Rms, [0.5]);
 
     define__reset!(Rms, [0.5590169943749475], [0.0]);
 
