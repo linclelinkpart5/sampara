@@ -4,8 +4,6 @@ use crate::signal::Signal;
 use crate::biquad::Biquad as BQFilter;
 use crate::interpolate::Interpolator;
 
-use crate::combinators as combs;
-
 fn zm_helper<S, O, F, M, const N: usize, const NO: usize, const NF: usize>(
     signal_a: &mut S,
     signal_b: &mut O,
@@ -365,6 +363,20 @@ where
     pub(crate) processor: P,
 }
 
+impl<S, P, const NI: usize, const NO: usize> Process<S, P, NI, NO>
+where
+    S: Signal<NI>,
+    P: Processor<NI, NO, Input = S::Frame>,
+{
+    pub fn state(&self) -> &P {
+        &self.processor
+    }
+
+    pub fn state_mut(&mut self) -> &mut P {
+        &mut self.processor
+    }
+}
+
 impl<S, P, const NI: usize, const NO: usize> Signal<NO>
 for Process<S, P, NI, NO>
 where
@@ -394,22 +406,18 @@ where
     pub(super) combinator: C,
 }
 
-// `Selector`-specific functionality.
-impl<SL, SR, const N: usize> Combine<SL, SR, combs::Selector<SL::Frame, N>, N, N, N>
+impl<SL, SR, C, const NL: usize, const NR: usize, const NO: usize> Combine<SL, SR, C, NL, NR, NO>
 where
-    SL: Signal<N>,
-    SR: Signal<N, Frame = SL::Frame>,
+    SL: Signal<NL>,
+    SR: Signal<NR>,
+    C: Combinator<NL, NR, NO, InputL = SL::Frame, InputR = SR::Frame>,
 {
-    pub fn set_left(&mut self) {
-        self.combinator.set_left()
+    pub fn state(&self) -> &C {
+        &self.combinator
     }
 
-    pub fn set_right(&mut self) {
-        self.combinator.set_right()
-    }
-
-    pub fn toggle(&mut self) {
-        self.combinator.toggle()
+    pub fn state_mut(&mut self) -> &mut C {
+        &mut self.combinator
     }
 }
 

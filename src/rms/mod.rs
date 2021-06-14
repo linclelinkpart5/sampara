@@ -1,9 +1,8 @@
 use num_traits::Float;
 
-use crate::{Frame, Sample, Processor, Signal};
+use crate::{Frame, Sample, Processor};
 use crate::buffer::{Fixed, Buffer};
 use crate::sample::FloatSample;
-use crate::signal::Process;
 
 const DO_SQRT: bool = true;
 const NO_SQRT: bool = false;
@@ -481,37 +480,6 @@ macro_rules! calculator {
             #[inline]
             fn process(&mut self, input: Self::Input) -> Self::Output {
                 self.process(input)
-            }
-        }
-
-        // Expose some `Self` methods on `Process<Self>`.
-        impl<S, B, const N: usize> Process<S, $cls<S::Frame, B, N>, N, N>
-        where
-            S: Signal<N>,
-            <S::Frame as Frame<N>>::Sample: FloatSample,
-            B: Buffer<Item = S::Frame>,
-        {
-            #[inline]
-            pub fn reset(&mut self) {
-                self.processor.reset()
-            }
-
-            #[inline]
-            pub fn fill(&mut self, fill_val: S::Frame) {
-                self.processor.fill(fill_val)
-            }
-
-            #[inline]
-            pub fn fill_with<M>(&mut self, fill_func: M)
-            where
-                M: FnMut() -> S::Frame,
-            {
-                self.processor.fill_with(fill_func)
-            }
-
-            #[inline]
-            pub fn current(&self) -> S::Frame {
-                self.processor.current()
             }
         }
     };

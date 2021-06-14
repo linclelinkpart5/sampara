@@ -190,7 +190,7 @@ pub trait Signal<const N: usize> {
     ///     assert_eq!(selected.next(), Some(11));
     ///     assert_eq!(selected.next(), Some(12));
     ///
-    ///     selected.toggle();
+    ///     selected.state_mut().toggle();
     ///     assert_eq!(selected.next(), Some(23));
     ///     assert_eq!(selected.next(), Some(24));
     ///     assert_eq!(selected.next(), Some(25));
@@ -220,7 +220,7 @@ pub trait Signal<const N: usize> {
     ///     assert_eq!(selected.next(), Some(21));
     ///     assert_eq!(selected.next(), Some(22));
     ///
-    ///     selected.toggle();
+    ///     selected.state_mut().toggle();
     ///     assert_eq!(selected.next(), Some(13));
     ///     assert_eq!(selected.next(), Some(14));
     ///     assert_eq!(selected.next(), Some(15));
