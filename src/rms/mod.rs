@@ -255,6 +255,36 @@ macro_rules! define__fill {
     }
 }
 
+macro_rules! define__fill_with {
+    ($cls:ident, $curr:expr, $after:expr) => {
+        apply_doc_comment! {
+            gen_doc_comment!(
+                $cls,
+                "Fills the window by repeatedly calling a closure that produces [`Frame`]s.",
+                {
+                    concat!("let mut window = ", stringify!($cls), "::from([[-1.0]; 4]);"),
+                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");\n"),
+                    "let mut x = 1.0;",
+                    "window.fill_with(|| {",
+                    "    x -= 0.25;",
+                    "    [x]",
+                    "});",
+                    concat!("assert_eq!(window.current(), ", stringify!($after), ");"),
+                }
+            ),
+            {
+                #[inline]
+                pub fn fill_with<M>(&mut self, fill_func: M)
+                where
+                    M: FnMut() -> F,
+                {
+                    self.0.__fill_with(fill_func)
+                }
+            }
+        }
+    }
+}
+
 /// Keeps a running mean of a window of [`Frame`]s over time.
 #[derive(Clone)]
 pub struct Mean<F, B, const N: usize>(StatsInner<F, B, N, NO_SQRT, NO_POW2>)
@@ -276,35 +306,7 @@ where
 
     define__fill!(Mean, [0.0], [0.5]);
 
-    /// Fills the window by repeatedly calling a closure that produces
-    /// [`Frame`]s.
-    ///
-    /// ```
-    /// use sampara::rms::Mean;
-    ///
-    /// fn main() {
-    ///     let mut window = Mean::from([[0.0]; 4]);
-    ///
-    ///     let mut zero = true;
-    ///     window.fill_with(|| {
-    ///         zero = !zero;
-    ///         if zero { [0.0] }
-    ///         else { [1.0] }
-    ///     });
-    ///     assert_eq!(window.current(), [0.5]);
-    ///
-    ///     window.advance([1.0]);
-    ///     window.advance([1.0]);
-    ///     assert_eq!(window.current(), [0.75]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn fill_with<M>(&mut self, fill_func: M)
-    where
-        M: FnMut() -> F,
-    {
-        self.0.__fill_with(fill_func)
-    }
+    define__fill_with!(Mean, [0.0], [0.375]);
 
     /// Returns the length of the window.
     ///
@@ -451,35 +453,7 @@ where
 
     define__fill!(Ms, [0.0], [0.25]);
 
-    /// Fills the MS window by repeatedly calling a closure that produces
-    /// [`Frame`] values.
-    ///
-    /// ```
-    /// use sampara::rms::Ms;
-    ///
-    /// fn main() {
-    ///     let mut ms = Ms::from([[0.0]; 4]);
-    ///
-    ///     let mut zero = true;
-    ///     ms.fill_with(|| {
-    ///         zero = !zero;
-    ///         if zero { [0.0] }
-    ///         else { [1.0] }
-    ///     });
-    ///     assert_eq!(ms.current(), [0.5]);
-    ///
-    ///     ms.advance([1.0]);
-    ///     ms.advance([1.0]);
-    ///     assert_eq!(ms.current(), [0.75]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn fill_with<M>(&mut self, fill_func: M)
-    where
-        M: FnMut() -> F,
-    {
-        self.0.__fill_with(fill_func)
-    }
+    define__fill_with!(Ms, [0.0], [0.21875]);
 
     /// Returns the length of the MS window buffer.
     ///
@@ -627,35 +601,7 @@ where
 
     define__fill!(Rms, [0.0], [0.5]);
 
-    /// Fills the RMS window by repeatedly calling a closure that produces
-    /// [`Frame`] values.
-    ///
-    /// ```
-    /// use sampara::rms::Rms;
-    ///
-    /// fn main() {
-    ///     let mut rms = Rms::from([[0.0]; 4]);
-    ///
-    ///     let mut zero = true;
-    ///     rms.fill_with(|| {
-    ///         zero = !zero;
-    ///         if zero { [0.0] }
-    ///         else { [1.0] }
-    ///     });
-    ///     assert_eq!(rms.current(), [0.7071067811865476]);
-    ///
-    ///     rms.advance([1.0]);
-    ///     rms.advance([1.0]);
-    ///     assert_eq!(rms.current(), [0.8660254037844386]);
-    /// }
-    /// ```
-    #[inline]
-    pub fn fill_with<M>(&mut self, fill_func: M)
-    where
-        M: FnMut() -> F,
-    {
-        self.0.__fill_with(fill_func)
-    }
+    define__fill_with!(Rms, [0.0], [0.46770717334674267]);
 
     /// Returns the length of the RMS window buffer.
     ///
