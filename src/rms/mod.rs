@@ -181,6 +181,31 @@ macro_rules! apply_doc_comment {
     };
 }
 
+macro_rules! define__from {
+    ($cls:ident, $curr:expr) => {
+        apply_doc_comment! {
+            gen_doc_comment!(
+                $cls,
+                concat!(
+                    "Creates a new [`", stringify!($cls), "`] using a given [`Buffer`] as a window.\n\n",
+                    "Any existing buffer contents will be overwritten with equilibrium frames.",
+                ),
+                {
+                    "// These values get zeroed out.",
+                    concat!("let mut window = ", stringify!($cls), "::from([[-1.0]; 4]);"),
+                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
+                }
+            ),
+            {
+                #[inline]
+                fn from(buffer: B) -> Self {
+                    Self(StatsInner::__from(buffer))
+                }
+            }
+        }
+    }
+}
+
 macro_rules! define__from_full {
     ($cls:ident, $curr:expr, $p1:expr, $p2:expr, $p3:expr, $p4:expr) => {
         apply_doc_comment! {
@@ -430,29 +455,7 @@ where
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
-    /// Creates a new [`Self`] using a given [`Buffer`] as a window.
-    ///
-    /// The contents of the buffer will be discarded and overwritten with
-    /// equilibrium values.
-    ///
-    /// ```
-    /// use sampara::rms::Mean;
-    ///
-    /// fn main() {
-    ///     // These values get zeroed out.
-    ///     let mut window = Mean::from([[-1.0]; 4]);
-    ///     assert_eq!(window.current(), [0.0]);
-    ///
-    ///     assert_eq!(window.process([1.0]), [0.25]);
-    ///     assert_eq!(window.process([1.0]), [0.5]);
-    ///     assert_eq!(window.process([1.0]), [0.75]);
-    ///     assert_eq!(window.process([1.0]), [1.0]);
-    /// }
-    /// ```
-    #[inline]
-    fn from(buffer: B) -> Self {
-        Self(StatsInner::__from(buffer))
-    }
+    define__from!(Mean, [0.0]);
 }
 
 impl<F, B, const N: usize> Processor<N, N> for Mean<F, B, N>
@@ -508,29 +511,7 @@ where
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
-    /// Creates a new [`Ms`] using a given [`Buffer`] as a window.
-    ///
-    /// The contents of the buffer will be discarded and overwritten with
-    /// equilibrium values.
-    ///
-    /// ```
-    /// use sampara::rms::Ms;
-    ///
-    /// fn main() {
-    ///     // These values get zeroed out.
-    ///     let mut ms = Ms::from([[-1.0]; 4]);
-    ///     assert_eq!(ms.current(), [0.0]);
-    ///
-    ///     assert_eq!(ms.process([1.0]), [0.25]);
-    ///     assert_eq!(ms.process([1.0]), [0.5]);
-    ///     assert_eq!(ms.process([1.0]), [0.75]);
-    ///     assert_eq!(ms.process([1.0]), [1.0]);
-    /// }
-    /// ```
-    #[inline]
-    fn from(buffer: B) -> Self {
-        Self(StatsInner::__from(buffer))
-    }
+    define__from!(Ms, [0.0]);
 }
 
 impl<F, B, const N: usize> Processor<N, N> for Ms<F, B, N>
@@ -586,29 +567,7 @@ where
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
-    /// Creates a new [`Rms`] using a given [`Buffer`] as a window.
-    ///
-    /// The contents of the buffer will be discarded and overwritten with
-    /// equilibrium values.
-    ///
-    /// ```
-    /// use sampara::rms::Rms;
-    ///
-    /// fn main() {
-    ///     // These values get zeroed out.
-    ///     let mut rms = Rms::from([[-1.0]; 4]);
-    ///     assert_eq!(rms.current(), [0.0]);
-    ///
-    ///     assert_eq!(rms.process([1.0]), [0.5]);
-    ///     assert_eq!(rms.process([1.0]), [0.7071067811865476]);
-    ///     assert_eq!(rms.process([1.0]), [0.8660254037844386]);
-    ///     assert_eq!(rms.process([1.0]), [1.0]);
-    /// }
-    /// ```
-    #[inline]
-    fn from(buffer: B) -> Self {
-        Self(StatsInner::__from(buffer))
-    }
+    define__from!(Rms, [0.0]);
 }
 
 impl<F, B, const N: usize> Processor<N, N> for Rms<F, B, N>
