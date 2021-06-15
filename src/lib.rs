@@ -1,3 +1,5 @@
+#![feature(array_map, array_zip)]
+
 pub mod biquad;
 pub mod buffer;
 pub mod components;

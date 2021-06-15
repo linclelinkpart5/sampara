@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::VecDeque;
 
 use num_traits::Float;
@@ -538,6 +539,19 @@ where
 {
     absolute: ExtremaPt<F, N>,
     opt_frontier: Option<ExtremaPt<F, N>>,
+}
+
+fn cmp_per_ch<F, const N: usize>(a: F, b: F) -> [Option<Ordering>; N]
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+{
+    let a_arr = a.into_array();
+    let b_arr = b.into_array();
+
+    a_arr.zip(b_arr).map(|(x, y)| {
+        x.partial_cmp(&y)
+    })
 }
 
 #[derive(Clone)]
