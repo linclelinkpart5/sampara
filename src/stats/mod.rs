@@ -537,6 +537,15 @@ impl<S, const N: usize, const MAX: bool> ExtremaState<S, N, MAX>
 where
     S: FloatSample,
 {
+    fn from_array(array: [S; N]) -> Self {
+        let states = array.map(|x| ((x, 0), None));
+
+        ExtremaState {
+            states,
+            curr_global_idx: 1,
+        }
+    }
+
     fn process_array(&mut self, array: [S; N]) {
         let i = self.curr_global_idx;
         self.curr_global_idx += 1;
@@ -578,6 +587,9 @@ where
         });
     }
 }
+
+type MinimumState<S, const N: usize> = ExtremaState<S, N, DO_MIN>;
+type MaximumState<S, const N: usize> = ExtremaState<S, N, DO_MAX>;
 
 #[derive(Clone)]
 struct MinMaxInner<F, B, const N: usize, const MAX: bool>
@@ -624,5 +636,33 @@ where
             window: Fixed::from(buffer),
             opt_state,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn minimum_state() {
+        let mut min_state = MinimumState::from_array([0.0; 4]);
+
+        assert_eq!(min_state.states, [
+            ((0.0, 0), None),
+            ((0.0, 0), None),
+            ((0.0, 0), None),
+            ((0.0, 0), None),
+        ]);
+        assert_eq!(min_state.curr_global_idx, 1);
+
+        min_state.process_array([-0.5, -0.25, 0.25, 0.5]);
+
+        assert_eq!(min_state.states, [
+            ((-0.5, 1), None),
+            ((-0.25, 1), None),
+            ((0.0, 0), Some((0.25, 0))),
+            ((0.0, 0), Some((0.5, 0))),
+        ]);
+        assert_eq!(min_state.curr_global_idx, 2);
     }
 }
