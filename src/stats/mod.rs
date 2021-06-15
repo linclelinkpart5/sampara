@@ -521,37 +521,62 @@ calculator!(Rms, "RMS", DO_SQRT, DO_POW2, {
     args_process => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
 });
 
-#[derive(Clone)]
-struct ExtremaPt<F, const N: usize>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-{
-    extremas: F,
-    indices: [usize; N],
-}
+const DO_MAX: bool = true;
+const DO_MIN: bool = false;
 
 #[derive(Clone)]
-struct ExtremaPts<F, const N: usize>
+struct ExtremaState<S, const N: usize, const MAX: bool>
 where
-    F: Frame<N>,
-    F::Sample: FloatSample,
+    S: FloatSample,
 {
-    absolute: ExtremaPt<F, N>,
-    opt_frontier: Option<ExtremaPt<F, N>>,
+    states: [((S, usize), Option<(S, usize)>); N],
+    curr_global_idx: usize,
 }
 
-fn cmp_per_ch<F, const N: usize>(a: F, b: F) -> [Option<Ordering>; N]
+impl<S, const N: usize, const MAX: bool> ExtremaState<S, N, MAX>
 where
-    F: Frame<N>,
-    F::Sample: FloatSample,
+    S: FloatSample,
 {
-    let a_arr = a.into_array();
-    let b_arr = b.into_array();
+    fn process_array(&mut self, array: [S; N]) {
+        let i = self.curr_global_idx;
+        self.curr_global_idx += 1;
 
-    a_arr.zip(b_arr).map(|(x, y)| {
-        x.partial_cmp(&y)
-    })
+        // See if any frontiers need to be updated.
+        self.states.each_mut().zip(array).map(|((border, opt_horizon), x)| {
+            let (ext, pos) = border;
+
+            // Check if the new value is a new border extrema.
+            match (x.partial_cmp(ext), MAX) {
+                // Do nothing.
+                (None, _) | (Some(Ordering::Less), DO_MAX) | (Some(Ordering::Greater), DO_MIN) => {},
+
+                // Reset the border index, blow away any existing horizon, and
+                // return.
+                _ => {
+                    *border = (x, i);
+                    *opt_horizon = None;
+                    return;
+                },
+            }
+
+            // Check if the new value is a new horizon extrema.
+            if let Some((ext, _)) = opt_horizon {
+                match (x.partial_cmp(ext), MAX) {
+                    // Do nothing.
+                    (None, _) | (Some(Ordering::Less), DO_MAX) | (Some(Ordering::Greater), DO_MIN) => {},
+
+                    // Reset the horizon index and return.
+                    _ => {
+                        *opt_horizon = Some((x, i - *pos - 1));
+                    }
+                }
+            }
+            else {
+                // Initialize the newly-cleared horizon with the current sample.
+                *opt_horizon = Some((x, 0));
+            }
+        });
+    }
 }
 
 #[derive(Clone)]
@@ -562,7 +587,7 @@ where
     B: Buffer<Item = F>,
 {
     window: Fixed<B>,
-    extrema_state: Option<ExtremaPts<F, N>>,
+    opt_state: Option<ExtremaState<F::Sample, N, MAX>>,
 }
 
 impl<F, B, const N: usize, const MAX: bool> MinMaxInner<F, B, N, MAX>
@@ -575,25 +600,21 @@ where
     fn __from(buffer: B) -> Self {
         assert!(buffer.as_ref().len() > 0, "buffer length cannot be 0");
 
-        let mut extrema_state = None;
+        let mut opt_state: Option<ExtremaState<F::Sample, N, MAX>> = None;
 
         // Pre-scan the starting window.
-        let mut offset = 0;
         for frame in buffer.as_ref().iter() {
-            if let Some(extrema_pts) = extrema_state.as_mut() {
-                // Check to see if this new frame is the next absolute extrema.
-                // CONTINUE HERE!
+            if let Some(state) = opt_state.as_mut() {
+                // Process any new extremas.
+                state.process_array(frame.into_array());
             } else {
                 // This branch should only execute on the first frame.
-                extrema_state = Some(
-                    ExtremaPts {
-                        // The first frame (at index 0) defines the initial extremas.
-                        absolute: ExtremaPt {
-                            extremas: *frame,
-                            indices: [0; N],
-                        },
-                        // Nothing to the right explored yet.
-                        opt_frontier: None,
+                let states = frame.into_array().map(|x| ((x, 0), None));
+
+                opt_state = Some(
+                    ExtremaState {
+                        states,
+                        curr_global_idx: 0,
                     }
                 );
             }
@@ -601,7 +622,7 @@ where
 
         Self {
             window: Fixed::from(buffer),
-            extrema_state,
+            opt_state,
         }
     }
 }
