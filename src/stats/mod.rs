@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use num_traits::Float;
 
 use crate::{Frame, Sample, Processor};
@@ -517,3 +519,75 @@ calculator!(Rms, "RMS", DO_SQRT, DO_POW2, {
     args_current => ([0.46770717334674267]),
     args_process => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
 });
+
+#[derive(Clone)]
+struct ExtremaPt<F, const N: usize>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+{
+    extremas: F,
+    indices: [usize; N],
+}
+
+#[derive(Clone)]
+struct ExtremaPts<F, const N: usize>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+{
+    absolute: ExtremaPt<F, N>,
+    opt_frontier: Option<ExtremaPt<F, N>>,
+}
+
+#[derive(Clone)]
+struct MinMaxInner<F, B, const N: usize, const MAX: bool>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    window: Fixed<B>,
+    extrema_state: Option<ExtremaPts<F, N>>,
+}
+
+impl<F, B, const N: usize, const MAX: bool> MinMaxInner<F, B, N, MAX>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+    B: Buffer<Item = F>,
+{
+    #[inline]
+    fn __from(buffer: B) -> Self {
+        assert!(buffer.as_ref().len() > 0, "buffer length cannot be 0");
+
+        let mut extrema_state = None;
+
+        // Pre-scan the starting window.
+        let mut offset = 0;
+        for frame in buffer.as_ref().iter() {
+            if let Some(extrema_pts) = extrema_state.as_mut() {
+                // Check to see if this new frame is the next absolute extrema.
+                // CONTINUE HERE!
+            } else {
+                // This branch should only execute on the first frame.
+                extrema_state = Some(
+                    ExtremaPts {
+                        // The first frame (at index 0) defines the initial extremas.
+                        absolute: ExtremaPt {
+                            extremas: *frame,
+                            indices: [0; N],
+                        },
+                        // Nothing to the right explored yet.
+                        opt_frontier: None,
+                    }
+                );
+            }
+        }
+
+        Self {
+            window: Fixed::from(buffer),
+            extrema_state,
+        }
+    }
+}
