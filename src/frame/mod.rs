@@ -159,6 +159,24 @@ pub trait Frame<const N: usize>: Copy + Clone + PartialEq + Debug {
     /// ```
     fn into_channels(self) -> IntoChannels<Self::Sample, N>;
 
+    /// Consumes [`Self`] and returns an array of samples ([`[Self::Sample; N]`])
+    /// in channel order.
+    ///
+    /// ```
+    /// use sampara::Frame;
+    ///
+    /// fn main() {
+    ///     // If already an array, this is a no-op.
+    ///     let frame = [16_u8, 32, 48, 64];
+    ///     assert_eq!(frame.into_array(), frame);
+    ///
+    ///     // Converts into a singleton array.
+    ///     let frame = 0.5;
+    ///     assert_eq!(frame.into_array(), [0.5]);
+    /// }
+    /// ```
+    fn into_array(self) -> [Self::Sample; N];
+
     /// Creates a new `Frame<N>` by applying a function to each [`Sample`] in
     /// [`Self`] in channel order.
     ///
@@ -701,6 +719,11 @@ where
         //       Replace with more ergonomic method once it lands in rustc.
         IntoChannels(std::array::IntoIter::new(self))
     }
+
+    #[inline]
+    fn into_array(self) -> [Self::Sample; N] {
+        self
+    }
 }
 
 impl<S> Frame<1> for S
@@ -759,6 +782,11 @@ where
         // TODO: Temporary use of `new` method while this is still unstable.
         //       Replace with more ergonomic method once it lands in rustc.
         IntoChannels(std::array::IntoIter::new([self]))
+    }
+
+    #[inline]
+    fn into_array(self) -> [Self::Sample; 1] {
+        [self]
     }
 }
 
