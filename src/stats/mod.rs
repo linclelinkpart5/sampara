@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::VecDeque;
+use std::convert::TryFrom;
 
 use num_traits::Float;
 
@@ -527,64 +528,99 @@ const DO_MIN: bool = false;
 #[derive(Clone)]
 struct ExtremaState<S, const N: usize, const MAX: bool>
 where
-    S: FloatSample,
+    S: Sample,
 {
-    states: [((S, usize), Option<(S, usize)>); N],
-    curr_global_idx: usize,
+    frontiers: [(S, usize); N],
+    horizons: [Option<(S, usize)>; N],
 }
 
-impl<S, const N: usize, const MAX: bool> ExtremaState<S, N, MAX>
+impl<F, const N: usize, const MAX: bool> TryFrom<&[F]> for ExtremaState<F::Sample, N, MAX>
 where
-    S: FloatSample,
+    F: Frame<N>,
 {
-    fn from_array(array: [S; N]) -> Self {
-        let states = array.map(|x| ((x, 0), None));
+    type Error = ();
 
-        ExtremaState {
-            states,
-            curr_global_idx: 1,
-        }
-    }
+    fn try_from(frames: &[F]) -> Result<Self, Self::Error> {
+        let mut opt_ext_state: Option<Self> = None;
 
-    fn process_array(&mut self, array: [S; N]) {
-        let i = self.curr_global_idx;
-        self.curr_global_idx += 1;
+        for (i, frame) in frames.iter().enumerate() {
+            let array = frame.into_array();
 
-        // See if any frontiers need to be updated.
-        self.states.each_mut().zip(array).map(|((border, opt_horizon), x)| {
-            let (ext, pos) = border;
+            if let Some(ext_state) = opt_ext_state.as_mut() {
+                // See if any frontiers need to be updated.
+                let frontiers = ext_state.frontiers.each_mut();
+                let horizons = ext_state.horizons.each_mut();
 
-            // Check if the new value is a new border extrema.
-            match (x.partial_cmp(ext), MAX) {
-                // Do nothing.
-                (None, _) | (Some(Ordering::Less), DO_MAX) | (Some(Ordering::Greater), DO_MIN) => {},
+                // Process each channel in lockstep.
+                frontiers.zip(horizons).zip(array).map(|(((f_ext, f_pos), opt_h), x)| {
+                    // Check if the new value is a new frontier extrema.
+                    match x.partial_cmp(f_ext) {
+                        // The new value does not surpass the current frontier
+                        // extrema, do nothing.
+                        None => {},
+                        Some(Ordering::Less) if MAX => {},
+                        Some(Ordering::Greater) if !MAX => {},
 
-                // Reset the border index, blow away any existing horizon, and
-                // return.
-                _ => {
-                    *border = (x, i);
-                    *opt_horizon = None;
-                    return;
-                },
-            }
+                        // The new value surpasses the current frontier
+                        // extrema. Set this value and current position as the
+                        // new frontier, clear out the horizon, and return.
+                        _ => {
+                            *f_ext = x;
+                            *f_pos = i;
+                            *opt_h = None;
 
-            // Check if the new value is a new horizon extrema.
-            if let Some((ext, _)) = opt_horizon {
-                match (x.partial_cmp(ext), MAX) {
-                    // Do nothing.
-                    (None, _) | (Some(Ordering::Less), DO_MAX) | (Some(Ordering::Greater), DO_MIN) => {},
-
-                    // Reset the horizon index and return.
-                    _ => {
-                        *opt_horizon = Some((x, i - *pos - 1));
+                            // No need for further processing for this channel.
+                            return;
+                        },
                     }
-                }
+
+                    // Check/initialize the horizon for this channel.
+                    if let Some((h_ext, _)) = opt_h {
+                        // Check if the new value is a new horizon extrema.
+                        match x.partial_cmp(h_ext) {
+                            // The new value does not surpass the current horizon
+                            // extrema, do nothing.
+                            None => {},
+                            Some(Ordering::Less) if MAX => {},
+                            Some(Ordering::Greater) if !MAX => {},
+
+                            // The new value surpasses the current horizon
+                            // extrema. Set this value and current position as the
+                            // new horizon.
+                            _ => {
+                                // This is the offset of the horizon's extrema
+                                // RELATIVE to the offset of the frontier's
+                                // extrema.
+                                let h_pos = i - *f_pos - 1;
+
+                                *opt_h = Some((x, h_pos));
+                            }
+                        }
+                    }
+                    else {
+                        // Initialize the horizon with the one and only horizon
+                        // sample seen so far, at offset 0.
+                        *opt_h = Some((x, 0));
+                    }
+                });
             }
             else {
-                // Initialize the newly-cleared horizon with the current sample.
-                *opt_horizon = Some((x, 0));
+                // Initialize the extrema state.
+                opt_ext_state = Some(
+                    ExtremaState {
+                        // The one and only array seen so far is the first
+                        // frontier extrema for all channels by default, and
+                        // has an offset of 0.
+                        frontiers: array.map(|x| (x, 0)),
+
+                        // No horizon state yet.
+                        horizons: [None; N],
+                    }
+                );
             }
-        });
+        }
+
+        opt_ext_state.ok_or(())
     }
 }
 
@@ -595,46 +631,24 @@ type MaximumState<S, const N: usize> = ExtremaState<S, N, DO_MAX>;
 struct MinMaxInner<F, B, const N: usize, const MAX: bool>
 where
     F: Frame<N>,
-    F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
     window: Fixed<B>,
-    opt_state: Option<ExtremaState<F::Sample, N, MAX>>,
+    ext_state: ExtremaState<F::Sample, N, MAX>,
 }
 
 impl<F, B, const N: usize, const MAX: bool> MinMaxInner<F, B, N, MAX>
 where
     F: Frame<N>,
-    F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
     #[inline]
     fn __from(buffer: B) -> Self {
-        assert!(buffer.as_ref().len() > 0, "buffer length cannot be 0");
-
-        let mut opt_state: Option<ExtremaState<F::Sample, N, MAX>> = None;
-
-        // Pre-scan the starting window.
-        for frame in buffer.as_ref().iter() {
-            if let Some(state) = opt_state.as_mut() {
-                // Process any new extremas.
-                state.process_array(frame.into_array());
-            } else {
-                // This branch should only execute on the first frame.
-                let states = frame.into_array().map(|x| ((x, 0), None));
-
-                opt_state = Some(
-                    ExtremaState {
-                        states,
-                        curr_global_idx: 0,
-                    }
-                );
-            }
-        }
+        let ext_state = ExtremaState::try_from(buffer.as_ref()).expect("buffer length cannot be 0");
 
         Self {
             window: Fixed::from(buffer),
-            opt_state,
+            ext_state,
         }
     }
 }
@@ -643,26 +657,117 @@ where
 mod tests {
     use super::*;
 
+    const BUFFER_A: [[f32; 5]; 16] = [
+        [0.5, 0.9, 0.4, 0.2, 0.4],
+        [0.5, 0.3, 0.5, 0.5, 0.6],
+        [0.6, 0.3, 0.5, 0.9, 0.6],
+        [0.4, 0.4, 0.7, 0.6, 0.7],
+        [0.4, 0.7, 0.3, 0.1, 0.6],
+        [0.6, 0.3, 0.6, 0.8, 0.6],
+        [0.4, 0.4, 0.5, 0.3, 0.2],
+        [0.5, 0.0, 0.7, 0.0, 0.5],
+        [0.1, 0.3, 0.6, 0.3, 0.4],
+        [0.5, 0.1, 0.2, 0.8, 0.2],
+        [0.3, 0.3, 0.3, 0.3, 0.3],
+        [0.8, 0.3, 0.5, 0.7, 0.4],
+        [0.5, 0.5, 0.3, 0.5, 0.6],
+        [0.7, 0.5, 0.7, 0.2, 0.0],
+        [0.4, 0.5, 0.6, 0.7, 0.8],
+        [0.1, 0.2, 0.7, 0.3, 0.8],
+    ];
+
+    const BUFFER_B: [[f32; 5]; 16] = [
+        [0.2, 0.4, 0.8, 0.6, 0.4],
+        [0.7, 0.4, 0.4, 0.3, 0.4],
+        [0.3, 0.1, 0.4, 0.6, 0.4],
+        [0.6, 0.3, 0.4, 0.4, 0.7],
+        [0.5, 0.4, 0.3, 0.7, 0.7],
+        [0.8, 0.4, 0.0, 0.5, 0.3],
+        [0.6, 0.2, 0.5, 0.2, 0.7],
+        [0.7, 0.5, 0.5, 0.2, 0.5],
+        [0.5, 0.4, 0.3, 0.7, 0.4],
+        [0.7, 0.2, 0.5, 0.5, 0.4],
+        [0.6, 0.6, 0.7, 0.4, 0.1],
+        [0.7, 0.4, 0.3, 0.4, 0.2],
+        [0.3, 0.4, 0.7, 0.2, 0.3],
+        [0.2, 0.5, 0.3, 0.7, 0.3],
+        [0.2, 0.6, 0.5, 0.4, 0.6],
+        [0.9, 0.4, 0.5, 0.7, 0.0],
+    ];
+
+    const BUFFER_C: [[f32; 5]; 16] = [
+        [0.1, 0.6, 0.2, 0.5, 0.6],
+        [0.4, 0.6, 0.7, 0.1, 0.3],
+        [0.7, 0.7, 0.2, 0.4, 0.5],
+        [0.5, 0.2, 0.5, 0.8, 0.4],
+        [0.6, 0.2, 0.4, 0.7, 0.5],
+        [0.5, 0.6, 0.3, 0.2, 0.2],
+        [0.4, 0.5, 0.5, 0.3, 0.5],
+        [0.4, 0.4, 0.5, 0.5, 0.8],
+        [0.4, 0.7, 0.8, 0.3, 0.8],
+        [0.5, 0.4, 0.6, 0.5, 0.2],
+        [0.4, 0.4, 0.6, 0.3, 0.1],
+        [0.4, 0.4, 0.5, 0.3, 0.7],
+        [0.8, 0.3, 0.5, 0.2, 0.5],
+        [0.8, 0.2, 0.5, 0.5, 0.0],
+        [0.4, 0.1, 0.4, 0.7, 0.2],
+        [0.4, 0.8, 0.8, 0.8, 0.2],
+    ];
+
     #[test]
     fn minimum_state() {
-        let mut min_state = MinimumState::from_array([0.0; 4]);
+        let min_state = MinimumState::try_from(BUFFER_A.as_slice()).unwrap();
 
-        assert_eq!(min_state.states, [
-            ((0.0, 0), None),
-            ((0.0, 0), None),
-            ((0.0, 0), None),
-            ((0.0, 0), None),
+        assert_eq!(min_state.frontiers, [
+            (0.1, 15),
+            (0.0, 7),
+            (0.2, 9),
+            (0.0, 7),
+            (0.0, 13),
         ]);
-        assert_eq!(min_state.curr_global_idx, 1);
 
-        min_state.process_array([-0.5, -0.25, 0.25, 0.5]);
-
-        assert_eq!(min_state.states, [
-            ((-0.5, 1), None),
-            ((-0.25, 1), None),
-            ((0.0, 0), Some((0.25, 0))),
-            ((0.0, 0), Some((0.5, 0))),
+        assert_eq!(min_state.horizons, [
+            None,
+            Some((0.1, 1)),
+            Some((0.3, 2)),
+            Some((0.2, 5)),
+            Some((0.8, 1)),
         ]);
-        assert_eq!(min_state.curr_global_idx, 2);
+
+        let min_state = MinimumState::try_from(BUFFER_B.as_slice()).unwrap();
+
+        assert_eq!(min_state.frontiers, [
+            (0.2, 14),
+            (0.1, 2),
+            (0.0, 5),
+            (0.2, 12),
+            (0.0, 15),
+        ]);
+
+        assert_eq!(min_state.horizons, [
+            Some((0.9, 0)),
+            Some((0.2, 6)),
+            Some((0.3, 7)),
+            Some((0.4, 1)),
+            None,
+        ]);
+
+        let min_state = MinimumState::try_from(BUFFER_C.as_slice()).unwrap();
+
+        assert_eq!(min_state.frontiers, [
+            (0.1, 0),
+            (0.1, 14),
+            (0.2, 2),
+            (0.1, 1),
+            (0.0, 13),
+        ]);
+
+        assert_eq!(min_state.horizons, [
+            Some((0.4, 14)),
+            Some((0.8, 0)),
+            Some((0.3, 2)),
+            Some((0.2, 10)),
+            Some((0.2, 1)),
+        ]);
     }
 }
