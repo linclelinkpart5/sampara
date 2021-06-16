@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::collections::VecDeque;
 use std::convert::TryFrom;
 
 use num_traits::Float;
@@ -705,13 +704,13 @@ mod tests {
         [0.4, 0.5, 0.5, 0.3, 0.5],
         [0.4, 0.4, 0.5, 0.5, 0.8],
         [0.4, 0.7, 0.8, 0.3, 0.8],
-        [0.5, 0.4, 0.6, 0.5, 0.2],
+        [0.5, 0.8, 0.8, 0.8, 0.2],
         [0.4, 0.4, 0.6, 0.3, 0.1],
         [0.4, 0.4, 0.5, 0.3, 0.7],
         [0.8, 0.3, 0.5, 0.2, 0.5],
         [0.8, 0.2, 0.5, 0.5, 0.0],
         [0.4, 0.1, 0.4, 0.7, 0.2],
-        [0.4, 0.8, 0.8, 0.8, 0.2],
+        [0.4, 0.4, 0.6, 0.5, 0.2],
     ];
 
     #[test]
@@ -764,10 +763,67 @@ mod tests {
 
         assert_eq!(min_state.horizons, [
             Some((0.4, 14)),
-            Some((0.8, 0)),
+            Some((0.4, 0)),
             Some((0.3, 2)),
             Some((0.2, 10)),
             Some((0.2, 1)),
+        ]);
+    }
+
+    #[test]
+    fn maximum_state() {
+        let max_state = MaximumState::try_from(BUFFER_A.as_slice()).unwrap();
+
+        assert_eq!(max_state.frontiers, [
+            (0.8, 11),
+            (0.9, 0),
+            (0.7, 15),
+            (0.9, 2),
+            (0.8, 15),
+        ]);
+
+        assert_eq!(max_state.horizons, [
+            Some((0.7, 1)),
+            Some((0.7, 3)),
+            None,
+            Some((0.8, 6)),
+            None,
+        ]);
+
+        let max_state = MaximumState::try_from(BUFFER_B.as_slice()).unwrap();
+
+        assert_eq!(max_state.frontiers, [
+            (0.9, 15),
+            (0.6, 14),
+            (0.8, 0),
+            (0.7, 15),
+            (0.7, 6),
+        ]);
+
+        assert_eq!(max_state.horizons, [
+            None,
+            Some((0.4, 0)),
+            Some((0.7, 11)),
+            None,
+            Some((0.6, 7)),
+        ]);
+
+        let max_state = MaximumState::try_from(BUFFER_C.as_slice()).unwrap();
+
+        assert_eq!(max_state.frontiers, [
+            (0.8, 13),
+            (0.8, 9),
+            (0.8, 9),
+            (0.8, 9),
+            (0.8, 8),
+        ]);
+
+        assert_eq!(max_state.horizons, [
+            Some((0.4, 1)),
+            Some((0.4, 5)),
+            Some((0.6, 5)),
+            Some((0.7, 4)),
+            Some((0.7, 2)),
         ]);
     }
 }
