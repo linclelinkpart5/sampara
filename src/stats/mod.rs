@@ -620,6 +620,39 @@ fn update_all<S: Sample, const N: usize, const MAX: bool>(
     })
 }
 
+fn push_pop<S: Sample, const MAX: bool>(
+    frontier: &mut (S, usize),
+    horizon: &mut Option<(S, usize)>,
+    x: S,
+    curr_pos: usize,
+)
+{
+    let diff = update::<S, MAX>(frontier, horizon, x, curr_pos);
+
+    // Removal scenarios (note that "remove horizon" can never occur!):
+    // * Remove frontier (RF)
+    // * Remove other (RO)
+    //
+    // Addition scenarios (new frontiers/horizons are checked before removal occurs):
+    // * Add new frontier (AF)
+    // * Add new horizon (AH)
+    // * Add other (AO)
+    //
+    // Combined scenarios (examples demonstrate a sliding max window):
+    // * (RF, AF)
+    //   [2 0 0 1] 3 -> 2 [0 0 1 3]
+    // * (RF, AH)
+    //   [3 0 0 1] 2 -> 3 [0 0 1 2]
+    // * (RF, AO)
+    //   [3 0 0 1] 0 -> 3 [0 0 1 0]
+    // * (RO, AF)
+    //   [0 2 0 1] 3 -> 0 [2 0 1 3]
+    // * (RO, AH)
+    //   [0 3 0 1] 2 -> 0 [3 0 1 2]
+    // * (RO, AO)
+    //   [0 3 0 1] 0 -> 0 [3 0 1 0]
+}
+
 #[derive(Clone)]
 struct ExtremaState<S, const N: usize, const MAX: bool>
 where
