@@ -524,6 +524,102 @@ calculator!(Rms, "RMS", DO_SQRT, DO_POW2, {
 const DO_MAX: bool = true;
 const DO_MIN: bool = false;
 
+#[derive(Copy, Clone)]
+enum Diff {
+    // The new value was not an extrema.
+    NoChange,
+
+    // The new value replaced the old frontier extrema.
+    Frontier,
+
+    // The new value replaced the old horizon extrema.
+    Horizon,
+
+    // The new value was used to initialize an empty horizon.
+    HorizonInit,
+}
+
+fn update<S: Sample, const MAX: bool>(
+    frontier: &mut (S, usize),
+    horizon: &mut Option<(S, usize)>,
+    x: S,
+    curr_pos: usize,
+) -> Diff
+{
+    let (f_ext, f_pos) = frontier;
+
+    // Check if the new value is a new frontier extrema.
+    match x.partial_cmp(f_ext) {
+        // The new value does not surpass the current frontier
+        // extrema, do nothing.
+        None => {},
+        Some(Ordering::Less) if MAX => {},
+        Some(Ordering::Greater) if !MAX => {},
+
+        // The new value surpasses the current frontier
+        // extrema. Set this value and current position as the
+        // new frontier, clear out the horizon, and return.
+        _ => {
+            *f_ext = x;
+            *f_pos = curr_pos;
+            *horizon = None;
+
+            // No need for further processing for this channel.
+            return Diff::Frontier;
+        },
+    }
+
+    // Check/initialize the horizon for this channel.
+    if let Some((h_ext, _)) = horizon {
+        // Check if the new value is a new horizon extrema.
+        match x.partial_cmp(h_ext) {
+            // The new value does not surpass the current horizon
+            // extrema, do nothing.
+            None => { Diff::NoChange },
+            Some(Ordering::Less) if MAX => { Diff::NoChange },
+            Some(Ordering::Greater) if !MAX => { Diff::NoChange },
+
+            // The new value surpasses the current horizon
+            // extrema. Set this value and current position as the
+            // new horizon.
+            _ => {
+                // This is the offset of the horizon's extrema
+                // RELATIVE to the offset of the frontier's
+                // extrema.
+                let h_pos = curr_pos - *f_pos - 1;
+
+                *horizon = Some((x, h_pos));
+
+                Diff::Horizon
+            }
+        }
+    }
+    else {
+        // Initialize the horizon with the one and only horizon
+        // sample seen so far, at offset 0.
+        *horizon = Some((x, 0));
+
+        Diff::HorizonInit
+    }
+}
+
+fn update_all<S: Sample, const N: usize, const MAX: bool>(
+    frontiers: &mut [(S, usize); N],
+    horizons: &mut [Option<(S, usize)>; N],
+    xs: [S; N],
+    curr_pos: usize,
+) -> [Diff; N]
+{
+    // Convert from mutable array ref to an array of mutable refs.
+    let frontiers = frontiers.each_mut();
+    let horizons = horizons.each_mut();
+
+    // Process each channel in lockstep.
+    frontiers.zip(horizons).zip(xs).map(|((f, opt_h), x)| {
+        update::<_, MAX>(f, opt_h, x, curr_pos)
+    })
+}
+
 #[derive(Clone)]
 struct ExtremaState<S, const N: usize, const MAX: bool>
 where
@@ -531,6 +627,7 @@ where
 {
     frontiers: [(S, usize); N],
     horizons: [Option<(S, usize)>; N],
+    max_window_index: usize,
 }
 
 impl<F, const N: usize, const MAX: bool> TryFrom<&[F]> for ExtremaState<F::Sample, N, MAX>
@@ -539,69 +636,17 @@ where
 {
     type Error = ();
 
-    fn try_from(frames: &[F]) -> Result<Self, Self::Error> {
+    fn try_from(window: &[F]) -> Result<Self, Self::Error> {
         let mut opt_ext_state: Option<Self> = None;
 
-        for (i, frame) in frames.iter().enumerate() {
+        for (i, frame) in window.iter().enumerate() {
             let array = frame.into_array();
 
             if let Some(ext_state) = opt_ext_state.as_mut() {
-                // See if any frontiers need to be updated.
-                let frontiers = ext_state.frontiers.each_mut();
-                let horizons = ext_state.horizons.each_mut();
+                let frontiers = &mut ext_state.frontiers;
+                let horizons = &mut ext_state.horizons;
 
-                // Process each channel in lockstep.
-                frontiers.zip(horizons).zip(array).map(|(((f_ext, f_pos), opt_h), x)| {
-                    // Check if the new value is a new frontier extrema.
-                    match x.partial_cmp(f_ext) {
-                        // The new value does not surpass the current frontier
-                        // extrema, do nothing.
-                        None => {},
-                        Some(Ordering::Less) if MAX => {},
-                        Some(Ordering::Greater) if !MAX => {},
-
-                        // The new value surpasses the current frontier
-                        // extrema. Set this value and current position as the
-                        // new frontier, clear out the horizon, and return.
-                        _ => {
-                            *f_ext = x;
-                            *f_pos = i;
-                            *opt_h = None;
-
-                            // No need for further processing for this channel.
-                            return;
-                        },
-                    }
-
-                    // Check/initialize the horizon for this channel.
-                    if let Some((h_ext, _)) = opt_h {
-                        // Check if the new value is a new horizon extrema.
-                        match x.partial_cmp(h_ext) {
-                            // The new value does not surpass the current horizon
-                            // extrema, do nothing.
-                            None => {},
-                            Some(Ordering::Less) if MAX => {},
-                            Some(Ordering::Greater) if !MAX => {},
-
-                            // The new value surpasses the current horizon
-                            // extrema. Set this value and current position as the
-                            // new horizon.
-                            _ => {
-                                // This is the offset of the horizon's extrema
-                                // RELATIVE to the offset of the frontier's
-                                // extrema.
-                                let h_pos = i - *f_pos - 1;
-
-                                *opt_h = Some((x, h_pos));
-                            }
-                        }
-                    }
-                    else {
-                        // Initialize the horizon with the one and only horizon
-                        // sample seen so far, at offset 0.
-                        *opt_h = Some((x, 0));
-                    }
-                });
+                update_all::<_, N, MAX>(frontiers, horizons, array, i);
             }
             else {
                 // Initialize the extrema state.
@@ -614,6 +659,8 @@ where
 
                         // No horizon state yet.
                         horizons: [None; N],
+
+                        max_window_index: window.len() - 1,
                     }
                 );
             }
