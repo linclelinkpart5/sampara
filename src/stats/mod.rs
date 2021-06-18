@@ -539,59 +539,132 @@ enum Diff {
     HorizonInit,
 }
 
+#[derive(Copy, Clone)]
+enum PopTarget {
+    Frontier,
+    Other,
+    None,
+}
+
+fn surpasses<S: Sample, const MAX: bool>(candidate: &S, target: &S) -> bool {
+    match candidate.partial_cmp(&target) {
+        // The new value does not surpass the target extrema.
+        None => false,
+        Some(Ordering::Less) if MAX => false,
+        Some(Ordering::Greater) if !MAX => false,
+
+        _ => true,
+    }
+}
+
 fn update<S: Sample, const MAX: bool>(
     frontier: &mut (S, usize),
     horizon: &mut Option<(S, usize)>,
     x: S,
-    curr_pos: usize,
+    cursor_pos: usize,
+    do_pop: bool,
 ) -> Diff
 {
     let (f_ext, f_pos) = frontier;
 
     // Check if the new value is a new frontier extrema.
-    match x.partial_cmp(f_ext) {
-        // The new value does not surpass the current frontier
-        // extrema, do nothing.
-        None => {},
-        Some(Ordering::Less) if MAX => {},
-        Some(Ordering::Greater) if !MAX => {},
+    if surpasses::<S, MAX>(&x, f_ext) {
+        // If so, update the frontier value and position, and clear out the
+        // horizon.
+        *f_ext = x;
+        *f_pos = cursor_pos;
+        *horizon = None;
 
-        // The new value surpasses the current frontier
-        // extrema. Set this value and current position as the
-        // new frontier, clear out the horizon, and return.
-        _ => {
-            *f_ext = x;
-            *f_pos = curr_pos;
-            *horizon = None;
+        // No need for further processing for this channel.
+        return Diff::Frontier;
+    };
 
-            // No need for further processing for this channel.
-            return Diff::Frontier;
-        },
+    // We only have to check if something important would get popped off if
+    // a new frontier does not get set above.
+    let pop_target = if do_pop {
+        if f_pos == &0 {
+            // The frontier is about to be popped off.
+            PopTarget::Frontier
+        }
+        else {
+            // Some other unimportant value.
+            PopTarget::Other
+        }
     }
+    else {
+        // Nothing will be popped off.
+        PopTarget::None
+    };
 
     // Check/initialize the horizon for this channel.
-    if let Some((h_ext, _)) = horizon {
+    if let Some((h_ext, h_pos)) = horizon {
         // Check if the new value is a new horizon extrema.
-        match x.partial_cmp(h_ext) {
-            // The new value does not surpass the current horizon
-            // extrema, do nothing.
-            None => { Diff::NoChange },
-            Some(Ordering::Less) if MAX => { Diff::NoChange },
-            Some(Ordering::Greater) if !MAX => { Diff::NoChange },
+        if surpasses::<S, MAX>(&x, h_ext) {
+            // If so, check what is supposed to be popped off.
+            match pop_target {
+                // The frontier is about to be popped off, and this new value
+                // arrives just in time to surpass the current horizon and get
+                // promoted to the new frontier.
+                PopTarget::Frontier => {
+                    // Update the frontier value and position, and clear out the
+                    // horizon.
+                    *f_ext = x;
+                    *f_pos = cursor_pos;
+                    *horizon = None;
 
-            // The new value surpasses the current horizon
-            // extrema. Set this value and current position as the
-            // new horizon.
-            _ => {
-                // This is the offset of the horizon's extrema
-                // RELATIVE to the offset of the frontier's
-                // extrema.
-                let h_pos = curr_pos - *f_pos - 1;
+                    // No need for further processing for this channel.
+                    return Diff::Frontier;
+                },
 
-                *horizon = Some((x, h_pos));
+                PopTarget::Other => {
+                    // Decrement the frontier position by 1, to represent a
+                    // leading value being popped off. Note that this cannot
+                    // underflow!
+                    *f_pos -= 1;
+                },
 
-                Diff::Horizon
-            }
+                // No-op.
+                PopTarget::None => {},
+            };
+
+            // This is the offset of the horizon's extrema
+            // RELATIVE to the offset of the frontier's
+            // extrema.
+            let h_pos = cursor_pos - *f_pos - 1;
+
+            *horizon = Some((x, h_pos));
+
+            Diff::Horizon
+        }
+        else {
+            // Otherwise, check what is supposed to be popped off.
+            match pop_target {
+                PopTarget::Frontier => {
+                    // Set the frontier to the current value and position of
+                    // the horizon. Since the horizon position is an offset
+                    // relative to the end of the frontier, this value will be
+                    // the correct new frontier position.
+                    *f_ext = *h_ext;
+                    *f_pos = *h_pos;
+
+                    // Clear out the horizon, and search for the next one now.
+                    *horizon = None;
+
+                    todo!("Need to search for new horizon");
+                },
+
+                PopTarget::Other => {
+                    // Decrement the frontier position by 1, to represent a
+                    // leading value being popped off. Note that this cannot
+                    // underflow!
+                    *f_pos -= 1;
+                },
+
+                // No-op.
+                PopTarget::None => {},
+            };
+
+            Diff::NoChange
         }
     }
     else {
@@ -607,7 +680,8 @@ fn update_all<S: Sample, const N: usize, const MAX: bool>(
     frontiers: &mut [(S, usize); N],
     horizons: &mut [Option<(S, usize)>; N],
     xs: [S; N],
-    curr_pos: usize,
+    cursor_pos: usize,
+    do_pop: bool,
 ) -> [Diff; N]
 {
     // Convert from mutable array ref to an array of mutable refs.
@@ -616,59 +690,61 @@ fn update_all<S: Sample, const N: usize, const MAX: bool>(
 
     // Process each channel in lockstep.
     frontiers.zip(horizons).zip(xs).map(|((f, opt_h), x)| {
-        update::<_, MAX>(f, opt_h, x, curr_pos)
+        update::<_, MAX>(f, opt_h, x, cursor_pos, do_pop)
     })
 }
 
-fn push_pop<S: Sample, const MAX: bool>(
-    frontier: &mut (S, usize),
-    horizon: &mut Option<(S, usize)>,
-    x: S,
-    curr_pos: usize,
-)
-{
-    let diff = update::<S, MAX>(frontier, horizon, x, curr_pos);
-
-    // Removal scenarios (note that "remove horizon" can never occur!):
-    // * Remove frontier (RF)
-    // * Remove other (RO)
-    //
-    // Addition scenarios (new frontiers/horizons are checked before removal occurs):
-    // * Add new frontier (AF)
-    // * Add new horizon (AH)
-    // * Add other (AO)
-    //
-    // Combined scenarios (examples demonstrate a sliding max window):
-    // * (RF, AF)
-    //   [2 0 1 0] 3   >>>>   2 [0 1 0 3]
-    //    ^   ^                        ^
-    //   (f,h) = (0,1)      (f,h) = (3,~)
-    //
-    // * (RF, AH)
-    //   [3 0 1 0] 2   >>>>   3 [0 1 0 2]
-    //    ^   ^                        ^
-    //   (f,h) = (0,1)      (f,h) = (3,~)
-    //
-    // * (RF, AO)
-    //   [3 0 1 0] 0   >>>>   3 [0 1 0 0]
-    //    ^   ^                    ^   ^
-    //   (f,h) = (0,1)      (f,h) = (1,1)
-    //
-    // * (RO, AF)
-    //   [0 2 0 1] 3   >>>>   0 [2 0 1 3]
-    //      ^   ^                      ^
-    //   (f,h) = (1,1)      (f,h) = (3,~)
-    //
-    // * (RO, AH)
-    //   [0 3 0 1] 2   >>>>   0 [3 0 1 2]
-    //      ^   ^                ^     ^
-    //   (f,h) = (1,1)      (f,h) = (0,2)
-    //
-    // * (RO, AO)
-    //   [0 3 0 1] 0   >>>>   0 [3 0 1 0]
-    //      ^   ^                ^   ^
-    //   (f,h) = (1,1)      (f,h) = (0,1)
-}
+// Init scenarios (while the initial window is pre-processing):
+// * Init new frontier (IF)
+// * Init new horizon (IH)
+// * Init other (IO)
+//
+// Removal scenarios (note that "remove horizon" can never occur!):
+// * Remove frontier (RF)
+// * Remove other (RO)
+//
+// Update scenarios (frontiers/horizons are checked before removal occurs, and horizons must already exist):
+// * Update frontier (UF)
+// * Update horizon (UH)
+// * Update nothing (UO)
+//
+// Combined addition + removal (examples demonstrate a sliding max window):
+// * (RF, UF)
+//   [2 0 1 0] 3   >>>>   2 [0 1 0 3]
+//    ^   ^                        ^
+//   (f,h) = (0,1)      (f,h) = (3,~)
+//
+// * (RF, UH)
+//   [3 0 1 0] 2   >>>>   3 [0 1 0 2]
+//    ^   ^                        ^
+//   (f,h) = (0,1)      (f,h) = (3,~)
+//
+// * (RF, UO)
+//   [3 0 1 0] 0   >>>>   3 [0 1 0 0]
+//    ^   ^                    ^   ^
+//   (f,h) = (0,1)      (f,h) = (1,1)
+//
+// * (RO, UF)
+//   [0 2 0 1] 3   >>>>   0 [2 0 1 3]
+//      ^   ^                      ^
+//   (f,h) = (1,1)      (f,h) = (3,~)
+//
+// * (RO, UH)
+//   [0 3 0 1] 2   >>>>   0 [3 0 1 2]
+//      ^   ^                ^     ^
+//   (f,h) = (1,1)      (f,h) = (0,2)
+//
+// * (RO, UO)
+//   [0 3 0 1] 0   >>>>   0 [3 0 1 0]
+//      ^   ^                ^   ^
+//   (f,h) = (1,1)      (f,h) = (0,1)
+//
+// Special cases:
+// * Frontier at max cursor index, with a `None` horizon
+//   [0 0 0 1] 0   >>>>   0 [0 0 1 0]
+//          ^                    ^ ^
+//   [0 0 0 1] 2   >>>>   0 [0 0 1 2]
+//          ^                      ^
 
 #[derive(Clone)]
 struct ExtremaState<S, const N: usize, const MAX: bool>
@@ -677,7 +753,40 @@ where
 {
     frontiers: [(S, usize); N],
     horizons: [Option<(S, usize)>; N],
-    max_window_index: usize,
+    cursor_pos: usize,
+    window_len: usize,
+}
+
+impl<S, const N: usize, const MAX: bool> ExtremaState<S, N, MAX>
+where
+    S: Sample,
+{
+    fn push(&mut self, xs: [S; N]) -> [Diff; N] {
+        // Convert from mutable array ref to an array of mutable refs.
+        let frontiers = self.frontiers.each_mut();
+        let horizons = self.horizons.each_mut();
+
+        // Determine if we are done with the window pre-processing phase and
+        // thus need to pop off an element in this update.
+        let preprocessed = !(self.cursor_pos < self.window_len);
+
+        // The cursor position of the new sample, i.e. what index it would be
+        // located at in the window
+        let pos = if preprocessed {
+            self.window_len - 1
+        } else {
+            let p = self.cursor_pos;
+            self.cursor_pos += 1;
+            p
+        };
+
+        // Process each channel in lockstep.
+        let result = frontiers.zip(horizons).zip(xs).map(|((f, opt_h), x)| {
+            update::<_, MAX>(f, opt_h, x, pos, preprocessed)
+        });
+
+        result
+    }
 }
 
 impl<F, const N: usize, const MAX: bool> TryFrom<&[F]> for ExtremaState<F::Sample, N, MAX>
@@ -696,7 +805,7 @@ where
                 let frontiers = &mut ext_state.frontiers;
                 let horizons = &mut ext_state.horizons;
 
-                update_all::<_, N, MAX>(frontiers, horizons, array, i);
+                update_all::<_, N, MAX>(frontiers, horizons, array, i, false);
             }
             else {
                 // Initialize the extrema state.
@@ -710,7 +819,8 @@ where
                         // No horizon state yet.
                         horizons: [None; N],
 
-                        max_window_index: window.len() - 1,
+                        cursor_pos: 0,
+                        window_len: window.len(),
                     }
                 );
             }
