@@ -1,4 +1,4 @@
-#![feature(array_map, array_methods, array_zip)]
+#![feature(array_map, array_methods, array_zip, iter_advance_by)]
 
 pub mod biquad;
 pub mod buffer;
