@@ -525,21 +525,6 @@ const DO_MAX: bool = true;
 const DO_MIN: bool = false;
 
 #[derive(Copy, Clone)]
-enum Diff {
-    // The new value was not an extrema.
-    NoChange,
-
-    // The new value replaced the old frontier extrema.
-    Frontier,
-
-    // The new value replaced the old horizon extrema.
-    Horizon,
-
-    // The new value was used to initialize an empty horizon.
-    HorizonInit,
-}
-
-#[derive(Copy, Clone)]
 enum PopTarget {
     Frontier,
     Other,
@@ -563,12 +548,12 @@ fn update<S: Sample, const MAX: bool>(
     x: S,
     cursor_pos: usize,
     do_pop: bool,
-) -> Diff
+) -> Option<usize>
 {
     let (f_ext, f_pos) = frontier;
 
     // Check if the new value is a new frontier extrema.
-    if surpasses::<S, MAX>(&x, f_ext) {
+    if surpasses::<S, MAX>(&x, f_ext) { // (RF,AF) (RO,AF) (IF)
         // If so, update the frontier value and position, and clear out the
         // horizon.
         *f_ext = x;
@@ -576,7 +561,7 @@ fn update<S: Sample, const MAX: bool>(
         *horizon = None;
 
         // No need for further processing for this channel.
-        return Diff::Frontier;
+        return None;
     };
 
     // We only have to check if something important would get popped off if
@@ -605,7 +590,7 @@ fn update<S: Sample, const MAX: bool>(
                 // The frontier is about to be popped off, and this new value
                 // arrives just in time to surpass the current horizon and get
                 // promoted to the new frontier.
-                PopTarget::Frontier => {
+                PopTarget::Frontier => { // (RF,AH)
                     // Update the frontier value and position, and clear out the
                     // horizon.
                     *f_ext = x;
@@ -613,10 +598,10 @@ fn update<S: Sample, const MAX: bool>(
                     *horizon = None;
 
                     // No need for further processing for this channel.
-                    return Diff::Frontier;
+                    return None;
                 },
 
-                PopTarget::Other => {
+                PopTarget::Other => { // (RO,AH)
                     // Decrement the frontier position by 1, to represent a
                     // leading value being popped off. Note that this cannot
                     // underflow!
@@ -624,7 +609,7 @@ fn update<S: Sample, const MAX: bool>(
                 },
 
                 // No-op.
-                PopTarget::None => {},
+                PopTarget::None => {}, // (IH)
             };
 
             // This is the offset of the horizon's extrema
@@ -634,12 +619,12 @@ fn update<S: Sample, const MAX: bool>(
 
             *horizon = Some((x, h_pos));
 
-            Diff::Horizon
+            None
         }
         else {
             // Otherwise, check what is supposed to be popped off.
             match pop_target {
-                PopTarget::Frontier => {
+                PopTarget::Frontier => { // (RF,AO)
                     // Set the frontier to the current value and position of
                     // the horizon. Since the horizon position is an offset
                     // relative to the end of the frontier, this value will be
@@ -647,13 +632,15 @@ fn update<S: Sample, const MAX: bool>(
                     *f_ext = *h_ext;
                     *f_pos = *h_pos;
 
-                    // Clear out the horizon, and search for the next one now.
+                    // Clear out the horizon.
                     *horizon = None;
 
-                    todo!("Need to search for new horizon");
+                    // Flag this channel for scouting in post-update.
+                    // TODO: Need to actually use this value upstream!
+                    return Some(*f_pos + 1);
                 },
 
-                PopTarget::Other => {
+                PopTarget::Other => { // (RO,AO)
                     // Decrement the frontier position by 1, to represent a
                     // leading value being popped off. Note that this cannot
                     // underflow!
@@ -661,10 +648,10 @@ fn update<S: Sample, const MAX: bool>(
                 },
 
                 // No-op.
-                PopTarget::None => {},
+                PopTarget::None => {}, // (IO)
             };
 
-            Diff::NoChange
+            None
         }
     }
     else {
@@ -672,7 +659,7 @@ fn update<S: Sample, const MAX: bool>(
         // sample seen so far, at offset 0.
         *horizon = Some((x, 0));
 
-        Diff::HorizonInit
+        None
     }
 }
 
@@ -682,7 +669,7 @@ fn update_all<S: Sample, const N: usize, const MAX: bool>(
     xs: [S; N],
     cursor_pos: usize,
     do_pop: bool,
-) -> [Diff; N]
+) -> [Option<usize>; N]
 {
     // Convert from mutable array ref to an array of mutable refs.
     let frontiers = frontiers.each_mut();
@@ -761,7 +748,7 @@ impl<S, const N: usize, const MAX: bool> ExtremaState<S, N, MAX>
 where
     S: Sample,
 {
-    fn push(&mut self, xs: [S; N]) -> [Diff; N] {
+    fn push(&mut self, xs: [S; N]) {
         // Convert from mutable array ref to an array of mutable refs.
         let frontiers = self.frontiers.each_mut();
         let horizons = self.horizons.each_mut();
@@ -784,8 +771,6 @@ where
         let result = frontiers.zip(horizons).zip(xs).map(|((f, opt_h), x)| {
             update::<_, MAX>(f, opt_h, x, pos, preprocessed)
         });
-
-        result
     }
 }
 
