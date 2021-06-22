@@ -555,60 +555,12 @@ fn surpasses<S: Sample, const MAX: bool>(candidate: &S, target: &S) -> bool {
     }
 }
 
-// Removal scenarios (note that "remove horizon" can never occur!):
-// * Remove frontier (RF)
-// * Remove other (RO)
-//
-// Update scenarios (frontiers/horizons are checked before removal occurs, and horizons must already exist):
-// * Update frontier (UF)
-// * Update horizon (UH)
-// * Update nothing (UO)
-//
-// Combined addition + removal (examples demonstrate a sliding max window):
-// * (RF, UF)
-//   [2 0 1 0] 3   >>>>   2 [0 1 0 3]
-//    ^   ^                        ^
-//   (f,h) = (0,1)      (f,h) = (3,~)
-//
-// * (RF, UH)
-//   [3 0 1 0] 2   >>>>   3 [0 1 0 2]
-//    ^   ^                        ^
-//   (f,h) = (0,1)      (f,h) = (3,~)
-//
-// * (RF, UO)
-//   [3 0 1 0] 0   >>>>   3 [0 1 0 0]
-//    ^   ^                    ^   ^
-//   (f,h) = (0,1)      (f,h) = (1,1)
-//
-// * (RO, UF)
-//   [0 2 0 1] 3   >>>>   0 [2 0 1 3]
-//      ^   ^                      ^
-//   (f,h) = (1,1)      (f,h) = (3,~)
-//
-// * (RO, UH)
-//   [0 3 0 1] 2   >>>>   0 [3 0 1 2]
-//      ^   ^                ^     ^
-//   (f,h) = (1,1)      (f,h) = (0,2)
-//
-// * (RO, UO)
-//   [0 3 0 1] 0   >>>>   0 [3 0 1 0]
-//      ^   ^                ^   ^
-//   (f,h) = (1,1)      (f,h) = (0,1)
-//
-// Special cases:
-// * Frontier at max cursor index, with a `None` horizon
-//   [0 0 0 1] 0   >>>>   0 [0 0 1 0]
-//          ^                    ^ ^
-//   [0 0 0 1] 2   >>>>   0 [0 0 1 2]
-//          ^                      ^
-
-
 fn set_frontier<S: Sample>(
     frontier: &mut (S, usize),
     opt_horizon: &mut Option<(S, usize)>,
     contender: S,
     cursor_pos: usize,
-)
+) -> Diff
 {
     // Set the new frontier extrema and position to the contender value and the
     // cursor position, respectively.
@@ -616,6 +568,8 @@ fn set_frontier<S: Sample>(
 
     // Clear out the horizon.
     *opt_horizon = None;
+
+    Diff::Frontier
 }
 
 fn set_horizon<S: Sample>(
@@ -623,11 +577,13 @@ fn set_horizon<S: Sample>(
     contender: S,
     frontier_pos: usize,
     cursor_pos: usize,
-)
+) -> Diff
 {
     // Set the new horizon extrema and position to the contender value and
     // the current frontier offset, respectively.
     *horizon = (contender, cursor_pos - frontier_pos - 1);
+
+    Diff::Horizon
 }
 
 fn set_horizon_init<S: Sample>(
@@ -636,7 +592,7 @@ fn set_horizon_init<S: Sample>(
     frontier_pos: usize,
     cursor_pos: usize,
     expect_zero: bool,
-)
+) -> Diff
 {
     let frontier_offset = cursor_pos - frontier_pos - 1;
     if expect_zero {
@@ -644,6 +600,8 @@ fn set_horizon_init<S: Sample>(
     }
 
     *opt_horizon = Some((contender, frontier_offset));
+
+    Diff::HorizonInit
 }
 
 #[derive(Clone)]
@@ -694,55 +652,91 @@ where
             let (f_ext, f_pos) = f;
 
             if EXT {
-                // When extending, there are four main cases to handle:
+                // When extending, there are four cases to handle:
                 //
-                // * Finding a new frontier extrema [EF]
+                // * Finding a new frontier extrema [EF].
                 //   [3 1 0] 4 >>> [3 1 0 4]
                 //    ^ ^                 ^
                 //
-                // * Finding a new horizon extrema [EH]
+                // * Finding a new horizon extrema [EH].
                 //   [3 1 0] 2 >>> [3 1 0 2]
                 //    ^ ^           ^     ^
                 //
-                // * Initializing a horizon [EI]
-                //   [2 1 3] 2 >>> [2 1 3 2]
-                //        ^             ^ ^
-                //
-                // * No change [EN]
+                // * Finding a normal value [EN].
                 //   [3 2 0] 1 >>> [3 2 0 1]
                 //    ^ ^           ^ ^
+                //
+                // * Initializing a horizon [EI].
+                //   [2 1 3] 2 >>> [2 1 3 2]
+                //        ^             ^ ^
 
                 if surpasses::<_, MAX>(&x, f_ext) {
-                    // Extend case [EF].
-                    set_frontier(f, opt_h, x, cursor_pos);
-                    Diff::Frontier
+                    // Case [EF].
+                    set_frontier(f, opt_h, x, cursor_pos)
                 }
                 else if let Some(h) = opt_h {
                     let (h_ext, _h_pos) = h;
 
                     if surpasses::<_, MAX>(&x, h_ext) {
-                        // Extend case [EH].
-                        set_horizon(h, x, *f_pos, cursor_pos);
-                        Diff::Horizon
+                        // Case [EH].
+                        set_horizon(h, x, *f_pos, cursor_pos)
                     }
                     else {
-                        // Extend case [EN].
+                        // Case [EN].
                         Diff::NoChange
                     }
                 }
                 else {
-                    // Extend case [EI].
-                    set_horizon_init(opt_h, x, *f_pos, cursor_pos, true);
-                    Diff::HorizonInit
+                    // Case [EI].
+                    set_horizon_init(opt_h, x, *f_pos, cursor_pos, true)
                 }
             }
             else {
+                // When processing, there are eight cases to handle:
+                //
+                // * Popping the frontier, finding a new frontier extrema [PFF].
+                //   [2 0 1 0] 3 >>> 2 [0 1 0 3]
+                //    ^   ^                   ^
+                //
+                // * Popping the frontier, finding a new horizon extrema [PFH]. (!)
+                //   [3 0 1 0] 2 >>> 3 [0 1 0 2]
+                //    ^   ^                   ^
+                //
+                // * Popping the frontier, finding a normal value [PFN].
+                //   [3 0 1 0] 0 >>> 3 [0 1 0 0]
+                //    ^   ^               ^   ^
+                //
+                // * Popping the frontier, initializing a horizon [PFI]. (!!)
+                //   0 0 0 [3] 0 >>> 0 0 0 3 [0]
+                //          ^                 ^
+                //
+                // * Popping a non-frontier, finding a new frontier extrema [PNF].
+                //   [0 2 0 1] 3 >>> 0 [2 0 1 3]
+                //      ^   ^                 ^
+                //
+                // * Popping a non-frontier, finding a new horizon extrema [PNH].
+                //   [0 3 0 1] 2 >>> 0 [3 0 1 2]
+                //      ^   ^           ^     ^
+                //
+                // * Popping a non-frontier, finding a normal value [PNN].
+                //   [0 3 0 1] 0 >>> 0 [3 0 1 0]
+                //      ^   ^           ^   ^
+                //
+                // * Popping a non-frontier, initializing a horizon [PNI].
+                //   [0 0 0 1] 0 >>> 0 [0 0 1 0]
+                //          ^               ^ ^
+                //
+                // (!) The new horizon swoops in just in time to steal the
+                // frontier promotion from the old horizon.
+                // (!!) With our invariants, this case should only ever occur
+                // with windows of length 1.
+
                 let is_f_pop = f_pos == &0;
 
                 if surpasses::<_, MAX>(&x, f_ext) {
-                    // Process case [*, AF].
-                    set_frontier(f, opt_h, x, cursor_pos);
-                    Diff::Frontier
+                    // Case [PFF].
+                    // Case [PNF].
+                    set_frontier(f, opt_h, x, cursor_pos)
                 }
                 else if let Some(h) = opt_h {
                     let (h_ext, _h_pos) = h;
@@ -753,18 +747,17 @@ where
 
                     match (is_f_pop, surpasses::<_, MAX>(&x, h_ext)) {
                         (false, false) => {
-                            // Process case [RN, AN].
+                            // Case [PNN].
                             Diff::NoChange
                         },
 
                         (false, true) => {
-                            // Process case [RN, AH].
-                            set_horizon(h, x, *f_pos, cursor_pos);
-                            Diff::Horizon
+                            // Case [PNH].
+                            set_horizon(h, x, *f_pos, cursor_pos)
                         },
 
                         (true, false) => {
-                            // Process case [RF, AN].
+                            // Case [PFN].
 
                             // Set the frontier to the current value and
                             // position of the horizon. Since the horizon
@@ -779,27 +772,24 @@ where
                         },
 
                         (true, true) => {
-                            // Process case [RF, AH].
+                            // Case [PFH].
 
                             // The frontier is about to be popped off, and this
                             // new value arrives just in time to surpass the
-                            // current horizon and gets promoted to the new
+                            // current horizon and snipe the promotion to
                             // frontier.
-                            set_frontier(f, opt_h, x, cursor_pos);
-                            Diff::Frontier
+                            set_frontier(f, opt_h, x, cursor_pos)
                         },
                     }
                 }
                 else {
                     if is_f_pop {
-                        // Process case [RF, AI].
-                        set_frontier(f, opt_h, x, cursor_pos);
-                        Diff::Frontier
+                        // Case [PFI].
+                        set_frontier(f, opt_h, x, cursor_pos)
                     }
                     else {
-                        // Process case [RN, AI].
-                        set_horizon_init(opt_h, x, *f_pos, cursor_pos, true);
-                        Diff::HorizonInit
+                        // Case [PNI].
+                        set_horizon_init(opt_h, x, *f_pos, cursor_pos, true)
                     }
                 }
             }
