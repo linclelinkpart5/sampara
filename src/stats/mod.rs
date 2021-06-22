@@ -779,7 +779,7 @@ where
                         // We need to do this here in order to strictly
                         // maintain the frontier-horizon invariant rules.
                         let mut w = window.iter();
-                        let mut new_h = None;
+                        let mut disc_h = None;
 
                         // Skip all of the items up to and including the new
                         // frontier postion.
@@ -790,20 +790,20 @@ where
                         let w = w.map(|frame| frame.channel(ch).expect("ch index should always be [0, N)."));
 
                         for (horizon_offset, y) in w.enumerate() {
-                            if let Some((new_h_ext, _)) = new_h.as_mut() {
-                                if surpasses::<S, MAX>(y, new_h_ext) {
-                                    new_h = Some((*y, horizon_offset))
+                            if let Some((disc_h_ext, _)) = disc_h.as_mut() {
+                                if surpasses::<S, MAX>(y, disc_h_ext) {
+                                    disc_h = Some((*y, horizon_offset))
                                 }
                             }
                             else {
-                                assert_eq!(horizon_offset, 0, "new horizon should only be `None` on first iteration");
-                                new_h = Some((*y, horizon_offset))
+                                assert_eq!(horizon_offset, 0, "discovery horizon should only be `None` on first loop");
+                                disc_h = Some((*y, horizon_offset))
                             }
                         }
 
                         // Note that this could still be `None`, but it should
                         // only ever occur with windows of length 1.
-                        *opt_h = new_h;
+                        *opt_h = disc_h;
 
                         Diff::Promoted
                     },
