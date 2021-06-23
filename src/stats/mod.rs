@@ -618,6 +618,20 @@ impl<S, const N: usize, const MAX: bool> ExtremaState<S, N, MAX>
 where
     S: Sample,
 {
+    fn from_xs(xs: [S; N]) -> Self {
+        Self {
+            // The one and only array seen so far is the first
+            // frontier extrema for all channels by default, and
+            // has an offset of 0.
+            frontiers: xs.map(|x| (x, 0)),
+
+            // No horizon state yet.
+            horizons: [None; N],
+
+            cursor_pos: 0,
+        }
+    }
+
     fn push(&mut self, xs: [S; N]) -> [Diff; N] {
         // Convert from mutable array ref to an array of mutable refs.
         let frontiers = self.frontiers.each_mut();
@@ -849,19 +863,7 @@ where
             }
             else {
                 // Initialize the extrema state.
-                opt_ext_state = Some(
-                    ExtremaState {
-                        // The one and only array seen so far is the first
-                        // frontier extrema for all channels by default, and
-                        // has an offset of 0.
-                        frontiers: xs.map(|x| (x, 0)),
-
-                        // No horizon state yet.
-                        horizons: [None; N],
-
-                        cursor_pos: 0,
-                    }
-                );
+                opt_ext_state = Some(Self::from_xs(xs));
             }
         }
 
