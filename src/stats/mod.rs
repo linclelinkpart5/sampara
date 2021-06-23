@@ -524,7 +524,7 @@ calculator!(Rms, "RMS", DO_SQRT, DO_POW2, {
 const DO_MAX: bool = true;
 const DO_MIN: bool = false;
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum Diff {
     // The new value was not an extrema, and neither the frontier nor horizon
     // values were mutated (frontier positions may have decremented).
@@ -604,7 +604,7 @@ fn set_horizon_init<S: Sample>(
     Diff::HorizonInit
 }
 
-#[derive(Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 struct ExtremaState<S, const N: usize, const MAX: bool>
 where
     S: Sample,
@@ -739,6 +739,9 @@ where
             let (f_ext, f_pos) = f;
 
             let is_f_pop = f_pos == &0;
+            if !is_f_pop {
+                *f_pos -= 1;
+            }
 
             if surpasses::<_, MAX>(&x, f_ext) {
                 // Case [PFF].
@@ -747,10 +750,6 @@ where
             }
             else if let Some(h) = opt_h {
                 let (h_ext, h_pos) = h;
-
-                if !is_f_pop {
-                    *f_pos -= 1;
-                }
 
                 match (is_f_pop, surpasses::<_, MAX>(&x, h_ext)) {
                     (false, false) => {
@@ -959,6 +958,142 @@ mod tests {
         [0.4, 0.1, 0.4, 0.7, 0.2],
         [0.4, 0.4, 0.6, 0.5, 0.2],
     ];
+
+    #[test]
+    fn push() {
+        const BUFFER: [[u8; 4]; 3] = [
+            [3, 3, 3, 2],
+            [1, 1, 2, 1],
+            [0, 0, 0, 3],
+        ];
+
+        const EXP_STATE_PRE: ExtremaState<u8, 4, true> = ExtremaState {
+            frontiers: [
+                (3, 0),
+                (3, 0),
+                (3, 0),
+                (3, 2),
+            ],
+            horizons: [
+                Some((1, 0)),
+                Some((1, 0)),
+                Some((2, 0)),
+                None,
+            ],
+            cursor_pos: 2,
+        };
+
+        const INPUT: [u8; 4] = [4, 2, 1, 2];
+
+        const EXP_OUTPUT: [Diff; 4] = [
+            Diff::Frontier,
+            Diff::Horizon,
+            Diff::NoChange,
+            Diff::HorizonInit,
+        ];
+
+        const EXP_STATE_POST: ExtremaState<u8, 4, true> = ExtremaState {
+            frontiers: [
+                (4, 3),
+                (3, 0),
+                (3, 0),
+                (3, 2),
+            ],
+            horizons: [
+                None,
+                Some((2, 2)),
+                Some((2, 0)),
+                Some((2, 0)),
+            ],
+            cursor_pos: 3,
+        };
+
+        let mut state = MaximumState::try_from(BUFFER.as_slice()).unwrap();
+
+        assert_eq!(state, EXP_STATE_PRE);
+        assert_eq!(state.push(INPUT), EXP_OUTPUT);
+        assert_eq!(state, EXP_STATE_POST);
+    }
+
+    #[test]
+    fn push_pop() {
+        const BUFFER: [[u8; 7]; 4] = [
+            [2, 3, 3, 0, 0, 0, 0],
+            [0, 0, 0, 2, 3, 3, 0],
+            [1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 1],
+        ];
+
+        const EXP_STATE_PRE: ExtremaState<u8, 7, true> = ExtremaState {
+            frontiers: [
+                (2, 0),
+                (3, 0),
+                (3, 0),
+                (2, 1),
+                (3, 1),
+                (3, 1),
+                (1, 3),
+            ],
+            horizons: [
+                Some((1, 1)),
+                Some((1, 1)),
+                Some((1, 1)),
+                Some((1, 1)),
+                Some((1, 1)),
+                Some((1, 1)),
+                None,
+            ],
+            cursor_pos: 3,
+        };
+
+        const INPUT: [u8; 7] = [3, 2, 0, 3, 2, 0, 0];
+
+        const EXP_OUTPUT: [Diff; 7] = [
+            Diff::Frontier,
+            Diff::Frontier,
+            Diff::Promoted,
+            // Diff::Frontier,
+            Diff::Frontier,
+            Diff::Horizon,
+            Diff::NoChange,
+            Diff::HorizonInit,
+        ];
+
+        const EXP_STATE_POST: ExtremaState<u8, 7, true> = ExtremaState {
+            frontiers: [
+                (3, 3),
+                (2, 3),
+                (1, 1),
+                (3, 3),
+                (3, 0),
+                (3, 0),
+                (1, 2),
+            ],
+            horizons: [
+                None,
+                None,
+                Some((0, 1)),
+                None,
+                Some((2, 2)),
+                Some((1, 1)),
+                Some((0, 0)),
+            ],
+            cursor_pos: 3,
+        };
+
+        let mut state = MaximumState::try_from(BUFFER.as_slice()).unwrap();
+
+        let mut fixed_buffer = Fixed::from(BUFFER.to_vec());
+        fixed_buffer.push(INPUT);
+
+        assert_eq!(state, EXP_STATE_PRE);
+        assert_eq!(state.push_pop(INPUT, &fixed_buffer), EXP_OUTPUT);
+        assert_eq!(state, EXP_STATE_POST);
+    }
+
+    #[test]
+    fn edge_case_push_pop_window1() {
+    }
 
     #[test]
     fn minimum_state() {
