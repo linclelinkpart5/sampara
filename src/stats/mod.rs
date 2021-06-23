@@ -967,7 +967,7 @@ mod tests {
             [0, 0, 0, 3],
         ];
 
-        const EXP_STATE_PRE: ExtremaState<u8, 4, true> = ExtremaState {
+        const EXP_STATE_PRE: MaximumState<u8, 4> = MaximumState {
             frontiers: [
                 (3, 0),
                 (3, 0),
@@ -992,7 +992,7 @@ mod tests {
             Diff::HorizonInit,
         ];
 
-        const EXP_STATE_POST: ExtremaState<u8, 4, true> = ExtremaState {
+        const EXP_STATE_POST: MaximumState<u8, 4> = MaximumState {
             frontiers: [
                 (4, 3),
                 (3, 0),
@@ -1024,7 +1024,7 @@ mod tests {
             [0, 0, 0, 1, 1, 1, 1],
         ];
 
-        const EXP_STATE_PRE: ExtremaState<u8, 7, true> = ExtremaState {
+        const EXP_STATE_PRE: MaximumState<u8, 7> = MaximumState {
             frontiers: [
                 (2, 0),
                 (3, 0),
@@ -1059,7 +1059,7 @@ mod tests {
             Diff::HorizonInit,
         ];
 
-        const EXP_STATE_POST: ExtremaState<u8, 7, true> = ExtremaState {
+        const EXP_STATE_POST: MaximumState<u8, 7> = MaximumState {
             frontiers: [
                 (3, 3),
                 (2, 3),
@@ -1093,6 +1093,26 @@ mod tests {
 
     #[test]
     fn edge_case_push_pop_window1() {
+        const BUFFER: [u8; 1] = [0];
+
+        let mut state = MaximumState::try_from(BUFFER.as_slice()).unwrap();
+        let mut fixed_buffer = Fixed::from(BUFFER.to_vec());
+
+        for input in 1..9 {
+            fixed_buffer.push(input);
+
+            assert_eq!(state, MaximumState {
+                frontiers: [(input - 1, 0)],
+                horizons: [None],
+                cursor_pos: 0,
+            });
+            assert_eq!(state.push_pop([input], &fixed_buffer), [Diff::Frontier]);
+            assert_eq!(state, MaximumState {
+                frontiers: [(input, 0)],
+                horizons: [None],
+                cursor_pos: 0,
+            });
+        }
     }
 
     #[test]
