@@ -904,6 +904,72 @@ where
 mod tests {
     use super::*;
 
+    use proptest::prelude::*;
+
+    fn arb_frame() -> impl Strategy<Value = [u8; 16]> {
+        prop::array::uniform16(0u8..=9)
+    }
+
+    fn arb_input_buffer() -> impl Strategy<Value = Vec<[u8; 16]>> {
+        prop::collection::vec(arb_frame(), 1..=8)
+    }
+
+    fn arb_input_feed() -> impl Strategy<Value = Vec<[u8; 16]>> {
+        prop::collection::vec(arb_frame(), 16)
+    }
+
+    proptest! {
+        #[test]
+        fn prop_run_maximum(in_buf in arb_input_buffer(), in_feed in arb_input_feed()) {
+            let mut max_state = MaximumState::try_from(in_buf.as_slice()).unwrap();
+            let mut test_rb = Fixed::from(in_buf);
+
+            // Brute-force the per-channel maxima in the ring buffer.
+            let exp_curr_max = test_rb.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.max(b))).unwrap();
+
+            let prd_curr_max = max_state.frontiers.map(|(ext, _pos)| ext);
+
+            assert_eq!(exp_curr_max, prd_curr_max);
+
+            for xs in in_feed {
+                // Update the ring buffer, and brute-force the per-channel maxima.
+                test_rb.push(xs);
+                let exp_curr_max = test_rb.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.max(b))).unwrap();
+
+                // Update the extrema state.
+                max_state.push_pop(xs, &test_rb);
+                let prd_curr_max = max_state.frontiers.map(|(ext, _pos)| ext);
+
+                assert_eq!(exp_curr_max, prd_curr_max);
+            }
+        }
+
+        #[test]
+        fn prop_run_minimum(in_buf in arb_input_buffer(), in_feed in arb_input_feed()) {
+            let mut min_state = MinimumState::try_from(in_buf.as_slice()).unwrap();
+            let mut test_rb = Fixed::from(in_buf);
+
+            // Brute-force the per-channel minima in the ring buffer.
+            let exp_curr_min = test_rb.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.min(b))).unwrap();
+
+            let prd_curr_min = min_state.frontiers.map(|(ext, _pos)| ext);
+
+            assert_eq!(exp_curr_min, prd_curr_min);
+
+            for xs in in_feed {
+                // Update the ring buffer, and brute-force the per-channel minima.
+                test_rb.push(xs);
+                let exp_curr_min = test_rb.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.min(b))).unwrap();
+
+                // Update the extrema state.
+                min_state.push_pop(xs, &test_rb);
+                let prd_curr_min = min_state.frontiers.map(|(ext, _pos)| ext);
+
+                assert_eq!(exp_curr_min, prd_curr_min);
+            }
+        }
+    }
+
     const BUFFER_A: [[f32; 5]; 16] = [
         [0.5, 0.9, 0.4, 0.2, 0.4],
         [0.5, 0.3, 0.5, 0.5, 0.6],
