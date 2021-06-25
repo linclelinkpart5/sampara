@@ -218,7 +218,7 @@ macro_rules! define__from {
                     "The provided buffer is assumed to be filled with the initial window buffer [`Frame`]s.",
                 ),
                 {
-                    concat!("let mut window = ", stringify!($cls), "::from([[0.5], [0.5], [0.5], [0.5]]);\n"),
+                    concat!("let mut window = ", stringify!($cls), "::from([[0.5]; 4]);\n"),
                     concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
                 }
             ),
@@ -988,6 +988,28 @@ where
         self.__current()
     }
 }
+
+calculator!(MinMaxInner, [DO_MIN], Min, "minimum", {
+    args_from => ([0.5]),
+    args_empty => ([0.0]),
+    args_reset => ([0.25], [0.0]),
+    args_fill => ([0.0], [0.5]),
+    args_fill_with => ([0.0], [0.0]),
+    args_advance => ([0.25], [0.50], [0.75], [1.0]),
+    args_current => ([0.00]),
+    args_process => ([0.25], [0.50], [0.75], [1.0]),
+});
+
+calculator!(MinMaxInner, [DO_MAX], Max, "maximum", {
+    args_from => ([0.5]),
+    args_empty => ([0.0]),
+    args_reset => ([0.75], [0.0]),
+    args_fill => ([0.0], [0.5]),
+    args_fill_with => ([0.0], [0.75]),
+    args_advance => ([1.0], [1.0], [1.0], [1.0]),
+    args_current => ([0.75]),
+    args_process => ([1.0], [1.0], [1.0], [1.0]),
+});
 
 #[cfg(test)]
 mod tests {
