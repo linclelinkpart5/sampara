@@ -1026,13 +1026,36 @@ mod tests {
         prop::collection::vec(arb_frame(), 16)
     }
 
+    fn elem_minmax<S, I, const N: usize, const MAX: bool>(iter: I) -> [S; N]
+    where
+        S: Sample + Ord,
+        I: IntoIterator<Item = [S; N]>,
+    {
+        iter.into_iter().reduce(|sa, sb| {
+            sa.zip(sb).map(|(a, b)| {
+                if MAX { a.max(b) }
+                else { a.min(b) }
+            })
+        }).unwrap()
+    }
+
     proptest! {
+        #[test]
+        fn prop_min_from(in_buf in arb_input_buffer()) {
+            let window = Min::<_, _, 16>::from(in_buf.clone());
+
+            let expected = elem_minmax::<_, _, 16, DO_MIN>(in_buf);
+            let produced = window.current();
+
+            assert_eq!(expected, produced);
+        }
+
         #[test]
         fn prop_min_process(in_buf in arb_input_buffer(), in_feed in arb_input_feed()) {
             let mut window = Min::<_, _, 16>::from(in_buf.clone());
             let mut manual_window = Fixed::from(in_buf);
 
-            let expected = manual_window.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.min(b))).unwrap();
+            let expected = elem_minmax::<_, _, 16, DO_MIN>(manual_window.iter().copied());
             let produced = window.current();
 
             assert_eq!(expected, produced);
@@ -1040,7 +1063,7 @@ mod tests {
             for xs in in_feed {
                 manual_window.push(xs);
 
-                let expected = manual_window.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.min(b))).unwrap();
+                let expected = elem_minmax::<_, _, 16, DO_MIN>(manual_window.iter().copied());
                 let produced = window.process(xs);
 
                 assert_eq!(expected, produced);
@@ -1048,11 +1071,21 @@ mod tests {
         }
 
         #[test]
+        fn prop_max_from(in_buf in arb_input_buffer()) {
+            let window = Max::<_, _, 16>::from(in_buf.clone());
+
+            let expected = elem_minmax::<_, _, 16, DO_MAX>(in_buf);
+            let produced = window.current();
+
+            assert_eq!(expected, produced);
+        }
+
+        #[test]
         fn prop_max_process(in_buf in arb_input_buffer(), in_feed in arb_input_feed()) {
             let mut window = Max::<_, _, 16>::from(in_buf.clone());
             let mut manual_window = Fixed::from(in_buf);
 
-            let expected = manual_window.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.max(b))).unwrap();
+            let expected = elem_minmax::<_, _, 16, DO_MAX>(manual_window.iter().copied());
             let produced = window.current();
 
             assert_eq!(expected, produced);
@@ -1060,7 +1093,7 @@ mod tests {
             for xs in in_feed {
                 manual_window.push(xs);
 
-                let expected = manual_window.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.max(b))).unwrap();
+                let expected = elem_minmax::<_, _, 16, DO_MAX>(manual_window.iter().copied());
                 let produced = window.process(xs);
 
                 assert_eq!(expected, produced);
