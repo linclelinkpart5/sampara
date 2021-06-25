@@ -184,7 +184,7 @@ macro_rules! apply_doc_comment {
 }
 
 macro_rules! define__empty {
-    ($cls:ident, $curr:expr) => {
+    ($helper_cls:ident, $cls:ident, $curr:expr) => {
         apply_doc_comment! {
             gen_doc_comment!(
                 $cls,
@@ -201,7 +201,7 @@ macro_rules! define__empty {
             {
                 #[inline]
                 pub fn empty(buffer: B) -> Self {
-                    Self(StatsInner::__empty(buffer))
+                    Self($helper_cls::__empty(buffer))
                 }
             }
         }
@@ -209,7 +209,7 @@ macro_rules! define__empty {
 }
 
 macro_rules! define__from {
-    ($cls:ident, $curr:expr) => {
+    ($helper_cls:ident, $cls:ident, $curr:expr) => {
         apply_doc_comment! {
             gen_doc_comment!(
                 $cls,
@@ -225,7 +225,7 @@ macro_rules! define__from {
             {
                 #[inline]
                 fn from(buffer: B) -> Self {
-                    Self(StatsInner::__from(buffer))
+                    Self($helper_cls::__from(buffer))
                 }
             }
         }
@@ -417,10 +417,10 @@ macro_rules! define__process {
 
 macro_rules! calculator {
     (
+        $helper_cls:ident,
+        [ $( $const_gen_state:expr ),* ],
         $cls:ident,
         $prose:literal,
-        $is_sqrt:expr,
-        $is_pow2:expr,
         {
             args_from => ( $($ta_from:expr),* ),
             args_empty => ( $($ta_empty:expr),* ),
@@ -436,7 +436,7 @@ macro_rules! calculator {
             concat!("Keeps a running ", $prose, " of a window of [`Frame`]s over time."),
             {
                 #[derive(Clone)]
-                pub struct $cls<F, B, const N: usize>(StatsInner<F, B, N, $is_sqrt, $is_pow2>)
+                pub struct $cls<F, B, const N: usize>($helper_cls<F, B, N, $( $const_gen_state ),* >)
                 where
                     F: Frame<N>,
                     F::Sample: FloatSample,
@@ -451,7 +451,7 @@ macro_rules! calculator {
             F::Sample: FloatSample,
             B: Buffer<Item = F>,
         {
-            define__empty!($cls, $($ta_empty),*);
+            define__empty!($helper_cls, $cls, $($ta_empty),*);
             define__reset!($cls, $($ta_reset),*);
             define__fill!($cls, $($ta_fill),*);
             define__fill_with!($cls, $($ta_fill_with),*);
@@ -467,7 +467,7 @@ macro_rules! calculator {
             F::Sample: FloatSample,
             B: Buffer<Item = F>,
         {
-            define__from!($cls, $($ta_from),*);
+            define__from!($helper_cls, $cls, $($ta_from),*);
         }
 
         // Forward `Processor::process` to `Self::process`.
@@ -488,7 +488,7 @@ macro_rules! calculator {
     };
 }
 
-calculator!(Mean, "mean", NO_SQRT, NO_POW2, {
+calculator!(StatsInner, [NO_SQRT, NO_POW2], Mean, "mean", {
     args_from => ([0.5]),
     args_empty => ([0.0]),
     args_reset => ([0.5], [0.0]),
@@ -499,7 +499,7 @@ calculator!(Mean, "mean", NO_SQRT, NO_POW2, {
     args_process => ([0.625], [0.8125], [0.9375], [1.0]),
 });
 
-calculator!(Ms, "MS", NO_SQRT, DO_POW2, {
+calculator!(StatsInner, [NO_SQRT, DO_POW2], Ms, "MS", {
     args_from => ([0.25]),
     args_empty => ([0.0]),
     args_reset => ([0.3125], [0.0]),
@@ -510,7 +510,7 @@ calculator!(Ms, "MS", NO_SQRT, DO_POW2, {
     args_process => ([0.46875], [0.703125], [0.890625], [1.0]),
 });
 
-calculator!(Rms, "RMS", DO_SQRT, DO_POW2, {
+calculator!(StatsInner, [DO_SQRT, DO_POW2], Rms, "RMS", {
     args_from => ([0.5]),
     args_empty => ([0.0]),
     args_reset => ([0.5590169943749475], [0.0]),
