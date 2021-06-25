@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::convert::TryFrom;
 
 use num_traits::Float;
 
@@ -420,6 +419,7 @@ macro_rules! calculator {
         $helper_cls:ident,
         [ $( $const_gen_state:expr ),* ],
         $cls:ident,
+        [ $( $sample_kind:ident )? ],
         $prose:literal,
         {
             args_from => ( $($ta_from:expr),* ),
@@ -439,7 +439,7 @@ macro_rules! calculator {
                 pub struct $cls<F, B, const N: usize>($helper_cls<F, B, N, $( $const_gen_state ),* >)
                 where
                     F: Frame<N>,
-                    F::Sample: FloatSample,
+                    $(F::Sample: $sample_kind,)?
                     B: Buffer<Item = F>,
                 ;
             }
@@ -448,7 +448,7 @@ macro_rules! calculator {
         impl<F, B, const N: usize> $cls<F, B, N>
         where
             F: Frame<N>,
-            F::Sample: FloatSample,
+            $(F::Sample: $sample_kind,)?
             B: Buffer<Item = F>,
         {
             define__empty!($helper_cls, $cls, $($ta_empty),*);
@@ -464,7 +464,7 @@ macro_rules! calculator {
         impl<F, B, const N: usize> From<B> for $cls<F, B, N>
         where
             F: Frame<N>,
-            F::Sample: FloatSample,
+            $(F::Sample: $sample_kind,)?
             B: Buffer<Item = F>,
         {
             define__from!($helper_cls, $cls, $($ta_from),*);
@@ -474,7 +474,7 @@ macro_rules! calculator {
         impl<F, B, const N: usize> Processor<N, N> for $cls<F, B, N>
         where
             F: Frame<N>,
-            F::Sample: FloatSample,
+            $(F::Sample: $sample_kind,)?
             B: Buffer<Item = F>,
         {
             type Input = F;
@@ -488,7 +488,7 @@ macro_rules! calculator {
     };
 }
 
-calculator!(StatsInner, [NO_SQRT, NO_POW2], Mean, "mean", {
+calculator!(StatsInner, [NO_SQRT, NO_POW2], Mean, [FloatSample], "mean", {
     args_from => ([0.5]),
     args_empty => ([0.0]),
     args_reset => ([0.5], [0.0]),
@@ -499,7 +499,7 @@ calculator!(StatsInner, [NO_SQRT, NO_POW2], Mean, "mean", {
     args_process => ([0.625], [0.8125], [0.9375], [1.0]),
 });
 
-calculator!(StatsInner, [NO_SQRT, DO_POW2], Ms, "MS", {
+calculator!(StatsInner, [NO_SQRT, DO_POW2], Ms, [FloatSample], "MS", {
     args_from => ([0.25]),
     args_empty => ([0.0]),
     args_reset => ([0.3125], [0.0]),
@@ -510,7 +510,7 @@ calculator!(StatsInner, [NO_SQRT, DO_POW2], Ms, "MS", {
     args_process => ([0.46875], [0.703125], [0.890625], [1.0]),
 });
 
-calculator!(StatsInner, [DO_SQRT, DO_POW2], Rms, "RMS", {
+calculator!(StatsInner, [DO_SQRT, DO_POW2], Rms, [FloatSample], "RMS", {
     args_from => ([0.5]),
     args_empty => ([0.0]),
     args_reset => ([0.5590169943749475], [0.0]),
@@ -864,9 +864,6 @@ where
     }
 }
 
-type MinimumState<S, const N: usize> = ExtremaState<S, N, DO_MIN>;
-type MaximumState<S, const N: usize> = ExtremaState<S, N, DO_MAX>;
-
 const EMPTY_BUFFER_MSG: &'static str = "buffer cannot be empty";
 
 #[derive(Clone)]
@@ -989,7 +986,7 @@ where
     }
 }
 
-calculator!(MinMaxInner, [DO_MIN], Min, "minimum", {
+calculator!(MinMaxInner, [DO_MIN], Min, [], "minimum", {
     args_from => ([0.5]),
     args_empty => ([0.0]),
     args_reset => ([0.25], [0.0]),
@@ -1000,7 +997,7 @@ calculator!(MinMaxInner, [DO_MIN], Min, "minimum", {
     args_process => ([0.25], [0.50], [0.75], [1.0]),
 });
 
-calculator!(MinMaxInner, [DO_MAX], Max, "maximum", {
+calculator!(MinMaxInner, [DO_MAX], Max, [], "maximum", {
     args_from => ([0.5]),
     args_empty => ([0.0]),
     args_reset => ([0.75], [0.0]),
@@ -1031,199 +1028,43 @@ mod tests {
 
     proptest! {
         #[test]
-        fn prop_run_maximum(in_buf in arb_input_buffer(), in_feed in arb_input_feed()) {
-            let mut max_state = MinMaxInner::<_, _, 16, DO_MAX>::__from(in_buf.clone());
+        fn prop_min_process(in_buf in arb_input_buffer(), in_feed in arb_input_feed()) {
+            let mut window = Min::<_, _, 16>::from(in_buf.clone());
             let mut manual_window = Fixed::from(in_buf);
 
-            let exp_curr_max = manual_window.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.max(b))).unwrap();
-            let prd_curr_max = max_state.__current();
+            let expected = manual_window.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.min(b))).unwrap();
+            let produced = window.current();
 
-            assert_eq!(exp_curr_max, prd_curr_max);
+            assert_eq!(expected, produced);
 
             for xs in in_feed {
                 manual_window.push(xs);
 
-                let exp_curr_max = manual_window.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.max(b))).unwrap();
-                let prd_curr_max = max_state.__process(xs);
+                let expected = manual_window.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.min(b))).unwrap();
+                let produced = window.process(xs);
 
-                assert_eq!(exp_curr_max, prd_curr_max);
+                assert_eq!(expected, produced);
             }
         }
 
         #[test]
-        fn prop_run_minimum(in_buf in arb_input_buffer(), in_feed in arb_input_feed()) {
-            let mut min_state = MinMaxInner::<_, _, 16, DO_MIN>::__from(in_buf.clone());
+        fn prop_max_process(in_buf in arb_input_buffer(), in_feed in arb_input_feed()) {
+            let mut window = Max::<_, _, 16>::from(in_buf.clone());
             let mut manual_window = Fixed::from(in_buf);
 
-            let exp_curr_min = manual_window.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.min(b))).unwrap();
-            let prd_curr_min = min_state.__current();
+            let expected = manual_window.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.max(b))).unwrap();
+            let produced = window.current();
 
-            assert_eq!(exp_curr_min, prd_curr_min);
+            assert_eq!(expected, produced);
 
             for xs in in_feed {
                 manual_window.push(xs);
 
-                let exp_curr_min = manual_window.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.min(b))).unwrap();
-                let prd_curr_min = min_state.__process(xs);
+                let expected = manual_window.iter().copied().reduce(|sa, sb| sa.zip(sb).map(|(a, b)| a.max(b))).unwrap();
+                let produced = window.process(xs);
 
-                assert_eq!(exp_curr_min, prd_curr_min);
+                assert_eq!(expected, produced);
             }
         }
     }
-
-    // #[test]
-    // fn push() {
-    //     const BUFFER: [[u8; 4]; 3] = [
-    //         [3, 3, 3, 2],
-    //         [1, 1, 2, 1],
-    //         [0, 0, 0, 3],
-    //     ];
-
-    //     const EXP_STATE_PRE: MaximumState<u8, 4> = MaximumState {
-    //         frontiers: [
-    //             (3, 0),
-    //             (3, 0),
-    //             (3, 0),
-    //             (3, 2),
-    //         ],
-    //         horizons: [
-    //             Some((1, 0)),
-    //             Some((1, 0)),
-    //             Some((2, 0)),
-    //             None,
-    //         ],
-    //         cursor_pos: 2,
-    //     };
-
-    //     const INPUT: [u8; 4] = [4, 2, 1, 2];
-
-    //     const EXP_OUTPUT: [Diff; 4] = [
-    //         Diff::Frontier,
-    //         Diff::Horizon,
-    //         Diff::NoChange,
-    //         Diff::HorizonInit,
-    //     ];
-
-    //     const EXP_STATE_POST: MaximumState<u8, 4> = MaximumState {
-    //         frontiers: [
-    //             (4, 3),
-    //             (3, 0),
-    //             (3, 0),
-    //             (3, 2),
-    //         ],
-    //         horizons: [
-    //             None,
-    //             Some((2, 2)),
-    //             Some((2, 0)),
-    //             Some((2, 0)),
-    //         ],
-    //         cursor_pos: 3,
-    //     };
-
-    //     let mut state = MaximumState::try_from(BUFFER.as_slice()).unwrap();
-
-    //     assert_eq!(state, EXP_STATE_PRE);
-    //     assert_eq!(state.push(INPUT), EXP_OUTPUT);
-    //     assert_eq!(state, EXP_STATE_POST);
-    // }
-
-    // #[test]
-    // fn push_pop() {
-    //     const BUFFER: [[u8; 7]; 4] = [
-    //         [2, 3, 3, 0, 0, 0, 0],
-    //         [0, 0, 0, 2, 3, 3, 0],
-    //         [1, 1, 1, 0, 0, 0, 0],
-    //         [0, 0, 0, 1, 1, 1, 1],
-    //     ];
-
-    //     const EXP_STATE_PRE: MaximumState<u8, 7> = MaximumState {
-    //         frontiers: [
-    //             (2, 0),
-    //             (3, 0),
-    //             (3, 0),
-    //             (2, 1),
-    //             (3, 1),
-    //             (3, 1),
-    //             (1, 3),
-    //         ],
-    //         horizons: [
-    //             Some((1, 1)),
-    //             Some((1, 1)),
-    //             Some((1, 1)),
-    //             Some((1, 1)),
-    //             Some((1, 1)),
-    //             Some((1, 1)),
-    //             None,
-    //         ],
-    //         cursor_pos: 3,
-    //     };
-
-    //     const INPUT: [u8; 7] = [3, 2, 0, 3, 2, 0, 0];
-
-    //     const EXP_OUTPUT: [Diff; 7] = [
-    //         Diff::Frontier,
-    //         Diff::Frontier,
-    //         Diff::Promoted,
-    //         // Diff::Frontier,
-    //         Diff::Frontier,
-    //         Diff::Horizon,
-    //         Diff::NoChange,
-    //         Diff::HorizonInit,
-    //     ];
-
-    //     const EXP_STATE_POST: MaximumState<u8, 7> = MaximumState {
-    //         frontiers: [
-    //             (3, 3),
-    //             (2, 3),
-    //             (1, 1),
-    //             (3, 3),
-    //             (3, 0),
-    //             (3, 0),
-    //             (1, 2),
-    //         ],
-    //         horizons: [
-    //             None,
-    //             None,
-    //             Some((0, 1)),
-    //             None,
-    //             Some((2, 2)),
-    //             Some((1, 1)),
-    //             Some((0, 0)),
-    //         ],
-    //         cursor_pos: 3,
-    //     };
-
-    //     let mut state = MaximumState::try_from(BUFFER.as_slice()).unwrap();
-
-    //     let mut fixed_buffer = Fixed::from(BUFFER.to_vec());
-    //     fixed_buffer.push(INPUT);
-
-    //     assert_eq!(state, EXP_STATE_PRE);
-    //     assert_eq!(state.push_pop(INPUT, &fixed_buffer), EXP_OUTPUT);
-    //     assert_eq!(state, EXP_STATE_POST);
-    // }
-
-    // #[test]
-    // fn edge_case_push_pop_window1() {
-    //     const BUFFER: [u8; 1] = [0];
-
-    //     let mut state = MaximumState::try_from(BUFFER.as_slice()).unwrap();
-    //     let mut fixed_buffer = Fixed::from(BUFFER.to_vec());
-
-    //     for input in 1..9 {
-    //         fixed_buffer.push(input);
-
-    //         assert_eq!(state, MaximumState {
-    //             frontiers: [(input - 1, 0)],
-    //             horizons: [None],
-    //             cursor_pos: 0,
-    //         });
-    //         assert_eq!(state.push_pop([input], &fixed_buffer), [Diff::Frontier]);
-    //         assert_eq!(state, MaximumState {
-    //             frontiers: [(input, 0)],
-    //             horizons: [None],
-    //             cursor_pos: 0,
-    //         });
-    //     }
-    // }
 }
