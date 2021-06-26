@@ -120,6 +120,24 @@ impl<F: FloatSample> Window<F> for BlackmanExact {
     }
 }
 
+/// Represents a Blackman-Harris window.
+pub struct BlackmanHarris;
+
+impl<F: FloatSample> Window<F> for BlackmanHarris {
+    fn calc(&self, x: F) -> F {
+        let a0 = F::from(0.35875).unwrap();
+        let a1 = F::from(0.48829).unwrap();
+        let a2 = F::from(0.14128).unwrap();
+        let a3 = F::from(0.01168).unwrap();
+
+        let c1 = (F::TAU() * x).cos();
+        let c2 = ((F::TAU() + F::TAU()) * x).cos();
+        let c3 = ((F::TAU() + F::TAU() + F::TAU()) * x).cos();
+
+        a0 - a1 * c1 + a2 * c2 - a3 * c3
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -257,6 +275,25 @@ mod tests {
             let c2 = (2.0 * TAU * x).cos();
 
             let expected = A0 - A1 * c1 + A2 * c2;
+            let produced = wf.calc(x);
+
+            assert_eq!(expected, produced);
+        }
+
+        #[test]
+        fn prop_blackman_harris(x in arb_delta()) {
+            let wf = BlackmanHarris;
+
+            const A0: f64 = 0.35875;
+            const A1: f64 = 0.48829;
+            const A2: f64 = 0.14128;
+            const A3: f64 = 0.01168;
+
+            let c1 = (TAU * x).cos();
+            let c2 = (2.0 * TAU * x).cos();
+            let c3 = (3.0 * TAU * x).cos();
+
+            let expected = A0 - A1 * c1 + A2 * c2 - A3 * c3;
             let produced = wf.calc(x);
 
             assert_eq!(expected, produced);
