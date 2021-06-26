@@ -9,15 +9,11 @@ use num_traits::Float;
 
 use crate::buffer::Buffer;
 
-enum PS {
-    Periodic,
-    Symmetric,
-}
+const DO_BACK: bool = true;
+const NO_BACK: bool = false;
 
-enum End {
-    Front,
-    Back,
-}
+const DO_SYMM: bool = true;
+const NO_SYMM: bool = false;
 
 pub trait Window<F: Float> {
     /// Given a value in the interval [0.0, 1.0], returns the value of the
@@ -59,7 +55,7 @@ pub trait Window<F: Float> {
     where
         Self: Sized,
     {
-        Iter(IterImpl::new(len, self, PS::Symmetric))
+        Iter(IterImpl::new(len, self))
     }
 
     /// Returns an iterator that yields the values of a periodic window of
@@ -98,7 +94,7 @@ pub trait Window<F: Float> {
     where
         Self: Sized,
     {
-        IterPeriodic(IterImpl::new(len, self, PS::Periodic))
+        IterPeriodic(IterImpl::new(len, self))
     }
 
     /// Fills a buffer of length `N` with the values of a symmetric window of
@@ -244,7 +240,7 @@ pub trait Window<F: Float> {
     }
 }
 
-enum IterImpl<W, F>
+enum IterImpl<W, F, const SYMM: bool>
 where
     W: Window<F>,
     F: Float,
@@ -253,17 +249,17 @@ where
     Normal(Range<usize>, F, W),
 }
 
-impl<W, F> IterImpl<W, F>
+impl<W, F, const SYMM: bool> IterImpl<W, F, SYMM>
 where
     W: Window<F>,
     F: Float,
 {
-    fn new(len: usize, windower: W, ps: PS) -> Self {
-        let bins = match (len, ps) {
-            (0, _) => return Self::ZeroOne(None.into_iter()),
-            (1, PS::Symmetric) => return Self::ZeroOne(Some(()).into_iter()),
-            (n, PS::Symmetric) => n - 1,
-            (n, PS::Periodic) => n,
+    fn new(len: usize, windower: W) -> Self {
+        let bins = match len {
+            0 => return Self::ZeroOne(None.into_iter()),
+            1 if SYMM => return Self::ZeroOne(Some(()).into_iter()),
+            n if SYMM => n - 1,
+            n => n,
         };
 
         let factor = F::from(bins).unwrap().recip();
@@ -271,22 +267,26 @@ where
     }
 
     #[inline]
-    fn advance(&mut self, end: End) -> Option<<Self as Iterator>::Item> {
+    fn advance<const BACK: bool>(&mut self) -> Option<<Self as Iterator>::Item> {
         match self {
             Self::ZeroOne(it) => {
-                let opt = match end {
-                    End::Front => it.next(),
-                    End::Back => it.next_back(),
+                let opt = if BACK {
+                    it.next_back()
+                }
+                else {
+                    it.next()
                 };
 
                 opt.map(|_| F::one())
             },
 
             Self::Normal(range, factor, wf) => {
-                let i = match end {
-                    End::Front => range.next(),
-                    End::Back => range.next_back(),
-                }?;
+                let i = if BACK {
+                    range.next_back()?
+                }
+                else {
+                    range.next()?
+                };
 
                 let x = *factor * F::from(i).unwrap();
                 let y = wf.calc(x);
@@ -297,7 +297,7 @@ where
     }
 }
 
-impl<W, F> Iterator for IterImpl<W, F>
+impl<W, F, const SYMM: bool> Iterator for IterImpl<W, F, SYMM>
 where
     W: Window<F>,
     F: Float,
@@ -305,7 +305,7 @@ where
     type Item = F;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.advance(End::Front)
+        self.advance::<NO_BACK>()
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -316,7 +316,7 @@ where
     }
 }
 
-impl<W, F> ExactSizeIterator for IterImpl<W, F>
+impl<W, F, const SYMM: bool> ExactSizeIterator for IterImpl<W, F, SYMM>
 where
     W: Window<F>,
     F: Float,
@@ -329,19 +329,19 @@ where
     }
 }
 
-impl<W, F> DoubleEndedIterator for IterImpl<W, F>
+impl<W, F, const SYMM: bool> DoubleEndedIterator for IterImpl<W, F, SYMM>
 where
     W: Window<F>,
     F: Float,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.advance(End::Back)
+        self.advance::<DO_BACK>()
     }
 }
 
 /// An [`Iterator`] that yields the values of a window (via a [`Window`])
 /// for a given number of points, evenly spaced to span the interval [0.0, 1.0].
-pub struct Iter<W, F>(IterImpl<W, F>)
+pub struct Iter<W, F>(IterImpl<W, F, DO_SYMM>)
 where
     W: Window<F>,
     F: Float,
@@ -388,7 +388,7 @@ where
 ///
 /// This produces a periodic, asymmetric version of the window, used in cases
 /// when the window needs to be repeated.
-pub struct IterPeriodic<W, F>(IterImpl<W, F>)
+pub struct IterPeriodic<W, F>(IterImpl<W, F, NO_SYMM>)
 where
     W: Window<F>,
     F: Float,
