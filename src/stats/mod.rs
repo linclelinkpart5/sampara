@@ -1014,27 +1014,28 @@ mod tests {
 
     use proptest::prelude::*;
 
-    fn arb_frame() -> impl Strategy<Value = [u8; 16]> {
-        prop::array::uniform16(0u8..=9)
+    const N: usize = 16;
+
+    fn arb_frame() -> impl Strategy<Value = [f32; N]> {
+        prop::array::uniform16(any::<f32>())
     }
 
-    fn arb_input_buffer() -> impl Strategy<Value = Vec<[u8; 16]>> {
+    fn arb_input_buffer() -> impl Strategy<Value = Vec<[f32; N]>> {
         prop::collection::vec(arb_frame(), 1..=8)
     }
 
-    fn arb_input_feed() -> impl Strategy<Value = Vec<[u8; 16]>> {
-        prop::collection::vec(arb_frame(), 16)
+    fn arb_input_feed() -> impl Strategy<Value = Vec<[f32; N]>> {
+        prop::collection::vec(arb_frame(), 0..=32)
     }
 
-    fn elem_minmax<S, I, const N: usize, const MAX: bool>(iter: I) -> [S; N]
+    fn elem_minmax<I, const MAX: bool>(iter: I) -> [f32; N]
     where
-        S: Sample + Ord,
-        I: IntoIterator<Item = [S; N]>,
+        I: IntoIterator<Item = [f32; 16]>,
     {
         iter.into_iter().reduce(|sa, sb| {
             sa.zip(sb).map(|(a, b)| {
-                if MAX { a.max(b) }
-                else { a.min(b) }
+                if surpasses::<_, MAX>(&a, &b) { a }
+                else { b }
             })
         }).unwrap()
     }
@@ -1042,58 +1043,86 @@ mod tests {
     proptest! {
         #[test]
         fn prop_min_from(in_buf in arb_input_buffer()) {
-            let window = Min::<_, _, 16>::from(in_buf.clone());
+            let window = Min::from(in_buf.clone());
 
-            let expected = elem_minmax::<_, _, 16, DO_MIN>(in_buf);
+            let expected = elem_minmax::<_, DO_MIN>(in_buf);
             let produced = window.current();
+
+            assert_eq!(expected, produced);
+        }
+
+        #[test]
+        fn prop_min_empty(in_buf in arb_input_buffer()) {
+            let buf_len = in_buf.len();
+            let window = Min::empty(in_buf);
+
+            // The min value should be the equilibrium frame.
+            let expected = <[f32; N]>::EQUILIBRIUM;
+            let produced = window.current();
+
+            assert_eq!(expected, produced);
+
+            // The index of the min value should be at the very end of the window.
+            let expected = [buf_len - 1; N];
+            let produced = window.0.ext_state.frontiers.map(|(_f_ext, f_pos)| f_pos);
 
             assert_eq!(expected, produced);
         }
 
         #[test]
         fn prop_min_process(in_buf in arb_input_buffer(), in_feed in arb_input_feed()) {
-            let mut window = Min::<_, _, 16>::from(in_buf.clone());
+            let mut window = Min::from(in_buf.clone());
             let mut manual_window = Fixed::from(in_buf);
-
-            let expected = elem_minmax::<_, _, 16, DO_MIN>(manual_window.iter().copied());
-            let produced = window.current();
-
-            assert_eq!(expected, produced);
 
             for xs in in_feed {
                 manual_window.push(xs);
 
-                let expected = elem_minmax::<_, _, 16, DO_MIN>(manual_window.iter().copied());
+                let expected = elem_minmax::<_, DO_MIN>(manual_window.iter().copied());
                 let produced = window.process(xs);
 
                 assert_eq!(expected, produced);
             }
         }
+    }
 
+    proptest! {
         #[test]
         fn prop_max_from(in_buf in arb_input_buffer()) {
-            let window = Max::<_, _, 16>::from(in_buf.clone());
+            let window = Max::from(in_buf.clone());
 
-            let expected = elem_minmax::<_, _, 16, DO_MAX>(in_buf);
+            let expected = elem_minmax::<_, DO_MAX>(in_buf);
             let produced = window.current();
+
+            assert_eq!(expected, produced);
+        }
+
+        #[test]
+        fn prop_max_empty(in_buf in arb_input_buffer()) {
+            let buf_len = in_buf.len();
+            let window = Max::empty(in_buf);
+
+            // The max value should be the equilibrium frame.
+            let expected = <[f32; N]>::EQUILIBRIUM;
+            let produced = window.current();
+
+            assert_eq!(expected, produced);
+
+            // The index of the max value should be at the very end of the window.
+            let expected = [buf_len - 1; N];
+            let produced = window.0.ext_state.frontiers.map(|(_f_ext, f_pos)| f_pos);
 
             assert_eq!(expected, produced);
         }
 
         #[test]
         fn prop_max_process(in_buf in arb_input_buffer(), in_feed in arb_input_feed()) {
-            let mut window = Max::<_, _, 16>::from(in_buf.clone());
+            let mut window = Max::from(in_buf.clone());
             let mut manual_window = Fixed::from(in_buf);
-
-            let expected = elem_minmax::<_, _, 16, DO_MAX>(manual_window.iter().copied());
-            let produced = window.current();
-
-            assert_eq!(expected, produced);
 
             for xs in in_feed {
                 manual_window.push(xs);
 
-                let expected = elem_minmax::<_, _, 16, DO_MAX>(manual_window.iter().copied());
+                let expected = elem_minmax::<_, DO_MAX>(manual_window.iter().copied());
                 let produced = window.process(xs);
 
                 assert_eq!(expected, produced);
