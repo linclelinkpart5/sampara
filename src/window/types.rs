@@ -54,13 +54,35 @@ pub struct Hamming;
 
 impl<F: FloatSample> Window<F> for Hamming {
     fn calc(&self, x: F) -> F {
-        const A0: f64 = 25.0 / 46.0;
-        const A1: f64 = 1.0 - A0;
-
-        let a0 = F::from(A0).unwrap();
-        let a1 = F::from(A1).unwrap();
+        let a0 = F::from(25.0 / 46.0).unwrap();
+        let a1 = F::one() - a0;
 
         a0 + a1 * (F::TAU() * x).cos()
+    }
+}
+
+/// Represents a Bartlett-Hann window.
+pub struct BartlettHann;
+
+impl<F: FloatSample> Window<F> for BartlettHann {
+    fn calc(&self, x: F) -> F {
+        let c0 = F::from(0.62).unwrap();
+        let c1 = F::from(0.48).unwrap();
+        let c2 = F::from(0.38).unwrap();
+        let half = F::from(0.5).unwrap();
+
+        c0 - c1 * (x - half).abs() + c2 * (F::TAU() * (x - half)).cos()
+    }
+}
+
+/// Represents a Bohman window.
+pub struct Bohman;
+
+impl<F: FloatSample> Window<F> for Bohman {
+    fn calc(&self, x: F) -> F {
+        let sx = ((x + x) - F::one()).abs();
+
+        (F::one() - sx) * (F::PI() * sx).cos() + F::FRAC_1_PI() * (F::PI() * sx).sin()
     }
 }
 
@@ -70,13 +92,10 @@ pub struct Blackman;
 impl<F: FloatSample> Window<F> for Blackman {
     fn calc(&self, x: F) -> F {
         const A: f64 = 0.16;
-        const A0: f64 = 0.5 * (1.0 - A);
-        const A1: f64 = 0.5;
-        const A2: f64 = 0.5 * A;
 
-        let a0 = F::from(A0).unwrap();
-        let a1 = F::from(A1).unwrap();
-        let a2 = F::from(A2).unwrap();
+        let a0 = F::from(0.5 * (1.0 - A)).unwrap();
+        let a1 = F::from(0.5).unwrap();
+        let a2 = F::from(0.5 * A).unwrap();
 
         let c1 = (F::TAU() * x).cos();
         let c2 = ((F::TAU() + F::TAU()) * x).cos();
@@ -90,13 +109,9 @@ pub struct BlackmanExact;
 
 impl<F: FloatSample> Window<F> for BlackmanExact {
     fn calc(&self, x: F) -> F {
-        const A0: f64 = 7938.0 / 18608.0;
-        const A1: f64 = 9240.0 / 18608.0;
-        const A2: f64 = 1430.0 / 18608.0;
-
-        let a0 = F::from(A0).unwrap();
-        let a1 = F::from(A1).unwrap();
-        let a2 = F::from(A2).unwrap();
+        let a0 = F::from(7938.0 / 18608.0).unwrap();
+        let a1 = F::from(9240.0 / 18608.0).unwrap();
+        let a2 = F::from(1430.0 / 18608.0).unwrap();
 
         let c1 = (F::TAU() * x).cos();
         let c2 = ((F::TAU() + F::TAU()) * x).cos();
@@ -109,7 +124,7 @@ impl<F: FloatSample> Window<F> for BlackmanExact {
 mod tests {
     use super::*;
 
-    use std::f64::consts::{PI, TAU};
+    use std::f64::consts::{PI, TAU, FRAC_1_PI};
 
     use proptest::prelude::*;
 
@@ -181,6 +196,32 @@ mod tests {
             const A1: f64 = 1.0 - A0;
 
             let expected = A0 + A1 * (TAU * x).cos();
+            let produced = wf.calc(x);
+
+            assert_eq!(expected, produced);
+        }
+
+        #[test]
+        fn prop_bartlett_hann(x in arb_delta()) {
+            let wf = BartlettHann;
+
+            const C0: f64 = 0.62;
+            const C1: f64 = 0.48;
+            const C2: f64 = 0.38;
+
+            let expected = C0 - C1 * (x - 0.5).abs() + C2 * (TAU * (x - 0.5)).cos();
+            let produced = wf.calc(x);
+
+            assert_eq!(expected, produced);
+        }
+
+        #[test]
+        fn prop_bohman(x in arb_delta()) {
+            let wf = Bohman;
+
+            let n = (2.0 * x - 1.0).abs();
+
+            let expected = (1.0 - n) * (PI * n).cos() + FRAC_1_PI * (PI * n).sin();
             let produced = wf.calc(x);
 
             assert_eq!(expected, produced);
