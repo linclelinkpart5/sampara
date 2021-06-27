@@ -18,7 +18,7 @@ where
     F: Frame<N>,
     B: Buffer<Item = F>,
 {
-    fn empty(buffer: B) -> Self;
+    fn from_empty(buffer: B) -> Self;
     fn len(&self) -> usize;
     fn reset(&mut self);
     fn fill(&mut self, fill_val: F);
@@ -34,7 +34,7 @@ where
     B: Buffer<Item = F>,
 {
     #[inline]
-    fn empty(buffer: B) -> Self {
+    fn from_empty(buffer: B) -> Self {
         let mut new = Self {
             window: Fixed::from(buffer),
             sum: Frame::EQUILIBRIUM,
@@ -219,7 +219,7 @@ where
     }
 
     #[inline]
-    fn __empty(buffer: B) -> Self {
+    fn __from_empty(buffer: B) -> Self {
         let mut new = Self {
             window: Fixed::from(buffer),
             sum: Frame::EQUILIBRIUM,
@@ -351,7 +351,7 @@ macro_rules! apply_doc_comment {
     };
 }
 
-macro_rules! define__empty {
+macro_rules! define__from_empty {
     ($helper_cls:ident, $cls:ident, $curr:expr) => {
         apply_doc_comment! {
             gen_doc_comment!(
@@ -362,14 +362,14 @@ macro_rules! define__empty {
                 ),
                 {
                     "// These values get zeroed out.",
-                    concat!("let mut window = ", stringify!($cls), "::empty([[-1.0]; 4]);"),
+                    concat!("let mut window = ", stringify!($cls), "::from_empty([[-1.0]; 4]);"),
                     concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
                 }
             ),
             {
                 #[inline]
-                pub fn empty(buffer: B) -> Self {
-                    Self($helper_cls::__empty(buffer))
+                pub fn from_empty(buffer: B) -> Self {
+                    Self($helper_cls::__from_empty(buffer))
                 }
             }
         }
@@ -430,7 +430,7 @@ macro_rules! define__fill {
                 $cls,
                 "Fills the window with a single constant [`Frame`] value.",
                 {
-                    concat!("let mut window = ", stringify!($cls), "::empty([[-1.0]; 4]);"),
+                    concat!("let mut window = ", stringify!($cls), "::from_empty([[-1.0]; 4]);"),
                     concat!("assert_eq!(window.current(), ", stringify!($curr), ");\n"),
                     concat!("window.fill([0.5]);"),
                     concat!("assert_eq!(window.current(), ", stringify!($after), ");"),
@@ -453,7 +453,7 @@ macro_rules! define__fill_with {
                 $cls,
                 "Fills the window by repeatedly calling a closure that produces [`Frame`]s.",
                 {
-                    concat!("let mut window = ", stringify!($cls), "::empty([[-1.0]; 4]);"),
+                    concat!("let mut window = ", stringify!($cls), "::from_empty([[-1.0]; 4]);"),
                     concat!("assert_eq!(window.current(), ", stringify!($curr), ");\n"),
                     "let mut x = 1.0;",
                     "window.fill_with(|| {",
@@ -483,7 +483,7 @@ macro_rules! define__len {
                 $cls,
                 "Returns the length of the window.",
                 {
-                    concat!("let window = ", stringify!($cls), "::empty([[0.0]; 99]);"),
+                    concat!("let window = ", stringify!($cls), "::from_empty([[0.0]; 99]);"),
                     "assert_eq!(window.len(), 99);",
                 }
             ),
@@ -592,7 +592,7 @@ macro_rules! calculator {
         $prose:literal,
         {
             args_from => ( $($ta_from:expr),* ),
-            args_empty => ( $($ta_empty:expr),* ),
+            args_from_empty => ( $($ta_from_empty:expr),* ),
             args_reset => ( $($ta_reset:expr),* ),
             args_fill => ( $($ta_fill:expr),* ),
             args_fill_with => ( $($ta_fill_with:expr),* ),
@@ -620,7 +620,7 @@ macro_rules! calculator {
             $(F::Sample: $sample_kind,)?
             B: Buffer<Item = F>,
         {
-            define__empty!($helper_cls, $cls, $($ta_empty),*);
+            define__from_empty!($helper_cls, $cls, $($ta_from_empty),*);
             define__reset!($cls, $($ta_reset),*);
             define__fill!($cls, $($ta_fill),*);
             define__fill_with!($cls, $($ta_fill_with),*);
@@ -659,7 +659,7 @@ macro_rules! calculator {
 
 calculator!(StatsInner, [NO_SQRT, NO_POW2], Mean, [FloatSample], "mean", {
     args_from => ([0.5]),
-    args_empty => ([0.0]),
+    args_from_empty => ([0.0]),
     args_reset => ([0.5], [0.0]),
     args_fill => ([0.0], [0.5]),
     args_fill_with => ([0.0], [0.375]),
@@ -670,7 +670,7 @@ calculator!(StatsInner, [NO_SQRT, NO_POW2], Mean, [FloatSample], "mean", {
 
 calculator!(StatsInner, [NO_SQRT, DO_POW2], Ms, [FloatSample], "MS", {
     args_from => ([0.25]),
-    args_empty => ([0.0]),
+    args_from_empty => ([0.0]),
     args_reset => ([0.3125], [0.0]),
     args_fill => ([0.0], [0.25]),
     args_fill_with => ([0.0], [0.21875]),
@@ -681,7 +681,7 @@ calculator!(StatsInner, [NO_SQRT, DO_POW2], Ms, [FloatSample], "MS", {
 
 calculator!(StatsInner, [DO_SQRT, DO_POW2], Rms, [FloatSample], "RMS", {
     args_from => ([0.5]),
-    args_empty => ([0.0]),
+    args_from_empty => ([0.0]),
     args_reset => ([0.5590169943749475], [0.0]),
     args_fill => ([0.0], [0.5]),
     args_fill_with => ([0.0], [0.46770717334674267]),
@@ -1072,7 +1072,7 @@ where
     }
 
     #[inline]
-    fn __empty(buffer: B) -> Self {
+    fn __from_empty(buffer: B) -> Self {
         assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
 
         // Create a dummy value, and then reset it.
@@ -1157,7 +1157,7 @@ where
 
 calculator!(MinMaxInner, [DO_MIN], Min, [], "minimum", {
     args_from => ([0.5]),
-    args_empty => ([0.0]),
+    args_from_empty => ([0.0]),
     args_reset => ([0.25], [0.0]),
     args_fill => ([0.0], [0.5]),
     args_fill_with => ([0.0], [0.0]),
@@ -1168,7 +1168,7 @@ calculator!(MinMaxInner, [DO_MIN], Min, [], "minimum", {
 
 calculator!(MinMaxInner, [DO_MAX], Max, [], "maximum", {
     args_from => ([0.5]),
-    args_empty => ([0.0]),
+    args_from_empty => ([0.0]),
     args_reset => ([0.75], [0.0]),
     args_fill => ([0.0], [0.5]),
     args_fill_with => ([0.0], [0.75]),
@@ -1221,9 +1221,9 @@ mod tests {
         }
 
         #[test]
-        fn prop_min_empty(in_buf in arb_input_buffer()) {
+        fn prop_min_from_empty(in_buf in arb_input_buffer()) {
             let buf_len = in_buf.len();
-            let window = Min::empty(in_buf);
+            let window = Min::from_empty(in_buf);
 
             // The min value should be the equilibrium frame.
             let expected = <[f32; N]>::EQUILIBRIUM;
@@ -1266,9 +1266,9 @@ mod tests {
         }
 
         #[test]
-        fn prop_max_empty(in_buf in arb_input_buffer()) {
+        fn prop_max_from_empty(in_buf in arb_input_buffer()) {
             let buf_len = in_buf.len();
-            let window = Max::empty(in_buf);
+            let window = Max::from_empty(in_buf);
 
             // The max value should be the equilibrium frame.
             let expected = <[f32; N]>::EQUILIBRIUM;

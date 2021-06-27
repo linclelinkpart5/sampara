@@ -744,7 +744,7 @@ pub trait Signal<const N: usize> {
         <Self::Frame as Frame<N>>::Sample: FloatSample,
         B: Buffer<Item = Self::Frame>,
     {
-        let processor = stats::Rms::empty(window);
+        let processor = stats::Rms::from_empty(window);
         self.process(processor)
     }
 
@@ -813,7 +813,7 @@ pub trait Signal<const N: usize> {
         <Self::Frame as Frame<N>>::Sample: FloatSample,
         B: Buffer<Item = Self::Frame>,
     {
-        let processor = stats::Ms::empty(window);
+        let processor = stats::Ms::from_empty(window);
         self.process(processor)
     }
 
