@@ -220,6 +220,33 @@ where
     t1: F,
 }
 
+impl<F, const N: usize> Biquad<F, N>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+{
+    pub fn process(&mut self, input: F) -> F {
+        // Calculate scaled inputs.
+        let input_by_b0 = input.mul_amp(self.params.b0).into_signed_frame();
+        let input_by_b1 = input.mul_amp(self.params.b1).into_signed_frame();
+        let input_by_b2 = input.mul_amp(self.params.b2);
+
+        // This is the new filtered frame.
+        let output: F = self.t0.add_frame(input_by_b0);
+
+        // Calculate scaled outputs.
+        // NOTE: Negative signs on the scaling factors for these.
+        let output_by_neg_a1 = output.mul_amp(-self.params.a1).into_signed_frame();
+        let output_by_neg_a2 = output.mul_amp(-self.params.a2).into_signed_frame();
+
+        // Update buffers.
+        self.t0 = self.t1.add_frame(input_by_b1).add_frame(output_by_neg_a1);
+        self.t1 = input_by_b2.add_frame(output_by_neg_a2);
+
+        output
+    }
+}
+
 impl<F, const N: usize> From<Params<F::Sample>> for Biquad<F, N>
 where
     F: Frame<N>,
@@ -243,23 +270,6 @@ where
     type Output = F;
 
     fn process(&mut self, input: Self::Input) -> Self::Output {
-        // Calculate scaled inputs.
-        let input_by_b0 = input.mul_amp(self.params.b0).into_signed_frame();
-        let input_by_b1 = input.mul_amp(self.params.b1).into_signed_frame();
-        let input_by_b2 = input.mul_amp(self.params.b2);
-
-        // This is the new filtered `Frame`.
-        let output: F = self.t0.add_frame(input_by_b0);
-
-        // Calculate scaled outputs.
-        // NOTE: Negative signs on the scaling factors for these.
-        let output_by_neg_a1 = output.mul_amp(-self.params.a1).into_signed_frame();
-        let output_by_neg_a2 = output.mul_amp(-self.params.a2).into_signed_frame();
-
-        // Update buffers.
-        self.t0 = self.t1.add_frame(input_by_b1).add_frame(output_by_neg_a1);
-        self.t1 = input_by_b2.add_frame(output_by_neg_a2);
-
-        output
+        self.process(input)
     }
 }
