@@ -28,7 +28,7 @@ where
 }
 
 #[derive(Clone)]
-struct StatsInner<F, B, const N: usize, const SQRT: bool, const POW2: bool>
+struct SummageInner<F, B, const N: usize, const SQRT: bool, const POW2: bool>
 where
     F: Frame<N>,
     F::Sample: FloatSample,
@@ -38,7 +38,7 @@ where
     sum: F,
 }
 
-impl<F, B, const N: usize, const SQRT: bool, const POW2: bool> SlidingStat<F, B, N> for StatsInner<F, B, N, SQRT, POW2>
+impl<F, B, const N: usize, const SQRT: bool, const POW2: bool> SlidingStat<F, B, N> for SummageInner<F, B, N, SQRT, POW2>
 where
     F: Frame<N>,
     F::Sample: FloatSample,
@@ -148,7 +148,7 @@ where
     }
 }
 
-impl<F, B, const N: usize, const SQRT: bool, const POW2: bool> From<B> for StatsInner<F, B, N, SQRT, POW2>
+impl<F, B, const N: usize, const SQRT: bool, const POW2: bool> From<B> for SummageInner<F, B, N, SQRT, POW2>
 where
     F: Frame<N>,
     F::Sample: FloatSample,
@@ -175,7 +175,7 @@ where
     }
 }
 
-impl<F, B, const N: usize, const SQRT: bool, const POW2: bool> Processor<N, N> for StatsInner<F, B, N, SQRT, POW2>
+impl<F, B, const N: usize, const SQRT: bool, const POW2: bool> Processor<N, N> for SummageInner<F, B, N, SQRT, POW2>
 where
     F: Frame<N>,
     F::Sample: FloatSample,
@@ -563,7 +563,7 @@ macro_rules! calculator {
     };
 }
 
-calculator!(StatsInner, [NO_SQRT, NO_POW2], Mean, [FloatSample], "mean", {
+calculator!(SummageInner, [NO_SQRT, NO_POW2], Mean, [FloatSample], "mean", {
     args_from => ([0.5]),
     args_from_empty => ([0.0]),
     args_reset => ([0.5], [0.0]),
@@ -574,7 +574,7 @@ calculator!(StatsInner, [NO_SQRT, NO_POW2], Mean, [FloatSample], "mean", {
     args_process => ([0.625], [0.8125], [0.9375], [1.0]),
 });
 
-calculator!(StatsInner, [NO_SQRT, DO_POW2], Ms, [FloatSample], "MS", {
+calculator!(SummageInner, [NO_SQRT, DO_POW2], Ms, [FloatSample], "MS", {
     args_from => ([0.25]),
     args_from_empty => ([0.0]),
     args_reset => ([0.3125], [0.0]),
@@ -585,7 +585,7 @@ calculator!(StatsInner, [NO_SQRT, DO_POW2], Ms, [FloatSample], "MS", {
     args_process => ([0.46875], [0.703125], [0.890625], [1.0]),
 });
 
-calculator!(StatsInner, [DO_SQRT, DO_POW2], Rms, [FloatSample], "RMS", {
+calculator!(SummageInner, [DO_SQRT, DO_POW2], Rms, [FloatSample], "RMS", {
     args_from => ([0.5]),
     args_from_empty => ([0.0]),
     args_reset => ([0.5590169943749475], [0.0]),
