@@ -502,7 +502,50 @@ macro_rules! calculator {
             define__from!($helper_cls, $cls, $($ta_from),*);
         }
 
-        // Forward `Processor::process` to `Self::process`.
+        // Implement `SlidingStat` and forward all methods to `Self`.
+        impl<F, B, const N: usize> SlidingStat<F, B, N> for $cls<F, B, N>
+        where
+            F: Frame<N>,
+            $(F::Sample: $sample_kind,)?
+            B: Buffer<Item = F>,
+        {
+            #[inline]
+            fn from_empty(buffer: B) -> Self {
+                Self::from_empty(buffer)
+            }
+
+            #[inline]
+            fn len(&self) -> usize {
+                self.len()
+            }
+
+            #[inline]
+            fn reset(&mut self) {
+                self.reset()
+            }
+
+            #[inline]
+            fn fill(&mut self, fill_val: F) {
+                self.fill(fill_val)
+            }
+
+            #[inline]
+            fn fill_with<M: FnMut() -> F>(&mut self, fill_func: M) {
+                self.fill_with(fill_func)
+            }
+
+            #[inline]
+            fn advance(&mut self, input: F) {
+                self.advance(input)
+            }
+
+            #[inline]
+            fn current(&self) -> F {
+                self.current()
+            }
+        }
+
+        // Implement `Processor` and forward all methods to `Self`.
         impl<F, B, const N: usize> Processor<N, N> for $cls<F, B, N>
         where
             F: Frame<N>,
