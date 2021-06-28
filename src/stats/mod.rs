@@ -38,31 +38,52 @@ where
     sum: F,
 }
 
-impl<F, B, const N: usize, const SQRT: bool, const POW2: bool> SlidingStat<F, B, N> for SummageInner<F, B, N, SQRT, POW2>
+impl<F, B, const N: usize, const SQRT: bool, const POW2: bool> SummageInner<F, B, N, SQRT, POW2>
 where
     F: Frame<N>,
     F::Sample: FloatSample,
     B: Buffer<Item = F>,
 {
     #[inline]
-    fn from_empty(buffer: B) -> Self {
+    fn __from(buffer: B) -> Self {
+        let mut buffer = buffer;
+        let mut sum = F::EQUILIBRIUM;
+
+        for frame in buffer.as_mut().iter_mut() {
+            if POW2 {
+                // Since the passed-in buffer has raw frames, square them
+                // in-place.
+                frame.transform(|x| x * x);
+            }
+
+            sum.add_assign_frame(frame.into_signed_frame());
+        }
+
+        Self {
+            window: Fixed::from(buffer),
+            sum,
+        }
+    }
+
+    #[inline]
+    fn __from_empty(buffer: B) -> Self {
         let mut new = Self {
             window: Fixed::from(buffer),
             sum: Frame::EQUILIBRIUM,
         };
 
-        new.reset();
+        new.__reset();
 
         new
     }
 
     #[inline]
-    fn len(&self) -> usize {
+    fn __len(&self) -> usize {
         self.window.capacity()
     }
 
     #[inline]
-    fn reset(&mut self) {
+    fn __reset(&mut self) {
         // ASSUME: All float samples have an equilibrium of 0. That way this
         // code as written works for any combo of (SQRT, POW2).
         self.window.fill(Frame::EQUILIBRIUM);
@@ -70,7 +91,7 @@ where
     }
 
     #[inline]
-    fn fill(&mut self, fill_val: F) {
+    fn __fill(&mut self, fill_val: F) {
         let mut fill_val = fill_val;
 
         if POW2 {
@@ -83,12 +104,12 @@ where
 
         // Since the buffer is filled with a constant value, just multiply to
         // calculate the sum.
-        let len_f: F::Sample = Sample::from_sample(self.len() as f32);
+        let len_f: F::Sample = Sample::from_sample(self.__len() as f32);
         self.sum = fill_val.mul_amp(len_f);
     }
 
     #[inline]
-    fn fill_with<M>(&mut self, fill_func: M)
+    fn __fill_with<M>(&mut self, fill_func: M)
     where
         M: FnMut() -> F,
     {
@@ -114,7 +135,7 @@ where
     }
 
     #[inline]
-    fn advance(&mut self, input: F) {
+    fn __advance(&mut self, input: F) {
         let mut input = input;
 
         if POW2 {
@@ -136,8 +157,8 @@ where
     }
 
     #[inline]
-    fn current(&self) -> F {
-        let len_f = Sample::from_sample(self.len() as f32);
+    fn __current(&self) -> F {
+        let len_f = Sample::from_sample(self.__len() as f32);
         let mut ret: F = self.sum.apply(|s| s / len_f);
 
         if SQRT {
@@ -146,48 +167,11 @@ where
 
         ret
     }
-}
-
-impl<F, B, const N: usize, const SQRT: bool, const POW2: bool> From<B> for SummageInner<F, B, N, SQRT, POW2>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-{
-    fn from(buffer: B) -> Self {
-        let mut buffer = buffer;
-        let mut sum = F::EQUILIBRIUM;
-
-        for frame in buffer.as_mut().iter_mut() {
-            if POW2 {
-                // Since the passed-in buffer has raw frames, square them
-                // in-place.
-                frame.transform(|x| x * x);
-            }
-
-            sum.add_assign_frame(frame.into_signed_frame());
-        }
-
-        Self {
-            window: Fixed::from(buffer),
-            sum,
-        }
-    }
-}
-
-impl<F, B, const N: usize, const SQRT: bool, const POW2: bool> Processor<N, N> for SummageInner<F, B, N, SQRT, POW2>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
-{
-    type Input = F;
-    type Output = F;
 
     #[inline]
-    fn process(&mut self, input: F) -> F {
-        self.advance(input);
-        self.current()
+    fn __process(&mut self, input: F) -> F {
+        self.__advance(input);
+        self.__current()
     }
 }
 
@@ -232,7 +216,7 @@ macro_rules! define__from_empty {
             {
                 #[inline]
                 pub fn from_empty(buffer: B) -> Self {
-                    Self($helper_cls::from_empty(buffer))
+                    Self($helper_cls::__from_empty(buffer))
                 }
             }
         }
@@ -256,7 +240,7 @@ macro_rules! define__from {
             {
                 #[inline]
                 fn from(buffer: B) -> Self {
-                    Self($helper_cls::from(buffer))
+                    Self($helper_cls::__from(buffer))
                 }
             }
         }
@@ -279,7 +263,7 @@ macro_rules! define__reset {
             {
                 #[inline]
                 pub fn reset(&mut self) {
-                    self.0.reset()
+                    self.0.__reset()
                 }
             }
         }
@@ -302,7 +286,7 @@ macro_rules! define__fill {
             {
                 #[inline]
                 pub fn fill(&mut self, fill_val: F) {
-                    self.0.fill(fill_val)
+                    self.0.__fill(fill_val)
                 }
             }
         }
@@ -332,7 +316,7 @@ macro_rules! define__fill_with {
                 where
                     M: FnMut() -> F,
                 {
-                    self.0.fill_with(fill_func)
+                    self.0.__fill_with(fill_func)
                 }
             }
         }
@@ -353,7 +337,7 @@ macro_rules! define__len {
             {
                 #[inline]
                 pub fn len(&self) -> usize {
-                    self.0.len()
+                    self.0.__len()
                 }
             }
         }
@@ -387,7 +371,7 @@ macro_rules! define__advance {
             {
                 #[inline]
                 pub fn advance(&mut self, input: F) {
-                    self.0.advance(input)
+                    self.0.__advance(input)
                 }
             }
         }
@@ -410,7 +394,7 @@ macro_rules! define__current {
             {
                 #[inline]
                 pub fn current(&self) -> F {
-                    self.0.current()
+                    self.0.__current()
                 }
             }
         }
@@ -439,7 +423,7 @@ macro_rules! define__process {
             {
                 #[inline]
                 pub fn process(&mut self, input: F) -> F {
-                    self.0.process(input)
+                    self.0.__process(input)
                 }
             }
         }
@@ -951,13 +935,34 @@ where
     ext_state: ExtremaState<F::Sample, N, MAX>,
 }
 
-impl<F, B, const N: usize, const MAX: bool> SlidingStat<F, B, N> for MinMaxInner<F, B, N, MAX>
+impl<F, B, const N: usize, const MAX: bool> MinMaxInner<F, B, N, MAX>
 where
     F: Frame<N>,
     B: Buffer<Item = F>,
 {
     #[inline]
-    fn from_empty(buffer: B) -> Self {
+    fn __from(buffer: B) -> Self {
+        assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
+
+        let mut buf_iter = buffer.as_ref().iter();
+
+        // SAFETY: We assert that the buffer has a non-zero length above.
+        let xs = unsafe { buf_iter.next().unwrap_unchecked() }.into_array();
+
+        let mut ext_state = ExtremaState::<_, N, MAX>::from(xs);
+
+        for frame in buf_iter {
+            ext_state.push(frame.into_array());
+        }
+
+        Self {
+            window: Fixed::from(buffer),
+            ext_state,
+        }
+    }
+
+    #[inline]
+    fn __from_empty(buffer: B) -> Self {
         assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
 
         // Create a dummy value, and then reset it.
@@ -966,24 +971,24 @@ where
             ext_state: ExtremaState::default(),
         };
 
-        new.reset();
+        new.__reset();
 
         new
     }
 
     #[inline]
-    fn len(&self) -> usize {
+    fn __len(&self) -> usize {
         self.window.capacity()
     }
 
     #[inline]
-    fn reset(&mut self) {
-        self.fill(Frame::EQUILIBRIUM)
+    fn __reset(&mut self) {
+        self.__fill(Frame::EQUILIBRIUM)
     }
 
     #[inline]
-    fn fill(&mut self, fill_val: F) {
-        let f_pos = self.len() - 1;
+    fn __fill(&mut self, fill_val: F) {
+        let f_pos = self.__len() - 1;
 
         self.window.fill(fill_val);
         self.ext_state = ExtremaState {
@@ -994,7 +999,7 @@ where
     }
 
     #[inline]
-    fn fill_with<M>(&mut self, fill_func: M)
+    fn __fill_with<M>(&mut self, fill_func: M)
     where
         M: FnMut() -> F,
     {
@@ -1023,55 +1028,20 @@ where
     }
 
     #[inline]
-    fn advance(&mut self, input: F) {
+    fn __advance(&mut self, input: F) {
         self.window.push(input);
         self.ext_state.push_pop(input.into_array(), &self.window);
     }
 
     #[inline]
-    fn current(&self) -> F {
+    fn __current(&self) -> F {
         self.ext_state.frontiers.map(|(f_ext, _f_pos)| f_ext).into_frame()
     }
-}
-
-impl<F, B, const N: usize, const MAX: bool> From<B> for MinMaxInner<F, B, N, MAX>
-where
-    F: Frame<N>,
-    B: Buffer<Item = F>,
-{
-    fn from(buffer: B) -> Self {
-        assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
-
-        let mut buf_iter = buffer.as_ref().iter();
-
-        // SAFETY: We assert that the buffer has a non-zero length above.
-        let xs = unsafe { buf_iter.next().unwrap_unchecked() }.into_array();
-
-        let mut ext_state = ExtremaState::<_, N, MAX>::from(xs);
-
-        for frame in buf_iter {
-            ext_state.push(frame.into_array());
-        }
-
-        Self {
-            window: Fixed::from(buffer),
-            ext_state,
-        }
-    }
-}
-
-impl<F, B, const N: usize, const MAX: bool> Processor<N, N> for MinMaxInner<F, B, N, MAX>
-where
-    F: Frame<N>,
-    B: Buffer<Item = F>,
-{
-    type Input = F;
-    type Output = F;
 
     #[inline]
-    fn process(&mut self, input: F) -> F {
-        self.advance(input);
-        self.current()
+    fn __process(&mut self, input: F) -> F {
+        self.__advance(input);
+        self.__current()
     }
 }
 
