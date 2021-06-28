@@ -6,6 +6,8 @@ use crate::{Frame, Sample, Processor};
 use crate::buffer::{Fixed, Buffer};
 use crate::sample::FloatSample;
 
+const EMPTY_BUFFER_MSG: &'static str = "buffer cannot be empty";
+
 const DO_SQRT: bool = true;
 const NO_SQRT: bool = false;
 const DO_POW2: bool = true;
@@ -198,6 +200,31 @@ macro_rules! apply_doc_comment {
     };
 }
 
+macro_rules! define__from {
+    ($helper_cls:ident, $cls:ident, $curr:expr) => {
+        apply_doc_comment! {
+            gen_doc_comment!(
+                $cls,
+                concat!(
+                    "Creates a new [`", stringify!($cls), "`] using a given [`Buffer`] as a window. ",
+                    "The provided buffer is assumed to be filled with the initial window buffer [`Frame`]s.",
+                ),
+                {
+                    concat!("let mut window = ", stringify!($cls), "::from([[0.5]; 4]);\n"),
+                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
+                }
+            ),
+            {
+                #[inline]
+                fn from(buffer: B) -> Self {
+                    assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
+                    Self($helper_cls::__from(buffer))
+                }
+            }
+        }
+    }
+}
+
 macro_rules! define__from_empty {
     ($helper_cls:ident, $cls:ident, $curr:expr) => {
         apply_doc_comment! {
@@ -216,31 +243,8 @@ macro_rules! define__from_empty {
             {
                 #[inline]
                 pub fn from_empty(buffer: B) -> Self {
+                    assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
                     Self($helper_cls::__from_empty(buffer))
-                }
-            }
-        }
-    }
-}
-
-macro_rules! define__from {
-    ($helper_cls:ident, $cls:ident, $curr:expr) => {
-        apply_doc_comment! {
-            gen_doc_comment!(
-                $cls,
-                concat!(
-                    "Creates a new [`", stringify!($cls), "`] using a given [`Buffer`] as a window. ",
-                    "The provided buffer is assumed to be filled with the initial window buffer [`Frame`]s.",
-                ),
-                {
-                    concat!("let mut window = ", stringify!($cls), "::from([[0.5]; 4]);\n"),
-                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
-                }
-            ),
-            {
-                #[inline]
-                fn from(buffer: B) -> Self {
-                    Self($helper_cls::__from(buffer))
                 }
             }
         }
@@ -923,8 +927,6 @@ where
     }
 }
 
-const EMPTY_BUFFER_MSG: &'static str = "buffer cannot be empty";
-
 #[derive(Clone)]
 struct MinMaxInner<B, const N: usize, const MAX: bool>
 where
@@ -942,11 +944,10 @@ where
 {
     #[inline]
     fn __from(buffer: B) -> Self {
-        assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
-
         let mut buf_iter = buffer.as_ref().iter();
 
-        // SAFETY: We assert that the buffer has a non-zero length above.
+        // SAFETY: This method should only ever be called immediately after
+        //         a buffer length assertion.
         let xs = unsafe { buf_iter.next().unwrap_unchecked() }.into_array();
 
         let mut ext_state = ExtremaState::<_, N, MAX>::from(xs);
@@ -963,8 +964,6 @@ where
 
     #[inline]
     fn __from_empty(buffer: B) -> Self {
-        assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
-
         // Create a dummy value, and then reset it.
         let mut new = Self {
             window: Fixed::from(buffer),
@@ -988,6 +987,8 @@ where
 
     #[inline]
     fn __fill(&mut self, fill_val: B::Item) {
+        // SAFETY: We ensure that this struct never gets created with a buffer
+        //         length of 0, so this should never underflow.
         let f_pos = self.__len() - 1;
 
         self.window.fill(fill_val);
@@ -1022,8 +1023,9 @@ where
 
         self.window.fill_with(prepped_fill_func);
 
-        // SAFETY: We expect the fill function to execute at least once, since
-        //         we asserted a non-empty window.
+        // SAFETY: We ensure that this struct never gets created with a buffer
+        //         length of 0, so the fill function is expected to execute at
+        //         least once and create the state.
         self.ext_state = unsafe { opt_ext_state.unwrap_unchecked() };
     }
 
