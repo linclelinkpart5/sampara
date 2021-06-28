@@ -13,41 +13,41 @@ const NO_POW2: bool = false;
 
 /// Types that perform a calculation using a sliding window (ring buffer) of
 /// input data.
-pub trait SlidingStat<F, B, const N: usize>: From<B> + Processor<N, N, Input = F, Output = F>
+pub trait SlidingStat<B, const N: usize>: From<B> + Processor<N, N, Input = B::Item, Output = B::Item>
 where
-    F: Frame<N>,
-    B: Buffer<Item = F>,
+    B: Buffer,
+    B::Item: Frame<N>
 {
     fn from_empty(buffer: B) -> Self;
     fn len(&self) -> usize;
     fn reset(&mut self);
-    fn fill(&mut self, fill_val: F);
-    fn fill_with<M: FnMut() -> F>(&mut self, fill_func: M);
-    fn advance(&mut self, input: F);
-    fn current(&self) -> F;
+    fn fill(&mut self, fill_val: B::Item);
+    fn fill_with<M: FnMut() -> B::Item>(&mut self, fill_func: M);
+    fn advance(&mut self, input: B::Item);
+    fn current(&self) -> B::Item;
 }
 
 #[derive(Clone)]
-struct SummageInner<F, B, const N: usize, const SQRT: bool, const POW2: bool>
+struct SummageInner<B, const N: usize, const SQRT: bool, const POW2: bool>
 where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
+    B: Buffer,
+    B::Item: Frame<N>,
+    <B::Item as Frame<N>>::Sample: FloatSample,
 {
     window: Fixed<B>,
-    sum: F,
+    sum: B::Item,
 }
 
-impl<F, B, const N: usize, const SQRT: bool, const POW2: bool> SummageInner<F, B, N, SQRT, POW2>
+impl<B, const N: usize, const SQRT: bool, const POW2: bool> SummageInner<B, N, SQRT, POW2>
 where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-    B: Buffer<Item = F>,
+    B: Buffer,
+    B::Item: Frame<N>,
+    <B::Item as Frame<N>>::Sample: FloatSample,
 {
     #[inline]
     fn __from(buffer: B) -> Self {
         let mut buffer = buffer;
-        let mut sum = F::EQUILIBRIUM;
+        let mut sum = B::Item::EQUILIBRIUM;
 
         for frame in buffer.as_mut().iter_mut() {
             if POW2 {
@@ -91,7 +91,7 @@ where
     }
 
     #[inline]
-    fn __fill(&mut self, fill_val: F) {
+    fn __fill(&mut self, fill_val: B::Item) {
         let mut fill_val = fill_val;
 
         if POW2 {
@@ -104,17 +104,17 @@ where
 
         // Since the buffer is filled with a constant value, just multiply to
         // calculate the sum.
-        let len_f: F::Sample = Sample::from_sample(self.__len() as f32);
+        let len_f: <B::Item as Frame<N>>::Sample = Sample::from_sample(self.__len() as f32);
         self.sum = fill_val.mul_amp(len_f);
     }
 
     #[inline]
     fn __fill_with<M>(&mut self, fill_func: M)
     where
-        M: FnMut() -> F,
+        M: FnMut() -> B::Item,
     {
         let mut fill_func = fill_func;
-        let mut sum = F::EQUILIBRIUM;
+        let mut sum = B::Item::EQUILIBRIUM;
 
         let prepped_fill_func = || {
             let mut f = fill_func();
@@ -135,7 +135,7 @@ where
     }
 
     #[inline]
-    fn __advance(&mut self, input: F) {
+    fn __advance(&mut self, input: B::Item) {
         let mut input = input;
 
         if POW2 {
@@ -157,9 +157,9 @@ where
     }
 
     #[inline]
-    fn __current(&self) -> F {
+    fn __current(&self) -> B::Item {
         let len_f = Sample::from_sample(self.__len() as f32);
-        let mut ret: F = self.sum.apply(|s| s / len_f);
+        let mut ret: B::Item = self.sum.apply(|s| s / len_f);
 
         if SQRT {
             ret.transform(Float::sqrt);
@@ -169,7 +169,7 @@ where
     }
 
     #[inline]
-    fn __process(&mut self, input: F) -> F {
+    fn __process(&mut self, input: B::Item) -> B::Item {
         self.__advance(input);
         self.__current()
     }
@@ -285,7 +285,7 @@ macro_rules! define__fill {
             ),
             {
                 #[inline]
-                pub fn fill(&mut self, fill_val: F) {
+                pub fn fill(&mut self, fill_val: B::Item) {
                     self.0.__fill(fill_val)
                 }
             }
@@ -314,7 +314,7 @@ macro_rules! define__fill_with {
                 #[inline]
                 pub fn fill_with<M>(&mut self, fill_func: M)
                 where
-                    M: FnMut() -> F,
+                    M: FnMut() -> B::Item,
                 {
                     self.0.__fill_with(fill_func)
                 }
@@ -370,7 +370,7 @@ macro_rules! define__advance {
             ),
             {
                 #[inline]
-                pub fn advance(&mut self, input: F) {
+                pub fn advance(&mut self, input: B::Item) {
                     self.0.__advance(input)
                 }
             }
@@ -393,7 +393,7 @@ macro_rules! define__current {
             ),
             {
                 #[inline]
-                pub fn current(&self) -> F {
+                pub fn current(&self) -> B::Item {
                     self.0.__current()
                 }
             }
@@ -422,7 +422,7 @@ macro_rules! define__process {
             ),
             {
                 #[inline]
-                pub fn process(&mut self, input: F) -> F {
+                pub fn process(&mut self, input: B::Item) -> B::Item {
                     self.0.__process(input)
                 }
             }
@@ -452,20 +452,20 @@ macro_rules! calculator {
             concat!("Keeps a running ", $prose, " of a window of [`Frame`]s over time."),
             {
                 #[derive(Clone)]
-                pub struct $cls<F, B, const N: usize>($helper_cls<F, B, N, $( $const_gen_state ),* >)
+                pub struct $cls<B, const N: usize>($helper_cls<B, N, $( $const_gen_state ),* >)
                 where
-                    F: Frame<N>,
-                    $(F::Sample: $sample_kind,)?
-                    B: Buffer<Item = F>,
+                    B: Buffer,
+                    B::Item: Frame<N>,
+                    $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
                 ;
             }
         }
 
-        impl<F, B, const N: usize> $cls<F, B, N>
+        impl<B, const N: usize> $cls<B, N>
         where
-            F: Frame<N>,
-            $(F::Sample: $sample_kind,)?
-            B: Buffer<Item = F>,
+            B: Buffer,
+            B::Item: Frame<N>,
+            $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
         {
             define__from_empty!($helper_cls, $cls, $($ta_from_empty),*);
             define__reset!($cls, $($ta_reset),*);
@@ -477,21 +477,21 @@ macro_rules! calculator {
             define__process!($cls, $prose, $($ta_process),*);
         }
 
-        impl<F, B, const N: usize> From<B> for $cls<F, B, N>
+        impl<B, const N: usize> From<B> for $cls<B, N>
         where
-            F: Frame<N>,
-            $(F::Sample: $sample_kind,)?
-            B: Buffer<Item = F>,
+            B: Buffer,
+            B::Item: Frame<N>,
+            $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
         {
             define__from!($helper_cls, $cls, $($ta_from),*);
         }
 
         // Implement `SlidingStat` and forward all methods to `Self`.
-        impl<F, B, const N: usize> SlidingStat<F, B, N> for $cls<F, B, N>
+        impl<B, const N: usize> SlidingStat<B, N> for $cls<B, N>
         where
-            F: Frame<N>,
-            $(F::Sample: $sample_kind,)?
-            B: Buffer<Item = F>,
+            B: Buffer,
+            B::Item: Frame<N>,
+            $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
         {
             #[inline]
             fn from_empty(buffer: B) -> Self {
@@ -509,35 +509,35 @@ macro_rules! calculator {
             }
 
             #[inline]
-            fn fill(&mut self, fill_val: F) {
+            fn fill(&mut self, fill_val: B::Item) {
                 self.fill(fill_val)
             }
 
             #[inline]
-            fn fill_with<M: FnMut() -> F>(&mut self, fill_func: M) {
+            fn fill_with<M: FnMut() -> B::Item>(&mut self, fill_func: M) {
                 self.fill_with(fill_func)
             }
 
             #[inline]
-            fn advance(&mut self, input: F) {
+            fn advance(&mut self, input: B::Item) {
                 self.advance(input)
             }
 
             #[inline]
-            fn current(&self) -> F {
+            fn current(&self) -> B::Item {
                 self.current()
             }
         }
 
         // Implement `Processor` and forward all methods to `Self`.
-        impl<F, B, const N: usize> Processor<N, N> for $cls<F, B, N>
+        impl<B, const N: usize> Processor<N, N> for $cls<B, N>
         where
-            F: Frame<N>,
-            $(F::Sample: $sample_kind,)?
-            B: Buffer<Item = F>,
+            B: Buffer,
+            B::Item: Frame<N>,
+            $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
         {
-            type Input = F;
-            type Output = F;
+            type Input = B::Item;
+            type Output = B::Item;
 
             #[inline]
             fn process(&mut self, input: Self::Input) -> Self::Output {
@@ -926,19 +926,19 @@ where
 const EMPTY_BUFFER_MSG: &'static str = "buffer cannot be empty";
 
 #[derive(Clone)]
-struct MinMaxInner<F, B, const N: usize, const MAX: bool>
+struct MinMaxInner<B, const N: usize, const MAX: bool>
 where
-    F: Frame<N>,
-    B: Buffer<Item = F>,
+    B: Buffer,
+    B::Item: Frame<N>,
 {
     window: Fixed<B>,
-    ext_state: ExtremaState<F::Sample, N, MAX>,
+    ext_state: ExtremaState<<B::Item as Frame<N>>::Sample, N, MAX>,
 }
 
-impl<F, B, const N: usize, const MAX: bool> MinMaxInner<F, B, N, MAX>
+impl<B, const N: usize, const MAX: bool> MinMaxInner<B, N, MAX>
 where
-    F: Frame<N>,
-    B: Buffer<Item = F>,
+    B: Buffer,
+    B::Item: Frame<N>,
 {
     #[inline]
     fn __from(buffer: B) -> Self {
@@ -987,7 +987,7 @@ where
     }
 
     #[inline]
-    fn __fill(&mut self, fill_val: F) {
+    fn __fill(&mut self, fill_val: B::Item) {
         let f_pos = self.__len() - 1;
 
         self.window.fill(fill_val);
@@ -1001,7 +1001,7 @@ where
     #[inline]
     fn __fill_with<M>(&mut self, fill_func: M)
     where
-        M: FnMut() -> F,
+        M: FnMut() -> B::Item,
     {
         let mut fill_func = fill_func;
 
@@ -1028,18 +1028,18 @@ where
     }
 
     #[inline]
-    fn __advance(&mut self, input: F) {
+    fn __advance(&mut self, input: B::Item) {
         self.window.push(input);
         self.ext_state.push_pop(input.into_array(), &self.window);
     }
 
     #[inline]
-    fn __current(&self) -> F {
+    fn __current(&self) -> B::Item {
         self.ext_state.frontiers.map(|(f_ext, _f_pos)| f_ext).into_frame()
     }
 
     #[inline]
-    fn __process(&mut self, input: F) -> F {
+    fn __process(&mut self, input: B::Item) -> B::Item {
         self.__advance(input);
         self.__current()
     }

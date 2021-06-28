@@ -27,11 +27,9 @@ pub type Map<S, FO, M, const NI: usize, const NO: usize> =
         NI, NO,
     >;
 
-pub type Ms<S, B, const N: usize> =
-    Process<S, stats::Ms<<S as Signal<N>>::Frame, B, N>, N, N>;
+pub type Ms<S, B, const N: usize> = Process<S, stats::Ms<B, N>, N, N>;
 
-pub type Rms<S, B, const N: usize> =
-    Process<S, stats::Rms<<S as Signal<N>>::Frame, B, N>, N, N>;
+pub type Rms<S, B, const N: usize> = Process<S, stats::Rms<B, N>, N, N>;
 
 pub type Mix<SL, SR, FO, M, const NL: usize, const NR: usize, const NO: usize> =
     Combine<
