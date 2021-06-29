@@ -15,7 +15,7 @@ const NO_POW2: bool = false;
 
 /// Types that perform a calculation using a sliding window (ring buffer) of
 /// input data.
-pub trait SlidingStat<B, const N: usize>: From<B> + Processor<N, N, Input = B::Item, Output = B::Item>
+pub trait SlidingCalculator<B, const N: usize>: From<B> + Processor<N, N, Input = B::Item, Output = B::Item>
 where
     B: Buffer,
     B::Item: Frame<N>
@@ -490,8 +490,8 @@ macro_rules! calculator {
             define__from!($helper_cls, $cls, $($ta_from),*);
         }
 
-        // Implement `SlidingStat` and forward all methods to `Self`.
-        impl<B, const N: usize> SlidingStat<B, N> for $cls<B, N>
+        // Implement `SlidingCalculator` and forward all methods to `Self`.
+        impl<B, const N: usize> SlidingCalculator<B, N> for $cls<B, N>
         where
             B: Buffer,
             B::Item: Frame<N>,
