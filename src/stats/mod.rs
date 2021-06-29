@@ -1069,6 +1069,76 @@ calculator!(MinMaxInner, [DO_MAX], Max, [], "maximum", {
     args_process => ([1.0], [1.0], [1.0], [1.0]),
 });
 
+use crate::Signal;
+
+struct LWC<S, B, C, const N: usize>
+where
+    S: Signal<N>,
+    B: Buffer<Item = S::Frame>,
+    C: SlidingCalculator<B, N>,
+{
+    signal: S,
+    state: LWCState<B, C, N>,
+}
+
+enum LWCState<B, C, const N: usize>
+where
+    B: Buffer,
+    B::Item: Frame<N>,
+    C: SlidingCalculator<B, N>,
+{
+    Failed,
+    Uninit(B),
+    Active(C),
+}
+
+impl<B, C, const N: usize> LWCState<B, C, N>
+where
+    B: Buffer,
+    B::Item: Frame<N>,
+    C: SlidingCalculator<B, N>,
+{
+    fn advance_inner<S>(self, signal: &mut S) -> (Option<S::Frame>, Self)
+    where
+        S: Signal<N, Frame = B::Item>,
+    {
+        match self {
+            Self::Active(mut calc) => {
+                (signal.next().map(|f| calc.process(f)), Self::Active(calc))
+            },
+
+            Self::Uninit(mut buffer) => {
+                // Try and fill the buffer now.
+                if let Ok(()) = signal.fill_buffer(&mut buffer) {
+                    // The buffer was successfully filled, create a new sliding
+                    // calculator.
+                    let calc = C::from(buffer);
+                    (Some(calc.current()), Self::Active(calc))
+                }
+                else {
+                    (None, Self::Failed)
+                }
+            },
+
+            Self::Failed => (None, Self::Failed),
+        }
+    }
+
+    fn advance<S>(&mut self, signal: &mut S) -> Option<S::Frame>
+    where
+        S: Signal<N, Frame = B::Item>,
+    {
+        // Swap `self` with a dummy value.
+        let mut snatched = Self::Failed;
+        std::mem::swap(&mut snatched, self);
+
+        let (ret, new_state) = snatched.advance_inner(signal);
+        *self = new_state;
+
+        ret
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
