@@ -548,6 +548,45 @@ macro_rules! calculator {
                 self.process(input)
             }
         }
+
+        paste::paste! {
+            pub struct [<Lazy $cls>]<S, B, const N: usize>
+            where
+                S: Signal<N>,
+                B: Buffer<Item = S::Frame>,
+                $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+            {
+                signal: S,
+                state: LWCState<B, $cls<B, N>, N>,
+            }
+
+            impl<S, B, const N: usize> [<Lazy $cls>]<S, B, N>
+            where
+                S: Signal<N>,
+                B: Buffer<Item = S::Frame>,
+                $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+            {
+                fn new(signal: S, buffer: B) -> Self {
+                    Self {
+                        signal,
+                        state: LWCState::Uninit(buffer),
+                    }
+                }
+            }
+
+            impl<S, B, const N: usize> Signal<N> for [<Lazy $cls>]<S, B, N>
+            where
+                S: Signal<N>,
+                B: Buffer<Item = S::Frame>,
+                $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+            {
+                type Frame = B::Item;
+
+                fn next(&mut self) -> Option<Self::Frame> {
+                    self.state.advance(&mut self.signal)
+                }
+            }
+        }
     };
 }
 
