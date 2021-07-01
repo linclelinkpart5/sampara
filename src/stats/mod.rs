@@ -1,3 +1,7 @@
+// LEARN: This is needed in order to make the generated injection macros
+// visible in other modules in the crate.
+#![macro_use]
+
 use std::cmp::Ordering;
 
 use num_traits::Float;
@@ -12,6 +16,236 @@ const DO_SQRT: bool = true;
 const NO_SQRT: bool = false;
 const DO_POW2: bool = true;
 const NO_POW2: bool = false;
+
+// This macro creates all calculators, helper classes, typedefs, and signal
+// adaptors, as well as sub-macros for injecting the typedefs and signal
+// methods into where they are needed.
+macro_rules! master {
+    (
+        // The module path to find all of these generated calculator classes
+        // (i.e. `sampara::stats`).
+        module_path => $ns:path,
+
+        // A prefix to attach to the generated injection macro names.
+        injector_prefix => $injector_prefix:ident,
+
+        $({
+            // Desired name for the public calculator class (e.g. `Rms`).
+            class_name => $cls:ident,
+
+            // Desired name for the public method on `Signal` that uses this
+            // calculator (e.g. `Rms`).
+            func_name => $func_name:ident,
+
+            // The `*Inner` class to use to power this calculator type
+            // (e.g. `StatsInner`).
+            inner_class => $helper_cls:ident,
+
+            // Optional const generic arguments for the `*Inner` class to use
+            // (e.g. `DO_SQRT`, `DO_POW2`).
+            inner_class_const_generic_vals => [ $( $const_gen_state:expr ),* ],
+
+            // Optional extra bounds on the `Sample` type for this new
+            // calculator (e.g. `FloatSample`).
+            sample_trait_bounds => [ $( $sample_kind:ident )? ],
+
+            // A human-readable term for what this calculator calculates (e.g.
+            // "RMS", "maximum", etc),
+            description => $prose:literal,
+
+            methods_defs => {
+                args_from => ( $($ta_from:expr),* ),
+                args_from_empty => ( $($ta_from_empty:expr),* ),
+                args_reset => ( $($ta_reset:expr),* ),
+                args_fill => ( $($ta_fill:expr),* ),
+                args_fill_with => ( $($ta_fill_with:expr),* ),
+                args_advance => ( $($ta_advance:expr),* ),
+                args_current => ( $($ta_current:expr),* ),
+                args_process => ( $($ta_process:expr),* ),
+            }
+        }),+
+    ) => {
+        $(
+            apply_doc_comment! {
+                concat!("Keeps a running ", $prose, " of a window of [`Frame`]s over time."),
+                {
+                    #[derive(Clone)]
+                    pub struct $cls<B, const N: usize>($helper_cls<B, N, $( $const_gen_state ),* >)
+                    where
+                        B: Buffer,
+                        B::Item: Frame<N>,
+                        $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+                    ;
+                }
+            }
+
+            impl<B, const N: usize> $cls<B, N>
+            where
+                B: Buffer,
+                B::Item: Frame<N>,
+                $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+            {
+                define__from_empty!($helper_cls, $cls, $($ta_from_empty),*);
+                define__reset!($cls, $($ta_reset),*);
+                define__fill!($cls, $($ta_fill),*);
+                define__fill_with!($cls, $($ta_fill_with),*);
+                define__len!($cls);
+                define__advance!($cls, $prose, $($ta_advance),*);
+                define__current!($cls, $prose, $($ta_current),*);
+                define__process!($cls, $prose, $($ta_process),*);
+            }
+
+            impl<B, const N: usize> From<B> for $cls<B, N>
+            where
+                B: Buffer,
+                B::Item: Frame<N>,
+                $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+            {
+                define__from!($helper_cls, $cls, $($ta_from),*);
+            }
+
+            // Implement `SlidingCalculator` and forward all methods to `Self`.
+            impl<B, const N: usize> SlidingCalculator<B, N> for $cls<B, N>
+            where
+                B: Buffer,
+                B::Item: Frame<N>,
+                $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+            {
+                #[inline]
+                fn from_empty(buffer: B) -> Self {
+                    Self::from_empty(buffer)
+                }
+
+                #[inline]
+                fn len(&self) -> usize {
+                    self.len()
+                }
+
+                #[inline]
+                fn reset(&mut self) {
+                    self.reset()
+                }
+
+                #[inline]
+                fn fill(&mut self, fill_val: B::Item) {
+                    self.fill(fill_val)
+                }
+
+                #[inline]
+                fn fill_with<M: FnMut() -> B::Item>(&mut self, fill_func: M) {
+                    self.fill_with(fill_func)
+                }
+
+                #[inline]
+                fn advance(&mut self, input: B::Item) {
+                    self.advance(input)
+                }
+
+                #[inline]
+                fn current(&self) -> B::Item {
+                    self.current()
+                }
+            }
+
+            // Implement `Processor` and forward all methods to `Self`.
+            impl<B, const N: usize> Processor<N, N> for $cls<B, N>
+            where
+                B: Buffer,
+                B::Item: Frame<N>,
+                $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+            {
+                type Input = B::Item;
+                type Output = B::Item;
+
+                #[inline]
+                fn process(&mut self, input: Self::Input) -> Self::Output {
+                    self.process(input)
+                }
+            }
+
+            paste::paste! {
+                pub struct [<Lazy $cls>]<S, B, const N: usize>
+                where
+                    S: Signal<N>,
+                    B: Buffer<Item = S::Frame>,
+                    $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+                {
+                    signal: S,
+                    state: LWCState<B, $cls<B, N>, N>,
+                }
+
+                impl<S, B, const N: usize> [<Lazy $cls>]<S, B, N>
+                where
+                    S: Signal<N>,
+                    B: Buffer<Item = S::Frame>,
+                    $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+                {
+                    fn new(signal: S, buffer: B) -> Self {
+                        Self {
+                            signal,
+                            state: LWCState::Uninit(buffer),
+                        }
+                    }
+                }
+
+                impl<S, B, const N: usize> Signal<N> for [<Lazy $cls>]<S, B, N>
+                where
+                    S: Signal<N>,
+                    B: Buffer<Item = S::Frame>,
+                    $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+                {
+                    type Frame = B::Item;
+
+                    fn next(&mut self) -> Option<Self::Frame> {
+                        self.state.advance(&mut self.signal)
+                    }
+                }
+            }
+        )+
+
+
+        paste::paste! {
+            // This is a generated macro that injects a signal `Processor`
+            // typedef per defined calculator in this master macro.
+            macro_rules! [< $injector_prefix _inject_processor_typedefs >] {
+                () => {
+                    // NOTE: The `$cls` is intended to be the typedef name.
+                    $( pub type $cls<S, B, const N: usize> = Process<S, $ns::$cls<B, N>, N, N>; )+
+                };
+            }
+
+            // This is a generated macro that injects methods into the `Signal`
+            // trait definition.
+            macro_rules! [< $injector_prefix _inject_processor_methods >] {
+                () => {
+                    $(
+                        // NOTE: The `$cls` is intended to be the typedef name.
+                        fn $func_name<B>(self, window: B) -> $cls<Self, B, N>
+                        where
+                            Self: Sized,
+                            $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
+                            B: Buffer<Item = Self::Frame>,
+                        {
+                            let processor = $ns::$cls::from_empty(window);
+                            self.process(processor)
+                        }
+
+                        // NOTE: The `$cls` is intended to be the typedef name.
+                        fn [< $func_name _padded >]<B>(self, window: B) -> $cls<Self, B, N>
+                        where
+                            Self: Sized,
+                            $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
+                            B: Buffer<Item = Self::Frame>,
+                        {
+                            let processor = $ns::$cls::from(window);
+                            self.process(processor)
+                        }
+                    )+
+                };
+            }
+        }
+    };
+}
 
 /// Types that perform a calculation using a sliding window (ring buffer) of
 /// input data.
@@ -1086,27 +1320,51 @@ where
     }
 }
 
-calculator!(MinMaxInner, [DO_MIN], Min, [], "minimum", {
-    args_from => ([0.5]),
-    args_from_empty => ([0.0]),
-    args_reset => ([0.25], [0.0]),
-    args_fill => ([0.0], [0.5]),
-    args_fill_with => ([0.0], [0.0]),
-    args_advance => ([0.25], [0.50], [0.75], [1.0]),
-    args_current => ([0.00]),
-    args_process => ([0.25], [0.50], [0.75], [1.0]),
-});
+master!(
+    module_path => crate::stats,
+    injector_prefix => stats,
 
-calculator!(MinMaxInner, [DO_MAX], Max, [], "maximum", {
-    args_from => ([0.5]),
-    args_from_empty => ([0.0]),
-    args_reset => ([0.75], [0.0]),
-    args_fill => ([0.0], [0.5]),
-    args_fill_with => ([0.0], [0.75]),
-    args_advance => ([1.0], [1.0], [1.0], [1.0]),
-    args_current => ([0.75]),
-    args_process => ([1.0], [1.0], [1.0], [1.0]),
-});
+    {
+        class_name => Min,
+        func_name => minimum,
+        inner_class => MinMaxInner,
+        inner_class_const_generic_vals => [DO_MIN],
+        sample_trait_bounds => [],
+        description => "minimum",
+
+        methods_defs => {
+            args_from => ([0.5]),
+            args_from_empty => ([0.0]),
+            args_reset => ([0.25], [0.0]),
+            args_fill => ([0.0], [0.5]),
+            args_fill_with => ([0.0], [0.0]),
+            args_advance => ([0.25], [0.50], [0.75], [1.0]),
+            args_current => ([0.00]),
+            args_process => ([0.25], [0.50], [0.75], [1.0]),
+        }
+    },
+    {
+        class_name => Max,
+        func_name => maximum,
+        inner_class => MinMaxInner,
+        inner_class_const_generic_vals => [DO_MAX],
+        sample_trait_bounds => [],
+        description => "maximum",
+
+        methods_defs => {
+            args_from => ([0.5]),
+            args_from_empty => ([0.0]),
+            args_reset => ([0.75], [0.0]),
+            args_fill => ([0.0], [0.5]),
+            args_fill_with => ([0.0], [0.75]),
+            args_advance => ([1.0], [1.0], [1.0], [1.0]),
+            args_current => ([0.75]),
+            args_process => ([1.0], [1.0], [1.0], [1.0]),
+        }
+    }
+);
+
+// inject_processor_typedefs!();
 
 use crate::Signal;
 
