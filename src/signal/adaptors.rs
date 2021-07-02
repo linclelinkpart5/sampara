@@ -1,6 +1,8 @@
 use crate::{Frame, Sample, Duplex, Processor, Combinator};
+use crate::buffer::Buffer;
 use crate::sample::FloatSample;
 use crate::signal::Signal;
+use crate::stats::SlidingCalculator;
 use crate::biquad::Biquad as BQFilter;
 use crate::interpolate::Interpolator;
 
@@ -507,3 +509,5 @@ where
         Some(out)
     }
 }
+
+stats_inject_signal_adaptors!();

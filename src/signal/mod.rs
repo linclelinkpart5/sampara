@@ -17,8 +17,6 @@ pub use adaptors::*;
 pub use generators::*;
 pub use iterators::*;
 
-stats_inject_processor_typedefs!();
-
 pub type Map<S, FO, M, const NI: usize, const NO: usize> =
     Process<
         S,
@@ -850,7 +848,7 @@ pub trait Signal<const N: usize> {
         self.process(processor)
     }
 
-    stats_inject_processor_methods!();
+    stats_inject_signal_methods!();
 }
 
 impl<S, const N: usize> Signal<N> for &mut S
