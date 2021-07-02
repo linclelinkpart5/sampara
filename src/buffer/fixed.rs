@@ -45,17 +45,17 @@ use crate::buffer::Buffer;
 /// }
 /// ```
 #[derive(Copy, Clone, Debug)]
-pub struct Fixed<B>
+pub struct Fixed<B, const N: usize>
 where
-    B: Buffer,
+    B: Buffer<N>,
 {
     head: usize,
     buffer: B,
 }
 
-impl<B> Fixed<B>
+impl<B, const N: usize> Fixed<B, N>
 where
-    B: Buffer,
+    B: Buffer<N>,
 {
     /// Sets all values of this buffer to a given value, and sets the head
     /// index to 0.
@@ -72,7 +72,7 @@ where
     ///     assert_eq!(buffer.push(7), 4);
     /// }
     /// ```
-    pub fn fill(&mut self, item: B::Item) {
+    pub fn fill(&mut self, item: B::Frame) {
         self.buffer.as_mut().fill(item);
         self.head = 0;
     }
@@ -98,7 +98,7 @@ where
     /// ```
     pub fn fill_with<F>(&mut self, func: F)
     where
-        F: FnMut() -> B::Item,
+        F: FnMut() -> B::Frame,
     {
         self.buffer.as_mut().fill_with(func);
         self.head = 0;
@@ -135,7 +135,7 @@ where
     ///     assert_eq!(buffer.push(9), 6);
     /// }
     /// ```
-    pub fn push(&mut self, item: B::Item) -> B::Item {
+    pub fn push(&mut self, item: B::Frame) -> B::Frame {
         if self.capacity() == 0 {
             // Buffer has zero capacity, just re-return the passed-in element.
             return item;
@@ -182,7 +182,7 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn get(&self, index: usize) -> Option<&B::Item> {
+    pub fn get(&self, index: usize) -> Option<&B::Frame> {
         let wrapped_index = self.lookup(index, false)?;
         self.buffer().as_ref().get(wrapped_index)
     }
@@ -203,7 +203,7 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut B::Item> {
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut B::Frame> {
         let wrapped_index = self.lookup(index, false)?;
         self.buffer.as_mut().get_mut(wrapped_index)
     }
@@ -236,7 +236,7 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn get_wrapped(&self, index: usize) -> &B::Item {
+    pub fn get_wrapped(&self, index: usize) -> &B::Frame {
         let wrapped_index = self.lookup(index, true).unwrap();
         &self.buffer.as_ref()[wrapped_index]
     }
@@ -268,7 +268,7 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn get_wrapped_mut(&mut self, index: usize) -> &mut B::Item {
+    pub fn get_wrapped_mut(&mut self, index: usize) -> &mut B::Frame {
         let wrapped_index = self.lookup(index, true).unwrap();
         &mut self.buffer.as_mut()[wrapped_index]
     }
@@ -381,12 +381,12 @@ where
         buffer
     }
 
-    fn as_slices(&self) -> (&[B::Item], &[B::Item]) {
+    fn as_slices(&self) -> (&[B::Frame], &[B::Frame]) {
         let (tail, head) = self.buffer.as_ref().split_at(self.head);
         (head, tail)
     }
 
-    fn as_slices_mut(&mut self) -> (&mut [B::Item], &mut [B::Item]) {
+    fn as_slices_mut(&mut self) -> (&mut [B::Frame], &mut [B::Frame]) {
         let (tail, head) = self.buffer.as_mut().split_at_mut(self.head);
         (head, tail)
     }
@@ -409,7 +409,7 @@ where
     ///     assert_eq!(iter.collect::<Vec<_>>(), vec![&3, &4, &5, &6]);
     /// }
     /// ```
-    pub fn iter(&self) -> Iter<'_, B::Item> {
+    pub fn iter(&self) -> Iter<'_, B::Frame> {
         let (head, tail) = self.as_slices();
 
         Iter {
@@ -443,7 +443,7 @@ where
     ///     assert_eq!(iter.collect::<Vec<_>>(), vec![&133, &144, &105, &106]);
     /// }
     /// ```
-    pub fn iter_mut(&mut self) -> IterMut<'_, B::Item> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, B::Frame> {
         let (head, tail) = self.as_slices_mut();
 
         IterMut {
@@ -453,9 +453,9 @@ where
     }
 }
 
-impl<B> From<B> for Fixed<B>
+impl<B, const N: usize> From<B> for Fixed<B, N>
 where
-    B: Buffer,
+    B: Buffer<N>,
 {
     /// Constructs a [`Fixed`] ring buffer from a given inner buffer.
     ///
@@ -474,11 +474,11 @@ where
     }
 }
 
-impl<B> Index<usize> for Fixed<B>
+impl<B, const N: usize> Index<usize> for Fixed<B, N>
 where
-    B: Buffer,
+    B: Buffer<N>,
 {
-    type Output = B::Item;
+    type Output = B::Frame;
 
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
@@ -486,26 +486,15 @@ where
     }
 }
 
-impl<B> IndexMut<usize> for Fixed<B>
+impl<B, const N: usize> IndexMut<usize> for Fixed<B, N>
 where
-    B: Buffer,
+    B: Buffer<N>,
 {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.get_wrapped_mut(index)
     }
 }
-
-// impl<BA, BB> PartialEq<Fixed<BB>> for Fixed<BA>
-// where
-//     BA: Buffer,
-//     BB: Buffer,
-//     BA::Item: PartialEq<BB::Item>,
-// {
-//     fn eq(&self, other: &Fixed<BB>) -> bool {
-//         self.iter().eq(other.iter())
-//     }
-// }
 
 #[derive(Clone)]
 pub struct Iter<'a, I> {

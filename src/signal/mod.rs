@@ -551,7 +551,7 @@ pub trait Signal<const N: usize> {
     /// ```
     fn fill_buffer<'a, B>(&mut self, buffer: &'a mut B) -> Result<(), usize>
     where
-        B: Buffer<Item = Self::Frame>,
+        B: Buffer<N, Frame = Self::Frame>,
     {
         for (num_filled, c) in buffer.as_mut().iter_mut().enumerate() {
             match self.next() {

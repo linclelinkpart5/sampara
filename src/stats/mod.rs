@@ -73,18 +73,16 @@ macro_rules! master {
                         #[derive(Clone)]
                         pub struct $cls<B, const N: usize>($helper_cls<B, N, $( $const_gen_state ),* >)
                         where
-                            B: Buffer,
-                            B::Item: Frame<N>,
-                            $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+                            B: Buffer<N>,
+                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                         ;
                     }
                 }
 
                 impl<B, const N: usize> $cls<B, N>
                 where
-                    B: Buffer,
-                    B::Item: Frame<N>,
-                    $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+                    B: Buffer<N>,
+                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                 {
                     define__from_empty!($helper_cls, $cls, $($ta_from_empty),*);
                     define__reset!($cls, $($ta_reset),*);
@@ -98,9 +96,8 @@ macro_rules! master {
 
                 impl<B, const N: usize> From<B> for $cls<B, N>
                 where
-                    B: Buffer,
-                    B::Item: Frame<N>,
-                    $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+                    B: Buffer<N>,
+                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                 {
                     define__from!($helper_cls, $cls, $($ta_from),*);
                 }
@@ -108,9 +105,8 @@ macro_rules! master {
                 // Implement `MovingCalculator` and forward all methods to `Self`.
                 impl<B, const N: usize> MovingCalculator<B, N> for $cls<B, N>
                 where
-                    B: Buffer,
-                    B::Item: Frame<N>,
-                    $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+                    B: Buffer<N>,
+                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                 {
                     #[inline]
                     fn from_empty(buffer: B) -> Self {
@@ -128,22 +124,22 @@ macro_rules! master {
                     }
 
                     #[inline]
-                    fn fill(&mut self, fill_val: B::Item) {
+                    fn fill(&mut self, fill_val: B::Frame) {
                         self.fill(fill_val)
                     }
 
                     #[inline]
-                    fn fill_with<M: FnMut() -> B::Item>(&mut self, fill_func: M) {
+                    fn fill_with<M: FnMut() -> B::Frame>(&mut self, fill_func: M) {
                         self.fill_with(fill_func)
                     }
 
                     #[inline]
-                    fn advance(&mut self, input: B::Item) {
+                    fn advance(&mut self, input: B::Frame) {
                         self.advance(input)
                     }
 
                     #[inline]
-                    fn current(&self) -> B::Item {
+                    fn current(&self) -> B::Frame {
                         self.current()
                     }
                 }
@@ -151,12 +147,11 @@ macro_rules! master {
                 // Implement `Processor` and forward all methods to `Self`.
                 impl<B, const N: usize> Processor<N, N> for $cls<B, N>
                 where
-                    B: Buffer,
-                    B::Item: Frame<N>,
-                    $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+                    B: Buffer<N>,
+                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                 {
-                    type Input = B::Item;
-                    type Output = B::Item;
+                    type Input = B::Frame;
+                    type Output = B::Frame;
 
                     #[inline]
                     fn process(&mut self, input: Self::Input) -> Self::Output {
@@ -173,8 +168,7 @@ macro_rules! master {
 
                     enum LWCState<B, C, const N: usize>
                     where
-                        B: Buffer,
-                        B::Item: Frame<N>,
+                        B: Buffer<N>,
                         C: MovingCalculator<B, N>,
                     {
                         Failed,
@@ -184,13 +178,12 @@ macro_rules! master {
 
                     impl<B, C, const N: usize> LWCState<B, C, N>
                     where
-                        B: Buffer,
-                        B::Item: Frame<N>,
+                        B: Buffer<N>,
                         C: MovingCalculator<B, N>,
                     {
                         fn advance_inner<S>(self, signal: &mut S) -> (Option<S::Frame>, Self)
                         where
-                            S: Signal<N, Frame = B::Item>,
+                            S: Signal<N, Frame = B::Frame>,
                         {
                             match self {
                                 Self::Active(mut calc) => {
@@ -216,7 +209,7 @@ macro_rules! master {
 
                         fn advance<S>(&mut self, signal: &mut S) -> Option<S::Frame>
                         where
-                            S: Signal<N, Frame = B::Item>,
+                            S: Signal<N, Frame = B::Frame>,
                         {
                             // Swap `self` with a dummy value.
                             let mut snatched = Self::Failed;
@@ -233,8 +226,8 @@ macro_rules! master {
                         pub struct [<Lazy $cls>]<S, B, const N: usize>
                         where
                             S: Signal<N>,
-                            B: Buffer<Item = S::Frame>,
-                            $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+                            B: Buffer<N, Frame = S::Frame>,
+                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                         {
                             signal: S,
                             state: LWCState<B, $ns::$cls<B, N>, N>,
@@ -243,8 +236,8 @@ macro_rules! master {
                         impl<S, B, const N: usize> [<Lazy $cls>]<S, B, N>
                         where
                             S: Signal<N>,
-                            B: Buffer<Item = S::Frame>,
-                            $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+                            B: Buffer<N, Frame = S::Frame>,
+                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                         {
                             pub(crate) fn new(signal: S, buffer: B) -> Self {
                                 Self {
@@ -257,10 +250,10 @@ macro_rules! master {
                         impl<S, B, const N: usize> Signal<N> for [<Lazy $cls>]<S, B, N>
                         where
                             S: Signal<N>,
-                            B: Buffer<Item = S::Frame>,
-                            $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
+                            B: Buffer<N, Frame = S::Frame>,
+                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                         {
-                            type Frame = B::Item;
+                            type Frame = B::Frame;
 
                             fn next(&mut self) -> Option<Self::Frame> {
                                 self.state.advance(&mut self.signal)
@@ -280,7 +273,7 @@ macro_rules! master {
                         where
                             Self: Sized,
                             $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
-                            B: Buffer<Item = Self::Frame>,
+                            B: Buffer<N, Frame = Self::Frame>,
                         {
                             let processor = $ns::$cls::from_empty(window);
                             self.process(processor)
@@ -291,7 +284,7 @@ macro_rules! master {
                         where
                             Self: Sized,
                             $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
-                            B: Buffer<Item = Self::Frame>,
+                            B: Buffer<N, Frame = Self::Frame>,
                         {
                             let processor = $ns::$cls::from(window);
                             self.process(processor)
@@ -302,7 +295,7 @@ macro_rules! master {
                         where
                             Self: Sized,
                             $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
-                            B: Buffer<Item = Self::Frame>,
+                            B: Buffer<N, Frame = Self::Frame>,
                         {
                             [<Lazy $cls>]::new(self, window)
                         }
@@ -315,41 +308,38 @@ macro_rules! master {
 
 /// Types that perform a calculation using a moving (aka "rolling" or
 /// "sliding") window (ring buffer) of input data.
-pub trait MovingCalculator<B, const N: usize>: From<B> + Processor<N, N, Input = B::Item, Output = B::Item>
+pub trait MovingCalculator<B, const N: usize>: From<B> + Processor<N, N, Input = B::Frame, Output = B::Frame>
 where
-    B: Buffer,
-    B::Item: Frame<N>
+    B: Buffer<N>,
 {
     fn from_empty(buffer: B) -> Self;
     fn len(&self) -> usize;
     fn reset(&mut self);
-    fn fill(&mut self, fill_val: B::Item);
-    fn fill_with<M: FnMut() -> B::Item>(&mut self, fill_func: M);
-    fn advance(&mut self, input: B::Item);
-    fn current(&self) -> B::Item;
+    fn fill(&mut self, fill_val: B::Frame);
+    fn fill_with<M: FnMut() -> B::Frame>(&mut self, fill_func: M);
+    fn advance(&mut self, input: B::Frame);
+    fn current(&self) -> B::Frame;
 }
 
 #[derive(Clone)]
 struct SummageInner<B, const N: usize, const SQRT: bool, const POW2: bool>
 where
-    B: Buffer,
-    B::Item: Frame<N>,
-    <B::Item as Frame<N>>::Sample: FloatSample,
+    B: Buffer<N>,
+    <B::Frame as Frame<N>>::Sample: FloatSample,
 {
-    window: Fixed<B>,
-    sum: B::Item,
+    window: Fixed<B, N>,
+    sum: B::Frame,
 }
 
 impl<B, const N: usize, const SQRT: bool, const POW2: bool> SummageInner<B, N, SQRT, POW2>
 where
-    B: Buffer,
-    B::Item: Frame<N>,
-    <B::Item as Frame<N>>::Sample: FloatSample,
+    B: Buffer<N>,
+    <B::Frame as Frame<N>>::Sample: FloatSample,
 {
     #[inline]
     fn __from(buffer: B) -> Self {
         let mut buffer = buffer;
-        let mut sum = B::Item::EQUILIBRIUM;
+        let mut sum = B::Frame::EQUILIBRIUM;
 
         for frame in buffer.as_mut().iter_mut() {
             if POW2 {
@@ -393,7 +383,7 @@ where
     }
 
     #[inline]
-    fn __fill(&mut self, fill_val: B::Item) {
+    fn __fill(&mut self, fill_val: B::Frame) {
         let mut fill_val = fill_val;
 
         if POW2 {
@@ -406,17 +396,17 @@ where
 
         // Since the buffer is filled with a constant value, just multiply to
         // calculate the sum.
-        let len_f: <B::Item as Frame<N>>::Sample = Sample::from_sample(self.__len() as f32);
+        let len_f: <B::Frame as Frame<N>>::Sample = Sample::from_sample(self.__len() as f32);
         self.sum = fill_val.mul_amp(len_f);
     }
 
     #[inline]
     fn __fill_with<M>(&mut self, fill_func: M)
     where
-        M: FnMut() -> B::Item,
+        M: FnMut() -> B::Frame,
     {
         let mut fill_func = fill_func;
-        let mut sum = B::Item::EQUILIBRIUM;
+        let mut sum = B::Frame::EQUILIBRIUM;
 
         let prepped_fill_func = || {
             let mut f = fill_func();
@@ -437,7 +427,7 @@ where
     }
 
     #[inline]
-    fn __advance(&mut self, input: B::Item) {
+    fn __advance(&mut self, input: B::Frame) {
         let mut input = input;
 
         if POW2 {
@@ -459,9 +449,9 @@ where
     }
 
     #[inline]
-    fn __current(&self) -> B::Item {
+    fn __current(&self) -> B::Frame {
         let len_f = Sample::from_sample(self.__len() as f32);
-        let mut ret: B::Item = self.sum.apply(|s| s / len_f);
+        let mut ret: B::Frame = self.sum.apply(|s| s / len_f);
 
         if SQRT {
             ret.transform(Float::sqrt);
@@ -471,7 +461,7 @@ where
     }
 
     #[inline]
-    fn __process(&mut self, input: B::Item) -> B::Item {
+    fn __process(&mut self, input: B::Frame) -> B::Frame {
         self.__advance(input);
         self.__current()
     }
@@ -589,7 +579,7 @@ macro_rules! define__fill {
             ),
             {
                 #[inline]
-                pub fn fill(&mut self, fill_val: B::Item) {
+                pub fn fill(&mut self, fill_val: B::Frame) {
                     self.0.__fill(fill_val)
                 }
             }
@@ -618,7 +608,7 @@ macro_rules! define__fill_with {
                 #[inline]
                 pub fn fill_with<M>(&mut self, fill_func: M)
                 where
-                    M: FnMut() -> B::Item,
+                    M: FnMut() -> B::Frame,
                 {
                     self.0.__fill_with(fill_func)
                 }
@@ -674,7 +664,7 @@ macro_rules! define__advance {
             ),
             {
                 #[inline]
-                pub fn advance(&mut self, input: B::Item) {
+                pub fn advance(&mut self, input: B::Frame) {
                     self.0.__advance(input)
                 }
             }
@@ -697,7 +687,7 @@ macro_rules! define__current {
             ),
             {
                 #[inline]
-                pub fn current(&self) -> B::Item {
+                pub fn current(&self) -> B::Frame {
                     self.0.__current()
                 }
             }
@@ -726,7 +716,7 @@ macro_rules! define__process {
             ),
             {
                 #[inline]
-                pub fn process(&mut self, input: B::Item) -> B::Item {
+                pub fn process(&mut self, input: B::Frame) -> B::Frame {
                     self.0.__process(input)
                 }
             }
@@ -888,10 +878,10 @@ where
         })
     }
 
-    fn push_pop<B>(&mut self, xs: [S; N], window: &Fixed<B>) -> [Diff; N]
+    fn push_pop<B>(&mut self, xs: [S; N], window: &Fixed<B, N>) -> [Diff; N]
     where
-        B: Buffer,
-        B::Item: Frame<N, Sample = S>,
+        B: Buffer<N>,
+        B::Frame: Frame<N, Sample = S>,
     {
         // Convert from mutable array ref to an array of mutable refs.
         let frontiers = self.frontiers.each_mut();
@@ -1080,17 +1070,15 @@ where
 #[derive(Clone)]
 struct MinMaxInner<B, const N: usize, const MAX: bool>
 where
-    B: Buffer,
-    B::Item: Frame<N>,
+    B: Buffer<N>,
 {
-    window: Fixed<B>,
-    ext_state: ExtremaState<<B::Item as Frame<N>>::Sample, N, MAX>,
+    window: Fixed<B, N>,
+    ext_state: ExtremaState<<B::Frame as Frame<N>>::Sample, N, MAX>,
 }
 
 impl<B, const N: usize, const MAX: bool> MinMaxInner<B, N, MAX>
 where
-    B: Buffer,
-    B::Item: Frame<N>,
+    B: Buffer<N>,
 {
     #[inline]
     fn __from(buffer: B) -> Self {
@@ -1136,7 +1124,7 @@ where
     }
 
     #[inline]
-    fn __fill(&mut self, fill_val: B::Item) {
+    fn __fill(&mut self, fill_val: B::Frame) {
         // SAFETY: We ensure that this struct never gets created with a buffer
         //         length of 0, so this should never underflow.
         let f_pos = self.__len() - 1;
@@ -1152,7 +1140,7 @@ where
     #[inline]
     fn __fill_with<M>(&mut self, fill_func: M)
     where
-        M: FnMut() -> B::Item,
+        M: FnMut() -> B::Frame,
     {
         let mut fill_func = fill_func;
 
@@ -1180,18 +1168,18 @@ where
     }
 
     #[inline]
-    fn __advance(&mut self, input: B::Item) {
+    fn __advance(&mut self, input: B::Frame) {
         self.window.push(input);
         self.ext_state.push_pop(input.into_array(), &self.window);
     }
 
     #[inline]
-    fn __current(&self) -> B::Item {
+    fn __current(&self) -> B::Frame {
         self.ext_state.frontiers.map(|(f_ext, _f_pos)| f_ext).into_frame()
     }
 
     #[inline]
-    fn __process(&mut self, input: B::Item) -> B::Item {
+    fn __process(&mut self, input: B::Frame) -> B::Frame {
         self.__advance(input);
         self.__current()
     }

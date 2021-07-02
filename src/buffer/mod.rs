@@ -2,10 +2,12 @@ pub mod fixed;
 
 use std::fmt::Debug;
 
+use crate::Frame;
+
 pub use fixed::Fixed;
 
-pub trait Buffer: AsRef<[Self::Item]> + AsMut<[Self::Item]> {
-    type Item: Copy + PartialEq + Debug;
+pub trait Buffer<const N: usize>: AsRef<[Self::Frame]> + AsMut<[Self::Frame]> {
+    type Frame: Frame<N>;
 }
 
 // Would love to be able to do this, but `I` is unconstrained.
@@ -17,37 +19,37 @@ pub trait Buffer: AsRef<[Self::Item]> + AsMut<[Self::Item]> {
 //     type Item = I;
 // }
 
-impl<'a, I> Buffer for &'a mut [I]
+impl<'a, F, const N: usize> Buffer<N> for &'a mut [F]
 where
-    I: Copy + PartialEq + Debug,
+    F: Frame<N>,
 {
-    type Item = I;
+    type Frame = F;
 }
 
-impl<I, const N: usize> Buffer for [I; N]
+impl<F, const N: usize, const M: usize> Buffer<N> for [F; M]
 where
-    I: Copy + PartialEq + Debug,
+    F: Frame<N>,
 {
-    type Item = I;
+    type Frame = F;
 }
 
-impl<'a, I, const N: usize> Buffer for &'a mut [I; N]
+impl<'a, F, const N: usize, const M: usize> Buffer<N> for &'a mut [F; M]
 where
-    I: Copy + PartialEq + Debug,
+    F: Frame<N>,
 {
-    type Item = I;
+    type Frame = F;
 }
 
-impl<I> Buffer for Box<[I]>
+impl<F, const N: usize> Buffer<N> for Box<[F]>
 where
-    I: Copy + PartialEq + Debug,
+    F: Frame<N>,
 {
-    type Item = I;
+    type Frame = F;
 }
 
-impl<I> Buffer for Vec<I>
+impl<F, const N: usize> Buffer<N> for Vec<F>
 where
-    I: Copy + PartialEq + Debug,
+    F: Frame<N>,
 {
-    type Item = I;
+    type Frame = F;
 }

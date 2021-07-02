@@ -47,16 +47,16 @@ where
 /// ```
 pub struct Sinc<F, B, const N: usize>
 where
-    B: Buffer<Item = F>,
+    B: Buffer<N, Frame = F>,
     F: Frame<N>,
 {
-    buffer: Fixed<B>,
+    buffer: Fixed<B, N>,
     idx: usize,
 }
 
 impl<F, B, const N: usize> Sinc<F, B, N>
 where
-    B: Buffer<Item = F>,
+    B: Buffer<N, Frame = F>,
     F: Frame<N>,
 {
     /// Creates a new [`Sinc`] interpolator with a given working [`Buffer`].
@@ -114,7 +114,7 @@ where
 
 impl<F, B, const N: usize> Interpolator<N> for Sinc<F, B, N>
 where
-    B: Buffer<Item = F>,
+    B: Buffer<N, Frame = F>,
     F: Frame<N>,
     F::Sample: Duplex<f64>,
 {
