@@ -27,10 +27,6 @@ pub type Map<S, FO, M, const NI: usize, const NO: usize> =
         NI, NO,
     >;
 
-pub type Ms<S, B, const N: usize> = Process<S, stats::Ms<B, N>, N, N>;
-
-pub type Rms<S, B, const N: usize> = Process<S, stats::Rms<B, N>, N, N>;
-
 pub type Mix<SL, SR, FO, M, const NL: usize, const NR: usize, const NO: usize> =
     Combine<
         SL, SR,
@@ -709,144 +705,144 @@ pub trait Signal<const N: usize> {
         }
     }
 
-    /// Calculates a windowed root mean square of this [`Signal`]. The given
-    /// [`Buffer`] will be zeroed out, and its length will determine the RMS
-    /// window length.
-    ///
-    /// For an input [`Signal`] of length `N`, this will produce a new
-    /// [`Signal`] that also yields `N` [`Frame`]s.
-    ///
-    /// ```
-    /// use sampara::{signal, Signal};
-    ///
-    /// fn main() {
-    ///     let signal = signal::from_frames(vec![
-    ///         [0.50, -0.50],
-    ///         [0.25, -0.75],
-    ///         [0.40, -0.60],
-    ///         [0.75, -0.25],
-    ///     ]);
-    ///
-    ///     let mut rms_signal = signal.rms([[-1.0, -1.0]; 4]);
-    ///
-    ///     assert_eq!(rms_signal.next(), Some([0.25, 0.25]));
-    ///     assert_eq!(rms_signal.next(), Some([0.2795084971874737, 0.45069390943299864]));
-    ///     assert_eq!(rms_signal.next(), Some([0.343693177121688, 0.5414101956926929]));
-    ///     assert_eq!(rms_signal.next(), Some([0.5086747487343951, 0.5556527692723217]));
-    ///     assert_eq!(rms_signal.next(), None);
-    /// }
-    /// ```
-    fn rms<B>(self, window: B) -> Rms<Self, B, N>
-    where
-        Self: Sized,
-        <Self::Frame as Frame<N>>::Sample: FloatSample,
-        B: Buffer<Item = Self::Frame>,
-    {
-        let processor = stats::Rms::from_empty(window);
-        self.process(processor)
-    }
+    // /// Calculates a windowed root mean square of this [`Signal`]. The given
+    // /// [`Buffer`] will be zeroed out, and its length will determine the RMS
+    // /// window length.
+    // ///
+    // /// For an input [`Signal`] of length `N`, this will produce a new
+    // /// [`Signal`] that also yields `N` [`Frame`]s.
+    // ///
+    // /// ```
+    // /// use sampara::{signal, Signal};
+    // ///
+    // /// fn main() {
+    // ///     let signal = signal::from_frames(vec![
+    // ///         [0.50, -0.50],
+    // ///         [0.25, -0.75],
+    // ///         [0.40, -0.60],
+    // ///         [0.75, -0.25],
+    // ///     ]);
+    // ///
+    // ///     let mut rms_signal = signal.rms([[-1.0, -1.0]; 4]);
+    // ///
+    // ///     assert_eq!(rms_signal.next(), Some([0.25, 0.25]));
+    // ///     assert_eq!(rms_signal.next(), Some([0.2795084971874737, 0.45069390943299864]));
+    // ///     assert_eq!(rms_signal.next(), Some([0.343693177121688, 0.5414101956926929]));
+    // ///     assert_eq!(rms_signal.next(), Some([0.5086747487343951, 0.5556527692723217]));
+    // ///     assert_eq!(rms_signal.next(), None);
+    // /// }
+    // /// ```
+    // fn rms<B>(self, window: B) -> Rms<Self, B, N>
+    // where
+    //     Self: Sized,
+    //     <Self::Frame as Frame<N>>::Sample: FloatSample,
+    //     B: Buffer<Item = Self::Frame>,
+    // {
+    //     let processor = stats::Rms::from_empty(window);
+    //     self.process(processor)
+    // }
 
-    /// Similar to [`Signal::rms`], but treats the passed-in [`Buffer`] as
-    /// already full and containing valid [`Frame`]s.
-    ///
-    /// For an input [`Signal`] of length `N`, this will produce a new
-    /// [`Signal`] that also yields `N` [`Frame`]s.
-    ///
-    /// ```
-    /// use sampara::{signal, Signal};
-    ///
-    /// fn main() {
-    ///     let signal = signal::from_frames(vec![
-    ///         [0.50, -0.50],
-    ///         [0.25, -0.75],
-    ///         [0.40, -0.60],
-    ///         [0.75, -0.25],
-    ///     ]);
-    ///
-    ///     let mut rms_signal = signal.rms_padded([[0.5, 0.0]; 4]);
-    ///
-    ///     assert_eq!(rms_signal.next(), Some([0.5, 0.25]));
-    ///     assert_eq!(rms_signal.next(), Some([0.45069390943299864, 0.45069390943299864]));
-    ///     assert_eq!(rms_signal.next(), Some([0.425, 0.5414101956926929]));
-    ///     assert_eq!(rms_signal.next(), Some([0.5086747487343951, 0.5556527692723217]));
-    ///     assert_eq!(rms_signal.next(), None);
-    /// }
-    /// ```
-    fn rms_padded<B>(self, window: B) -> Rms<Self, B, N>
-    where
-        Self: Sized,
-        <Self::Frame as Frame<N>>::Sample: FloatSample,
-        B: Buffer<Item = Self::Frame>,
-    {
-        let processor = stats::Rms::from(window);
-        self.process(processor)
-    }
+    // /// Similar to [`Signal::rms`], but treats the passed-in [`Buffer`] as
+    // /// already full and containing valid [`Frame`]s.
+    // ///
+    // /// For an input [`Signal`] of length `N`, this will produce a new
+    // /// [`Signal`] that also yields `N` [`Frame`]s.
+    // ///
+    // /// ```
+    // /// use sampara::{signal, Signal};
+    // ///
+    // /// fn main() {
+    // ///     let signal = signal::from_frames(vec![
+    // ///         [0.50, -0.50],
+    // ///         [0.25, -0.75],
+    // ///         [0.40, -0.60],
+    // ///         [0.75, -0.25],
+    // ///     ]);
+    // ///
+    // ///     let mut rms_signal = signal.rms_padded([[0.5, 0.0]; 4]);
+    // ///
+    // ///     assert_eq!(rms_signal.next(), Some([0.5, 0.25]));
+    // ///     assert_eq!(rms_signal.next(), Some([0.45069390943299864, 0.45069390943299864]));
+    // ///     assert_eq!(rms_signal.next(), Some([0.425, 0.5414101956926929]));
+    // ///     assert_eq!(rms_signal.next(), Some([0.5086747487343951, 0.5556527692723217]));
+    // ///     assert_eq!(rms_signal.next(), None);
+    // /// }
+    // /// ```
+    // fn rms_padded<B>(self, window: B) -> Rms<Self, B, N>
+    // where
+    //     Self: Sized,
+    //     <Self::Frame as Frame<N>>::Sample: FloatSample,
+    //     B: Buffer<Item = Self::Frame>,
+    // {
+    //     let processor = stats::Rms::from(window);
+    //     self.process(processor)
+    // }
 
-    /// Similar to [`Signal::rms`], but instead calculates a windowed mean
-    /// square of this [`Signal`] (without the final square root).
-    ///
-    /// ```
-    /// use sampara::{signal, Signal};
-    ///
-    /// fn main() {
-    ///     let signal = signal::from_frames(vec![
-    ///         [0.50, -0.50],
-    ///         [0.25, -0.75],
-    ///         [0.40, -0.60],
-    ///         [0.75, -0.25],
-    ///     ]);
-    ///
-    ///     let mut ms_signal = signal.ms([[-1.0, -1.0]; 4]);
-    ///
-    ///     assert_eq!(ms_signal.next(), Some([0.0625, 0.0625]));
-    ///     assert_eq!(ms_signal.next(), Some([0.078125, 0.203125]));
-    ///     assert_eq!(ms_signal.next(), Some([0.11812500000000001, 0.29312499999999997]));
-    ///     assert_eq!(ms_signal.next(), Some([0.25875000000000004, 0.30874999999999997]));
-    ///     assert_eq!(ms_signal.next(), None);
-    /// }
-    /// ```
-    fn ms<B>(self, window: B) -> Ms<Self, B, N>
-    where
-        Self: Sized,
-        <Self::Frame as Frame<N>>::Sample: FloatSample,
-        B: Buffer<Item = Self::Frame>,
-    {
-        let processor = stats::Ms::from_empty(window);
-        self.process(processor)
-    }
+    // /// Similar to [`Signal::rms`], but instead calculates a windowed mean
+    // /// square of this [`Signal`] (without the final square root).
+    // ///
+    // /// ```
+    // /// use sampara::{signal, Signal};
+    // ///
+    // /// fn main() {
+    // ///     let signal = signal::from_frames(vec![
+    // ///         [0.50, -0.50],
+    // ///         [0.25, -0.75],
+    // ///         [0.40, -0.60],
+    // ///         [0.75, -0.25],
+    // ///     ]);
+    // ///
+    // ///     let mut ms_signal = signal.ms([[-1.0, -1.0]; 4]);
+    // ///
+    // ///     assert_eq!(ms_signal.next(), Some([0.0625, 0.0625]));
+    // ///     assert_eq!(ms_signal.next(), Some([0.078125, 0.203125]));
+    // ///     assert_eq!(ms_signal.next(), Some([0.11812500000000001, 0.29312499999999997]));
+    // ///     assert_eq!(ms_signal.next(), Some([0.25875000000000004, 0.30874999999999997]));
+    // ///     assert_eq!(ms_signal.next(), None);
+    // /// }
+    // /// ```
+    // fn ms<B>(self, window: B) -> Ms<Self, B, N>
+    // where
+    //     Self: Sized,
+    //     <Self::Frame as Frame<N>>::Sample: FloatSample,
+    //     B: Buffer<Item = Self::Frame>,
+    // {
+    //     let processor = stats::Ms::from_empty(window);
+    //     self.process(processor)
+    // }
 
-    /// Similar to [`Signal::rms_padded`], but instead calculates a windowed mean
-    /// square of this [`Signal`] (without the final square root).
-    ///
-    /// ```
-    /// use sampara::{signal, Signal};
-    ///
-    /// fn main() {
-    ///     let signal = signal::from_frames(vec![
-    ///         [0.50, -0.50],
-    ///         [0.25, -0.75],
-    ///         [0.40, -0.60],
-    ///         [0.75, -0.25],
-    ///     ]);
-    ///
-    ///     let mut ms_signal = signal.ms_padded([[0.5, 0.0]; 4]);
-    ///
-    ///     assert_eq!(ms_signal.next(), Some([0.25, 0.0625]));
-    ///     assert_eq!(ms_signal.next(), Some([0.203125, 0.203125]));
-    ///     assert_eq!(ms_signal.next(), Some([0.180625, 0.29312499999999997]));
-    ///     assert_eq!(ms_signal.next(), Some([0.25875000000000004, 0.30874999999999997]));
-    ///     assert_eq!(ms_signal.next(), None);
-    /// }
-    /// ```
-    fn ms_padded<B>(self, window: B) -> Ms<Self, B, N>
-    where
-        Self: Sized,
-        <Self::Frame as Frame<N>>::Sample: FloatSample,
-        B: Buffer<Item = Self::Frame>,
-    {
-        let processor = stats::Ms::from(window);
-        self.process(processor)
-    }
+    // /// Similar to [`Signal::rms_padded`], but instead calculates a windowed mean
+    // /// square of this [`Signal`] (without the final square root).
+    // ///
+    // /// ```
+    // /// use sampara::{signal, Signal};
+    // ///
+    // /// fn main() {
+    // ///     let signal = signal::from_frames(vec![
+    // ///         [0.50, -0.50],
+    // ///         [0.25, -0.75],
+    // ///         [0.40, -0.60],
+    // ///         [0.75, -0.25],
+    // ///     ]);
+    // ///
+    // ///     let mut ms_signal = signal.ms_padded([[0.5, 0.0]; 4]);
+    // ///
+    // ///     assert_eq!(ms_signal.next(), Some([0.25, 0.0625]));
+    // ///     assert_eq!(ms_signal.next(), Some([0.203125, 0.203125]));
+    // ///     assert_eq!(ms_signal.next(), Some([0.180625, 0.29312499999999997]));
+    // ///     assert_eq!(ms_signal.next(), Some([0.25875000000000004, 0.30874999999999997]));
+    // ///     assert_eq!(ms_signal.next(), None);
+    // /// }
+    // /// ```
+    // fn ms_padded<B>(self, window: B) -> Ms<Self, B, N>
+    // where
+    //     Self: Sized,
+    //     <Self::Frame as Frame<N>>::Sample: FloatSample,
+    //     B: Buffer<Item = Self::Frame>,
+    // {
+    //     let processor = stats::Ms::from(window);
+    //     self.process(processor)
+    // }
 
     stats_inject_signal_methods!();
 }

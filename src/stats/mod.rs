@@ -105,8 +105,8 @@ macro_rules! master {
                     define__from!($helper_cls, $cls, $($ta_from),*);
                 }
 
-                // Implement `SlidingCalculator` and forward all methods to `Self`.
-                impl<B, const N: usize> SlidingCalculator<B, N> for $cls<B, N>
+                // Implement `MovingCalculator` and forward all methods to `Self`.
+                impl<B, const N: usize> MovingCalculator<B, N> for $cls<B, N>
                 where
                     B: Buffer,
                     B::Item: Frame<N>,
@@ -175,7 +175,7 @@ macro_rules! master {
                     where
                         B: Buffer,
                         B::Item: Frame<N>,
-                        C: SlidingCalculator<B, N>,
+                        C: MovingCalculator<B, N>,
                     {
                         Failed,
                         Uninit(B),
@@ -186,7 +186,7 @@ macro_rules! master {
                     where
                         B: Buffer,
                         B::Item: Frame<N>,
-                        C: SlidingCalculator<B, N>,
+                        C: MovingCalculator<B, N>,
                     {
                         fn advance_inner<S>(self, signal: &mut S) -> (Option<S::Frame>, Self)
                         where
@@ -313,9 +313,9 @@ macro_rules! master {
     };
 }
 
-/// Types that perform a calculation using a sliding window (ring buffer) of
-/// input data.
-pub trait SlidingCalculator<B, const N: usize>: From<B> + Processor<N, N, Input = B::Item, Output = B::Item>
+/// Types that perform a calculation using a moving (aka "rolling" or
+/// "sliding") window (ring buffer) of input data.
+pub trait MovingCalculator<B, const N: usize>: From<B> + Processor<N, N, Input = B::Item, Output = B::Item>
 where
     B: Buffer,
     B::Item: Frame<N>
@@ -733,156 +733,6 @@ macro_rules! define__process {
         }
     }
 }
-
-macro_rules! calculator {
-    (
-        $helper_cls:ident,
-        [ $( $const_gen_state:expr ),* ],
-        $cls:ident,
-        [ $( $sample_kind:ident )? ],
-        $prose:literal,
-        {
-            args_from => ( $($ta_from:expr),* ),
-            args_from_empty => ( $($ta_from_empty:expr),* ),
-            args_reset => ( $($ta_reset:expr),* ),
-            args_fill => ( $($ta_fill:expr),* ),
-            args_fill_with => ( $($ta_fill_with:expr),* ),
-            args_advance => ( $($ta_advance:expr),* ),
-            args_current => ( $($ta_current:expr),* ),
-            args_process => ( $($ta_process:expr),* ),
-        }
-    ) => {
-        apply_doc_comment! {
-            concat!("Keeps a running ", $prose, " of a window of [`Frame`]s over time."),
-            {
-                #[derive(Clone)]
-                pub struct $cls<B, const N: usize>($helper_cls<B, N, $( $const_gen_state ),* >)
-                where
-                    B: Buffer,
-                    B::Item: Frame<N>,
-                    $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
-                ;
-            }
-        }
-
-        impl<B, const N: usize> $cls<B, N>
-        where
-            B: Buffer,
-            B::Item: Frame<N>,
-            $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
-        {
-            define__from_empty!($helper_cls, $cls, $($ta_from_empty),*);
-            define__reset!($cls, $($ta_reset),*);
-            define__fill!($cls, $($ta_fill),*);
-            define__fill_with!($cls, $($ta_fill_with),*);
-            define__len!($cls);
-            define__advance!($cls, $prose, $($ta_advance),*);
-            define__current!($cls, $prose, $($ta_current),*);
-            define__process!($cls, $prose, $($ta_process),*);
-        }
-
-        impl<B, const N: usize> From<B> for $cls<B, N>
-        where
-            B: Buffer,
-            B::Item: Frame<N>,
-            $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
-        {
-            define__from!($helper_cls, $cls, $($ta_from),*);
-        }
-
-        // Implement `SlidingCalculator` and forward all methods to `Self`.
-        impl<B, const N: usize> SlidingCalculator<B, N> for $cls<B, N>
-        where
-            B: Buffer,
-            B::Item: Frame<N>,
-            $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
-        {
-            #[inline]
-            fn from_empty(buffer: B) -> Self {
-                Self::from_empty(buffer)
-            }
-
-            #[inline]
-            fn len(&self) -> usize {
-                self.len()
-            }
-
-            #[inline]
-            fn reset(&mut self) {
-                self.reset()
-            }
-
-            #[inline]
-            fn fill(&mut self, fill_val: B::Item) {
-                self.fill(fill_val)
-            }
-
-            #[inline]
-            fn fill_with<M: FnMut() -> B::Item>(&mut self, fill_func: M) {
-                self.fill_with(fill_func)
-            }
-
-            #[inline]
-            fn advance(&mut self, input: B::Item) {
-                self.advance(input)
-            }
-
-            #[inline]
-            fn current(&self) -> B::Item {
-                self.current()
-            }
-        }
-
-        // Implement `Processor` and forward all methods to `Self`.
-        impl<B, const N: usize> Processor<N, N> for $cls<B, N>
-        where
-            B: Buffer,
-            B::Item: Frame<N>,
-            $(<B::Item as Frame<N>>::Sample: $sample_kind,)?
-        {
-            type Input = B::Item;
-            type Output = B::Item;
-
-            #[inline]
-            fn process(&mut self, input: Self::Input) -> Self::Output {
-                self.process(input)
-            }
-        }
-    };
-}
-
-calculator!(SummageInner, [NO_SQRT, NO_POW2], Mean, [FloatSample], "mean", {
-    args_from => ([0.5]),
-    args_from_empty => ([0.0]),
-    args_reset => ([0.5], [0.0]),
-    args_fill => ([0.0], [0.5]),
-    args_fill_with => ([0.0], [0.375]),
-    args_advance => ([0.625], [0.8125], [0.9375], [1.0]),
-    args_current => ([0.375]),
-    args_process => ([0.625], [0.8125], [0.9375], [1.0]),
-});
-
-calculator!(SummageInner, [NO_SQRT, DO_POW2], Ms, [FloatSample], "MS", {
-    args_from => ([0.25]),
-    args_from_empty => ([0.0]),
-    args_reset => ([0.3125], [0.0]),
-    args_fill => ([0.0], [0.25]),
-    args_fill_with => ([0.0], [0.21875]),
-    args_advance => ([0.46875], [0.703125], [0.890625], [1.0]),
-    args_current => ([0.21875]),
-    args_process => ([0.46875], [0.703125], [0.890625], [1.0]),
-});
-
-calculator!(SummageInner, [DO_SQRT, DO_POW2], Rms, [FloatSample], "RMS", {
-    args_from => ([0.5]),
-    args_from_empty => ([0.0]),
-    args_reset => ([0.5590169943749475], [0.0]),
-    args_fill => ([0.0], [0.5]),
-    args_fill_with => ([0.0], [0.46770717334674267]),
-    args_advance => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
-    args_current => ([0.46770717334674267]),
-    args_process => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
-});
 
 const DO_MAX: bool = true;
 const DO_MIN: bool = false;
@@ -1387,6 +1237,63 @@ master!(
             args_advance => ([1.0], [1.0], [1.0], [1.0]),
             args_current => ([0.75]),
             args_process => ([1.0], [1.0], [1.0], [1.0]),
+        }
+    },
+    {
+        class_name => MovingMean,
+        func_name => mean,
+        inner_class => SummageInner,
+        inner_class_const_generic_vals => [NO_SQRT, NO_POW2],
+        sample_trait_bounds => [FloatSample],
+        description => "mean",
+
+        methods_defs => {
+            args_from => ([0.5]),
+            args_from_empty => ([0.0]),
+            args_reset => ([0.5], [0.0]),
+            args_fill => ([0.0], [0.5]),
+            args_fill_with => ([0.0], [0.375]),
+            args_advance => ([0.625], [0.8125], [0.9375], [1.0]),
+            args_current => ([0.375]),
+            args_process => ([0.625], [0.8125], [0.9375], [1.0]),
+        }
+    },
+    {
+        class_name => MovingMs,
+        func_name => ms,
+        inner_class => SummageInner,
+        inner_class_const_generic_vals => [NO_SQRT, DO_POW2],
+        sample_trait_bounds => [FloatSample],
+        description => "MS",
+
+        methods_defs => {
+            args_from => ([0.25]),
+            args_from_empty => ([0.0]),
+            args_reset => ([0.3125], [0.0]),
+            args_fill => ([0.0], [0.25]),
+            args_fill_with => ([0.0], [0.21875]),
+            args_advance => ([0.46875], [0.703125], [0.890625], [1.0]),
+            args_current => ([0.21875]),
+            args_process => ([0.46875], [0.703125], [0.890625], [1.0]),
+        }
+    },
+    {
+        class_name => MovingRms,
+        func_name => rms,
+        inner_class => SummageInner,
+        inner_class_const_generic_vals => [DO_SQRT, DO_POW2],
+        sample_trait_bounds => [FloatSample],
+        description => "RMS",
+
+        methods_defs => {
+            args_from => ([0.5]),
+            args_from_empty => ([0.0]),
+            args_reset => ([0.5590169943749475], [0.0]),
+            args_fill => ([0.0], [0.5]),
+            args_fill_with => ([0.0], [0.46770717334674267]),
+            args_advance => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
+            args_current => ([0.46770717334674267]),
+            args_process => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
         }
     }
 );
