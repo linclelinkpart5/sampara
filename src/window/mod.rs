@@ -7,18 +7,16 @@ use std::option::IntoIter as OptionIntoIter;
 
 use num_traits::Float;
 
-use crate::buffer::Buffer;
-
 const DO_BACK: bool = true;
 const NO_BACK: bool = false;
 
 const DO_SYMM: bool = true;
 const NO_SYMM: bool = false;
 
-pub trait Window<F: Float> {
+pub trait Window<X: Float> {
     /// Given a value in the interval [0.0, 1.0], returns the value of the
     /// window function at that point.
-    fn calc(&self, x: F) -> F;
+    fn calc(&self, x: X) -> X;
 
     /// Returns an iterator that yields the values of a symmetric window of
     /// length `N`.
@@ -51,7 +49,7 @@ pub trait Window<F: Float> {
     ///     assert_eq!(iter.next(), None);
     /// }
     /// ```
-    fn iter(self, len: usize) -> Iter<Self, F>
+    fn iter(self, len: usize) -> Iter<Self, X>
     where
         Self: Sized,
     {
@@ -90,7 +88,7 @@ pub trait Window<F: Float> {
     ///     assert_eq!(iter.next(), None);
     /// }
     /// ```
-    fn iter_periodic(self, len: usize) -> IterPeriodic<Self, F>
+    fn iter_periodic(self, len: usize) -> IterPeriodic<Self, X>
     where
         Self: Sized,
     {
@@ -118,12 +116,10 @@ pub trait Window<F: Float> {
     ///     assert_eq!(buffer, []);
     /// }
     /// ```
-    fn fill<B>(self, buffer: &mut B)
+    fn fill(self, slice: &mut [X])
     where
         Self: Sized,
-        B: Buffer<Item = F>,
     {
-        let slice = buffer.as_mut();
         let window = self.iter(slice.len());
 
         for (buf, w) in slice.iter_mut().zip(window) {
@@ -152,12 +148,10 @@ pub trait Window<F: Float> {
     ///     assert_eq!(buffer, []);
     /// }
     /// ```
-    fn fill_periodic<B>(self, buffer: &mut B)
+    fn fill_periodic(self, slice: &mut [X])
     where
         Self: Sized,
-        B: Buffer<Item = F>,
     {
-        let slice = buffer.as_mut();
         let window = self.iter_periodic(slice.len());
 
         for (buf, w) in slice.iter_mut().zip(window) {
@@ -189,12 +183,10 @@ pub trait Window<F: Float> {
     ///     ]);
     /// }
     /// ```
-    fn apply<B>(self, buffer: &mut B)
+    fn apply(self, slice: &mut [X])
     where
         Self: Sized,
-        B: Buffer<Item = F>,
     {
-        let slice = buffer.as_mut();
         let window = self.iter(slice.len());
 
         for (buf, w) in slice.iter_mut().zip(window) {
@@ -226,12 +218,10 @@ pub trait Window<F: Float> {
     ///     ]);
     /// }
     /// ```
-    fn apply_periodic<B>(self, buffer: &mut B)
+    fn apply_periodic(self, slice: &mut [X])
     where
         Self: Sized,
-        B: Buffer<Item = F>,
     {
-        let slice = buffer.as_mut();
         let window = self.iter_periodic(slice.len());
 
         for (buf, w) in slice.iter_mut().zip(window) {
@@ -240,19 +230,19 @@ pub trait Window<F: Float> {
     }
 }
 
-enum IterImpl<W, F, const SYMM: bool>
+enum IterImpl<W, X, const SYMM: bool>
 where
-    W: Window<F>,
-    F: Float,
+    W: Window<X>,
+    X: Float,
 {
     ZeroOne(OptionIntoIter<()>),
-    Normal(Range<usize>, F, W),
+    Normal(Range<usize>, X, W),
 }
 
-impl<W, F, const SYMM: bool> IterImpl<W, F, SYMM>
+impl<W, X, const SYMM: bool> IterImpl<W, X, SYMM>
 where
-    W: Window<F>,
-    F: Float,
+    W: Window<X>,
+    X: Float,
 {
     fn new(len: usize, windower: W) -> Self {
         let bins = match len {
@@ -262,7 +252,7 @@ where
             n => n,
         };
 
-        let factor = F::from(bins).unwrap().recip();
+        let factor = X::from(bins).unwrap().recip();
         Self::Normal(0..len, factor, windower)
     }
 
@@ -277,7 +267,7 @@ where
                     it.next()
                 };
 
-                opt.map(|_| F::one())
+                opt.map(|_| X::one())
             },
 
             Self::Normal(range, factor, wf) => {
@@ -288,7 +278,7 @@ where
                     range.next()?
                 };
 
-                let x = *factor * F::from(i).unwrap();
+                let x = *factor * X::from(i).unwrap();
                 let y = wf.calc(x);
 
                 Some(y)
@@ -297,12 +287,12 @@ where
     }
 }
 
-impl<W, F, const SYMM: bool> Iterator for IterImpl<W, F, SYMM>
+impl<W, X, const SYMM: bool> Iterator for IterImpl<W, X, SYMM>
 where
-    W: Window<F>,
-    F: Float,
+    W: Window<X>,
+    X: Float,
 {
-    type Item = F;
+    type Item = X;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.advance::<NO_BACK>()
@@ -316,10 +306,10 @@ where
     }
 }
 
-impl<W, F, const SYMM: bool> ExactSizeIterator for IterImpl<W, F, SYMM>
+impl<W, X, const SYMM: bool> ExactSizeIterator for IterImpl<W, X, SYMM>
 where
-    W: Window<F>,
-    F: Float,
+    W: Window<X>,
+    X: Float,
 {
     fn len(&self) -> usize {
         match self {
@@ -329,10 +319,10 @@ where
     }
 }
 
-impl<W, F, const SYMM: bool> DoubleEndedIterator for IterImpl<W, F, SYMM>
+impl<W, X, const SYMM: bool> DoubleEndedIterator for IterImpl<W, X, SYMM>
 where
-    W: Window<F>,
-    F: Float,
+    W: Window<X>,
+    X: Float,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.advance::<DO_BACK>()
@@ -341,18 +331,18 @@ where
 
 /// An [`Iterator`] that yields the values of a window (via a [`Window`])
 /// for a given number of points, evenly spaced to span the interval [0.0, 1.0].
-pub struct Iter<W, F>(IterImpl<W, F, DO_SYMM>)
+pub struct Iter<W, X>(IterImpl<W, X, DO_SYMM>)
 where
-    W: Window<F>,
-    F: Float,
+    W: Window<X>,
+    X: Float,
 ;
 
-impl<W, F> Iterator for Iter<W, F>
+impl<W, X> Iterator for Iter<W, X>
 where
-    W: Window<F>,
-    F: Float,
+    W: Window<X>,
+    X: Float,
 {
-    type Item = F;
+    type Item = X;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next()
@@ -363,20 +353,20 @@ where
     }
 }
 
-impl<W, F> ExactSizeIterator for Iter<W, F>
+impl<W, X> ExactSizeIterator for Iter<W, X>
 where
-    W: Window<F>,
-    F: Float,
+    W: Window<X>,
+    X: Float,
 {
     fn len(&self) -> usize {
         self.0.len()
     }
 }
 
-impl<W, F> DoubleEndedIterator for Iter<W, F>
+impl<W, X> DoubleEndedIterator for Iter<W, X>
 where
-    W: Window<F>,
-    F: Float,
+    W: Window<X>,
+    X: Float,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.0.next_back()
@@ -388,18 +378,18 @@ where
 ///
 /// This produces a periodic, asymmetric version of the window, used in cases
 /// when the window needs to be repeated.
-pub struct IterPeriodic<W, F>(IterImpl<W, F, NO_SYMM>)
+pub struct IterPeriodic<W, X>(IterImpl<W, X, NO_SYMM>)
 where
-    W: Window<F>,
-    F: Float,
+    W: Window<X>,
+    X: Float,
 ;
 
-impl<W, F> Iterator for IterPeriodic<W, F>
+impl<W, X> Iterator for IterPeriodic<W, X>
 where
-    W: Window<F>,
-    F: Float,
+    W: Window<X>,
+    X: Float,
 {
-    type Item = F;
+    type Item = X;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next()
@@ -410,20 +400,20 @@ where
     }
 }
 
-impl<W, F> ExactSizeIterator for IterPeriodic<W, F>
+impl<W, X> ExactSizeIterator for IterPeriodic<W, X>
 where
-    W: Window<F>,
-    F: Float,
+    W: Window<X>,
+    X: Float,
 {
     fn len(&self) -> usize {
         self.0.len()
     }
 }
 
-impl<W, F> DoubleEndedIterator for IterPeriodic<W, F>
+impl<W, X> DoubleEndedIterator for IterPeriodic<W, X>
 where
-    W: Window<F>,
-    F: Float,
+    W: Window<X>,
+    X: Float,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.0.next_back()
