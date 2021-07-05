@@ -8,7 +8,6 @@ use crate::buffer::Buffer;
 use crate::components::{Processor, Combinator};
 use crate::sample::FloatSample;
 use crate::interpolate::Interpolator;
-use crate::stats;
 
 use crate::combinators as combs;
 use crate::processors as procs;

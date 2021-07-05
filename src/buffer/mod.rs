@@ -1,7 +1,5 @@
 pub mod fixed;
 
-use std::fmt::Debug;
-
 use crate::Frame;
 
 pub use fixed::Fixed;
