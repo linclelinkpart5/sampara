@@ -223,16 +223,27 @@ macro_rules! master {
                     }
 
                     $(
-                        pub struct [<Lazy $cls>]<S, B, const N: usize>
-                        where
-                            S: Signal<N>,
-                            B: Buffer<N, Frame = S::Frame>,
-                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                        {
-                            signal: S,
-                            state: LWCState<B, $ns::$cls<B, N>, N>,
+                        apply_doc_comment! {
+                            concat!(
+                                "A [`Signal`] that lazily calculates a moving ", $prose, " of a window of [`Frame`]s over time.\n\n",
+                                "This signal adaptor is lazy in the sense that the initial window is treated as uninitialized: ",
+                                "before yielding the first ", $prose, " value, the window is filled with [`Frame`]s from a source [`Signal`]. ",
+                                "The newly-filled window then yields the first ", $prose, " value. ",
+                            ),
+                            {
+                                pub struct [<Lazy $cls>]<S, B, const N: usize>
+                                where
+                                    S: Signal<N>,
+                                    B: Buffer<N, Frame = S::Frame>,
+                                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                                {
+                                    signal: S,
+                                    state: LWCState<B, $ns::$cls<B, N>, N>,
+                                }
+                            }
                         }
 
+                        // TODO: Add accessors for contained `Processor`.
                         impl<S, B, const N: usize> [<Lazy $cls>]<S, B, N>
                         where
                             S: Signal<N>,
