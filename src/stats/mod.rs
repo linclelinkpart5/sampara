@@ -102,48 +102,6 @@ macro_rules! master {
                     define__from!($helper_cls, $cls, $($ta_from),*);
                 }
 
-                // Implement `MovingCalculator` and forward all methods to `Self`.
-                impl<B, const N: usize> MovingCalculator<B, N> for $cls<B, N>
-                where
-                    B: Buffer<N>,
-                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                {
-                    #[inline]
-                    fn from_empty(buffer: B) -> Self {
-                        Self::from_empty(buffer)
-                    }
-
-                    #[inline]
-                    fn len(&self) -> usize {
-                        self.len()
-                    }
-
-                    #[inline]
-                    fn reset(&mut self) {
-                        self.reset()
-                    }
-
-                    #[inline]
-                    fn fill(&mut self, fill_val: B::Frame) {
-                        self.fill(fill_val)
-                    }
-
-                    #[inline]
-                    fn fill_with<M: FnMut() -> B::Frame>(&mut self, fill_func: M) {
-                        self.fill_with(fill_func)
-                    }
-
-                    #[inline]
-                    fn advance(&mut self, input: B::Frame) {
-                        self.advance(input)
-                    }
-
-                    #[inline]
-                    fn current(&self) -> B::Frame {
-                        self.current()
-                    }
-                }
-
                 // Implement `Processor` and forward all methods to `Self`.
                 impl<B, const N: usize> Processor<N, N> for $cls<B, N>
                 where
@@ -164,65 +122,84 @@ macro_rules! master {
             macro_rules! [< $injector_prefix _inject_signal_adaptors >] {
                 () => {
                     // NOTE: The `$cls` is intended to be the typedef name.
-                    $( pub type $cls<S, B, const N: usize> = Process<S, $ns::$cls<B, N>, N, N>; )+
-
-                    enum LWCState<B, C, const N: usize>
-                    where
-                        B: Buffer<N>,
-                        C: MovingCalculator<B, N>,
-                    {
-                        Failed,
-                        Uninit(B),
-                        Active(C),
-                    }
-
-                    impl<B, C, const N: usize> LWCState<B, C, N>
-                    where
-                        B: Buffer<N>,
-                        C: MovingCalculator<B, N>,
-                    {
-                        fn advance_inner<S>(self, signal: &mut S) -> (Option<S::Frame>, Self)
+                    $(
+                        // NOTE: This is an adaptor type!
+                        pub struct $cls<S, B, const N: usize>(pub(crate) Process<S, $ns::$cls<B, N>, N, N>)
                         where
-                            S: Signal<N, Frame = B::Frame>,
+                            S: Signal<N>,
+                            B: Buffer<N, Frame = S::Frame>,
+                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                        ;
+
+                        impl<S, B, const N: usize> Signal<N> for $cls<S, B, N>
+                        where
+                            S: Signal<N>,
+                            B: Buffer<N, Frame = S::Frame>,
+                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                         {
-                            match self {
-                                Self::Active(mut calc) => {
-                                    (signal.next().map(|f| calc.process(f)), Self::Active(calc))
-                                },
+                            type Frame = B::Frame;
 
-                                Self::Uninit(mut buffer) => {
-                                    // Try and fill the buffer now.
-                                    if let Ok(()) = signal.fill_buffer(&mut buffer) {
-                                        // The buffer was successfully filled, create a new sliding
-                                        // calculator.
-                                        let calc = C::from(buffer);
-                                        (Some(calc.current()), Self::Active(calc))
-                                    }
-                                    else {
-                                        (None, Self::Failed)
-                                    }
-                                },
-
-                                Self::Failed => (None, Self::Failed),
+                            fn next(&mut self) -> Option<Self::Frame> {
+                                self.0.next()
                             }
                         }
 
-                        fn advance<S>(&mut self, signal: &mut S) -> Option<S::Frame>
+                        enum [< Lazy $cls State >]<B, const N: usize>
                         where
-                            S: Signal<N, Frame = B::Frame>,
+                            B: Buffer<N>,
+                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                         {
-                            // Swap `self` with a dummy value.
-                            let mut snatched = Self::Failed;
-                            std::mem::swap(&mut snatched, self);
-
-                            let (ret, new_state) = snatched.advance_inner(signal);
-                            *self = new_state;
-
-                            ret
+                            Failed,
+                            Uninit(B),
+                            Active($ns::$cls<B, N>),
                         }
-                    }
 
-                    $(
+                        impl<B, const N: usize> [< Lazy $cls State >]<B, N>
+                        where
+                            B: Buffer<N>,
+                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                        {
+                            fn advance_inner<S>(self, signal: &mut S) -> (Option<S::Frame>, Self)
+                            where
+                                S: Signal<N, Frame = B::Frame>,
+                            {
+                                match self {
+                                    Self::Active(mut calc) => {
+                                        (signal.next().map(|f| calc.process(f)), Self::Active(calc))
+                                    },
+
+                                    Self::Uninit(mut buffer) => {
+                                        // Try and fill the buffer now.
+                                        if let Ok(()) = signal.fill_buffer(&mut buffer) {
+                                            // The buffer was successfully filled, create a new sliding
+                                            // calculator.
+                                            let calc = $ns::$cls::from(buffer);
+                                            (Some(calc.current()), Self::Active(calc))
+                                        }
+                                        else {
+                                            (None, Self::Failed)
+                                        }
+                                    },
+
+                                    Self::Failed => (None, Self::Failed),
+                                }
+                            }
+
+                            fn advance<S>(&mut self, signal: &mut S) -> Option<S::Frame>
+                            where
+                                S: Signal<N, Frame = B::Frame>,
+                            {
+                                // Swap `self` with a dummy value.
+                                let mut snatched = Self::Failed;
+                                std::mem::swap(&mut snatched, self);
+
+                                let (ret, new_state) = snatched.advance_inner(signal);
+                                *self = new_state;
+
+                                ret
+                            }
+                        }
+
                         apply_doc_comment! {
                             concat!(
                                 "A [`Signal`] that lazily calculates a moving ", $prose, " of a window of [`Frame`]s over time.\n\n",
@@ -238,7 +215,7 @@ macro_rules! master {
                                     $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                                 {
                                     signal: S,
-                                    state: LWCState<B, $ns::$cls<B, N>, N>,
+                                    state: [< Lazy $cls State >]<B, N>,
                                 }
                             }
                         }
@@ -253,7 +230,7 @@ macro_rules! master {
                             pub(crate) fn new(signal: S, buffer: B) -> Self {
                                 Self {
                                     signal,
-                                    state: LWCState::<B, $ns::$cls<B, N>, N>::Uninit(buffer),
+                                    state: [< Lazy $cls State >]::<B, N>::Uninit(buffer),
                                 }
                             }
                         }
@@ -287,7 +264,7 @@ macro_rules! master {
                             B: Buffer<N, Frame = Self::Frame>,
                         {
                             let processor = $ns::$cls::from_empty(window);
-                            self.process(processor)
+                            $cls(self.process(processor))
                         }
 
                         // NOTE: The `$cls` is intended to be the typedef name.
@@ -298,7 +275,7 @@ macro_rules! master {
                             B: Buffer<N, Frame = Self::Frame>,
                         {
                             let processor = $ns::$cls::from(window);
-                            self.process(processor)
+                            $cls(self.process(processor))
                         }
 
                         // NOTE: The `$cls` is intended to be the typedef name.
