@@ -294,21 +294,6 @@ macro_rules! master {
     };
 }
 
-/// Types that perform a calculation using a moving (aka "rolling" or
-/// "sliding") window (ring buffer) of input data.
-pub trait MovingCalculator<B, const N: usize>: From<B> + Processor<N, N, Input = B::Frame, Output = B::Frame>
-where
-    B: Buffer<N>,
-{
-    fn from_empty(buffer: B) -> Self;
-    fn len(&self) -> usize;
-    fn reset(&mut self);
-    fn fill(&mut self, fill_val: B::Frame);
-    fn fill_with<M: FnMut() -> B::Frame>(&mut self, fill_func: M);
-    fn advance(&mut self, input: B::Frame);
-    fn current(&self) -> B::Frame;
-}
-
 #[derive(Clone)]
 struct SummageInner<B, const N: usize, const SQRT: bool, const POW2: bool>
 where
