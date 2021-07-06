@@ -121,15 +121,21 @@ macro_rules! master {
             // This is a generated macro that injects adaptors types and typedefs.
             macro_rules! [< $injector_prefix _inject_signal_adaptors >] {
                 () => {
-                    // NOTE: The `$cls` is intended to be the typedef name.
                     $(
                         // NOTE: This is an adaptor type!
-                        pub struct $cls<S, B, const N: usize>(pub(crate) Process<S, $ns::$cls<B, N>, N, N>)
-                        where
-                            S: Signal<N>,
-                            B: Buffer<N, Frame = S::Frame>,
-                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                        ;
+                        apply_doc_comment! {
+                            concat!(
+                                "A [`Signal`] that calculates a moving ", $prose, " of a window of [`Frame`]s over time."
+                            ),
+                            {
+                                pub struct $cls<S, B, const N: usize>(pub(crate) Process<S, $ns::$cls<B, N>, N, N>)
+                                where
+                                    S: Signal<N>,
+                                    B: Buffer<N, Frame = S::Frame>,
+                                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                                ;
+                            }
+                        }
 
                         impl<S, B, const N: usize> Signal<N> for $cls<S, B, N>
                         where
@@ -159,6 +165,7 @@ macro_rules! master {
                             B: Buffer<N>,
                             $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                         {
+                            #[inline(always)]
                             fn advance_inner<S>(self, signal: &mut S) -> (Option<S::Frame>, Self)
                             where
                                 S: Signal<N, Frame = B::Frame>,
@@ -185,6 +192,7 @@ macro_rules! master {
                                 }
                             }
 
+                            #[inline(always)]
                             fn advance<S>(&mut self, signal: &mut S) -> Option<S::Frame>
                             where
                                 S: Signal<N, Frame = B::Frame>,
@@ -220,7 +228,6 @@ macro_rules! master {
                             }
                         }
 
-                        // TODO: Add accessors for contained `Processor`.
                         impl<S, B, const N: usize> [<Lazy $cls>]<S, B, N>
                         where
                             S: Signal<N>,
@@ -256,36 +263,64 @@ macro_rules! master {
             macro_rules! [< $injector_prefix _inject_signal_methods >] {
                 () => {
                     $(
-                        // NOTE: The `$cls` is intended to be the typedef name.
-                        fn $func_name<B>(self, window: B) -> $cls<Self, B, N>
-                        where
-                            Self: Sized,
-                            $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
-                            B: Buffer<N, Frame = Self::Frame>,
-                        {
-                            let processor = $ns::$cls::from_empty(window);
-                            $cls(self.process(processor))
+                        apply_doc_comment! {
+                            concat!(
+                                "Calculates a windowed ", $prose, " of this [`Signal`]. ",
+                                "The given [`Buffer`] will be zeroed out, and its length will determine the ",
+                                $prose, " window length.\n\n",
+                                "For an input [`Signal`] of length `N`, this will produce a new [`Signal`] that also yields `N` [`Frame`]s.",
+                            ),
+                            {
+                                fn $func_name<B>(self, window: B) -> $cls<Self, B, N>
+                                where
+                                    Self: Sized,
+                                    $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
+                                    B: Buffer<N, Frame = Self::Frame>,
+                                {
+                                    let processor = $ns::$cls::from_empty(window);
+                                    $cls(self.process(processor))
+                                }
+                            }
                         }
 
-                        // NOTE: The `$cls` is intended to be the typedef name.
-                        fn [< $func_name _padded >]<B>(self, window: B) -> $cls<Self, B, N>
-                        where
-                            Self: Sized,
-                            $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
-                            B: Buffer<N, Frame = Self::Frame>,
-                        {
-                            let processor = $ns::$cls::from(window);
-                            $cls(self.process(processor))
+                        apply_doc_comment! {
+                            concat!(
+                                "Similar to [`Signal::", stringify!($func_name), "`], but treats the passed-in ",
+                                "[`Buffer`] as already full and containing valid [`Frame`]s.\n\n",
+                                "For an input [`Signal`] of length `N`, this will produce a new [`Signal`] that also yields `N` [`Frame`]s.",
+                            ),
+                            {
+                                fn [< $func_name _padded >]<B>(self, window: B) -> $cls<Self, B, N>
+                                where
+                                    Self: Sized,
+                                    $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
+                                    B: Buffer<N, Frame = Self::Frame>,
+                                {
+                                    let processor = $ns::$cls::from(window);
+                                    $cls(self.process(processor))
+                                }
+                            }
                         }
 
-                        // NOTE: The `$cls` is intended to be the typedef name.
-                        fn [< lazy_ $func_name >]<B>(self, window: B) -> [<Lazy $cls>]<Self, B, N>
-                        where
-                            Self: Sized,
-                            $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
-                            B: Buffer<N, Frame = Self::Frame>,
-                        {
-                            [<Lazy $cls>]::new(self, window)
+                        apply_doc_comment! {
+                            concat!(
+                                "Similar to [`Signal::", stringify!($func_name), "`], but fills the ",
+                                "given [`Buffer`] with input [`Frame`]s from the [`Signal`]. ",
+                                "Upon filling, the first [`Frame`] will be yielded.\n\n",
+                                "For an input [`Signal`] of length `N` and an input [`Buffer`] of ",
+                                "length `B`, this will produce a new [`Signal`] that yields ",
+                                "`N - B + 1` [`Frame`]s (or 0 if `N < B`).",
+                            ),
+                            {
+                                fn [< lazy_ $func_name >]<B>(self, window: B) -> [<Lazy $cls>]<Self, B, N>
+                                where
+                                    Self: Sized,
+                                    $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
+                                    B: Buffer<N, Frame = Self::Frame>,
+                                {
+                                    [<Lazy $cls>]::new(self, window)
+                                }
+                            }
                         }
                     )+
                 };
