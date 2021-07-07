@@ -2,6 +2,8 @@
 // visible in other modules in the crate.
 #![macro_use]
 
+pub mod cumulative;
+
 use std::cmp::Ordering;
 
 use num_traits::Float;
