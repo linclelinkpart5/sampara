@@ -63,6 +63,10 @@ where
     }
 }
 
+type RmsInner<F, const N: usize> = SummageInner<F, N, DO_SQRT, DO_POW2>;
+type MsInner<F, const N: usize> = SummageInner<F, N, NO_SQRT, DO_POW2>;
+type MeanInner<F, const N: usize> = SummageInner<F, N, NO_SQRT, NO_POW2>;
+
 struct MinMaxInner<F, const N: usize, const MAX: bool>
 where
     F: Frame<N>,
@@ -97,3 +101,6 @@ where
         self.__current()
     }
 }
+
+type MinInner<F, const N: usize> = MinMaxInner<F, N, DO_MIN>;
+type MaxInner<F, const N: usize> = MinMaxInner<F, N, DO_MAX>;
