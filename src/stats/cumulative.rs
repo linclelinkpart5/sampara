@@ -72,6 +72,7 @@ where
     F: Frame<N>,
 {
     extrema: F,
+    is_empty: bool,
 }
 
 impl<F, const N: usize, const MAX: bool> MinMaxInner<F, N, MAX>
@@ -80,14 +81,20 @@ where
 {
     #[inline]
     fn __advance(&mut self, input: F) {
-        self.extrema.zip_transform(input, |e, x| {
-            if crate::stats::surpasses::<_, MAX>(&x, &e) {
-                x
-            }
-            else {
-                e
-            }
-        });
+        if self.is_empty {
+            self.extrema = input;
+            self.is_empty = false;
+        }
+        else {
+            self.extrema.zip_transform(input, |e, x| {
+                if crate::stats::surpasses::<_, MAX>(&x, &e) {
+                    x
+                }
+                else {
+                    e
+                }
+            });
+        }
     }
 
     #[inline]
