@@ -757,7 +757,7 @@ enum Diff {
     Promoted,
 }
 
-fn surpasses<S: Sample, const MAX: bool>(candidate: &S, target: &S) -> bool {
+pub(crate) fn surpasses<S: Sample, const MAX: bool>(candidate: &S, target: &S) -> bool {
     match candidate.partial_cmp(&target) {
         // The new value does not surpass the target extrema.
         None => false,

@@ -8,6 +8,9 @@ const NO_SQRT: bool = false;
 const DO_POW2: bool = true;
 const NO_POW2: bool = false;
 
+const DO_MAX: bool = true;
+const DO_MIN: bool = false;
+
 struct SummageInner<F, const N: usize, const SQRT: bool, const POW2: bool>
 where
     F: Frame<N>,
@@ -64,5 +67,33 @@ struct MinMaxInner<F, const N: usize, const MAX: bool>
 where
     F: Frame<N>,
 {
-    frontier: F,
+    extrema: F,
+}
+
+impl<F, const N: usize, const MAX: bool> MinMaxInner<F, N, MAX>
+where
+    F: Frame<N>,
+{
+    #[inline]
+    fn __advance(&mut self, input: F) {
+        self.extrema.zip_transform(input, |e, x| {
+            if crate::stats::surpasses::<_, MAX>(&x, &e) {
+                x
+            }
+            else {
+                e
+            }
+        });
+    }
+
+    #[inline]
+    fn __current(&self) -> F {
+        self.extrema
+    }
+
+    #[inline]
+    fn __process(&mut self, input: F) -> F {
+        self.__advance(input);
+        self.__current()
+    }
 }
