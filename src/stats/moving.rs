@@ -43,14 +43,14 @@ macro_rules! master {
             description => $prose:literal,
 
             methods_defs => {
-                args_from => ( $($ta_from:expr),* ),
-                args_from_empty => ( $($ta_from_empty:expr),* ),
-                args_reset => ( $($ta_reset:expr),* ),
-                args_fill => ( $($ta_fill:expr),* ),
-                args_fill_with => ( $($ta_fill_with:expr),* ),
-                args_advance => ( $($ta_advance:expr),* ),
-                args_current => ( $($ta_current:expr),* ),
-                args_process => ( $($ta_process:expr),* ),
+                args_from => ( $ta__from:expr ),
+                args_from_empty => ( $ta__from_empty:expr ),
+                args_reset => ( $ta__reset__before:expr, $ta__reset__after:expr ),
+                args_fill => ( $ta__fill__before:expr, $ta__fill__after:expr ),
+                args_fill_with => ( $ta__fill_with__before:expr, $ta__fill_with__after:expr ),
+                args_advance => ( $ta__advance__p1:expr, $ta__advance__p2:expr, $ta__advance__p3:expr, $ta__advance__p4:expr ),
+                args_current => ( $ta__current:expr ),
+                args_process => ( $ta__process__p1:expr, $ta__process__p2:expr, $ta__process__p3:expr, $ta__process__p4:expr ),
             }
         }),+
     ) => {
@@ -73,14 +73,182 @@ macro_rules! master {
                     B: Buffer<N>,
                     $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                 {
-                    define__from_empty!($helper_cls, $cls, $($ta_from_empty),*);
-                    define__reset!($cls, $($ta_reset),*);
-                    define__fill!($cls, $($ta_fill),*);
-                    define__fill_with!($cls, $($ta_fill_with),*);
-                    define__len!($cls);
-                    define__advance!($cls, $prose, $($ta_advance),*);
-                    define__current!($cls, $prose, $($ta_current),*);
-                    define__process!($cls, $prose, $($ta_process),*);
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Similar to [`", stringify!($cls), "::from`], but treats the provided buffer as ",
+                                "empty and fills it with [`Frame::EQUILIBRIUM`].",
+                            ),
+                            {
+                                "// These values get zeroed out.",
+                                concat!("let mut window = ", stringify!($cls), "::from_empty([[-1.0]; 4]);"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__from_empty), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn from_empty(buffer: B) -> Self {
+                                assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
+                                Self($helper_cls::__from_empty(buffer))
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            "Resets the window to its zeroed-out state.",
+                            {
+                                concat!("let mut window = ", stringify!($cls), "::from([[0.25], [0.75], [0.25], [0.75]]);"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__reset__before), ");\n"),
+                                concat!("window.reset();"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__reset__after), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn reset(&mut self) {
+                                self.0.__reset()
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            "Fills the window with a single constant [`Frame`] value.",
+                            {
+                                concat!("let mut window = ", stringify!($cls), "::from_empty([[-1.0]; 4]);"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__fill__before), ");\n"),
+                                concat!("window.fill([0.5]);"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__fill__after), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn fill(&mut self, fill_val: B::Frame) {
+                                self.0.__fill(fill_val)
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            "Fills the window by repeatedly calling a closure that produces [`Frame`]s.",
+                            {
+                                concat!("let mut window = ", stringify!($cls), "::from_empty([[-1.0]; 4]);"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__fill_with__before), ");\n"),
+                                "let mut x = 1.0;",
+                                "window.fill_with(|| {",
+                                "    x -= 0.25;",
+                                "    [x]",
+                                "});",
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__fill_with__after), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn fill_with<M>(&mut self, fill_func: M)
+                            where
+                                M: FnMut() -> B::Frame,
+                            {
+                                self.0.__fill_with(fill_func)
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            "Returns the length of the window.",
+                            {
+                                concat!("let window = ", stringify!($cls), "::from_empty([[0.0]; 99]);"),
+                                "assert_eq!(window.len(), 99);",
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn len(&self) -> usize {
+                                self.0.__len()
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Advances the state of the window buffer by pushing in a new input [`Frame`]. ",
+                                "The oldest frame will be popped off in order to accomodate the new one.\n\n",
+                                "This method does not calculate the current ", $prose, " value, ",
+                                "which can be more performant for workflows that process multiple frames in bulk ",
+                                "and do not need the intermediate ", $prose, " values.",
+                            ),
+                            {
+                                concat!("let mut window = ", stringify!($cls), "::from([[0.0], [0.25], [0.50], [0.75]]);\n"),
+                                "window.advance([1.0]);",
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__advance__p1), ");"),
+                                "window.advance([1.0]);",
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__advance__p2), ");"),
+                                "window.advance([1.0]);",
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__advance__p3), ");"),
+                                "window.advance([1.0]);",
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__advance__p4), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn advance(&mut self, input: B::Frame) {
+                                self.0.__advance(input)
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Calculates the current ", $prose, " value using the current window contents.",
+                            ),
+                            {
+                                concat!("let mut window = ", stringify!($cls), "::from([[0.0], [0.25], [0.50], [0.75]]);\n"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__current), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn current(&self) -> B::Frame {
+                                self.0.__current()
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Processes a new input frame by advancing the state of the window buffer ",
+                                "and then calculating the current ", $prose, " value.\n\n",
+                                "This is equivalent to a call to [`", stringify!($cls), "::advance`] followed ",
+                                "by a call to [`", stringify!($cls), "::current`].",
+                            ),
+                            {
+                                concat!("let mut window = ", stringify!($cls), "::from([[0.0], [0.25], [0.50], [0.75]]);\n"),
+                                concat!("assert_eq!(window.process([1.0]), ", stringify!($ta__process__p1), ");"),
+                                concat!("assert_eq!(window.process([1.0]), ", stringify!($ta__process__p2), ");"),
+                                concat!("assert_eq!(window.process([1.0]), ", stringify!($ta__process__p3), ");"),
+                                concat!("assert_eq!(window.process([1.0]), ", stringify!($ta__process__p4), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn process(&mut self, input: B::Frame) -> B::Frame {
+                                self.0.__process(input)
+                            }
+                        }
+                    }
                 }
 
                 impl<B, const N: usize> From<B> for $cls<B, N>
@@ -88,7 +256,26 @@ macro_rules! master {
                     B: Buffer<N>,
                     $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                 {
-                    define__from!($helper_cls, $cls, $($ta_from),*);
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Creates a new [`", stringify!($cls), "`] using a given [`Buffer`] as a window. ",
+                                "The provided buffer is assumed to be filled with the initial window buffer [`Frame`]s.",
+                            ),
+                            {
+                                concat!("let mut window = ", stringify!($cls), "::from([[0.5]; 4]);\n"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__from), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            fn from(buffer: B) -> Self {
+                                assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
+                                Self($helper_cls::__from(buffer))
+                            }
+                        }
+                    }
                 }
 
                 // Implement `Processor` and forward all methods to `Self`.
@@ -332,240 +519,6 @@ macro_rules! gen_doc_comment {
             "```\n",
         )
     };
-}
-
-macro_rules! define__from {
-    ($helper_cls:ident, $cls:ident, $curr:expr) => {
-        apply_doc_comment! {
-            gen_doc_comment!(
-                $cls,
-                concat!(
-                    "Creates a new [`", stringify!($cls), "`] using a given [`Buffer`] as a window. ",
-                    "The provided buffer is assumed to be filled with the initial window buffer [`Frame`]s.",
-                ),
-                {
-                    concat!("let mut window = ", stringify!($cls), "::from([[0.5]; 4]);\n"),
-                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
-                }
-            ),
-            {
-                #[inline]
-                fn from(buffer: B) -> Self {
-                    assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
-                    Self($helper_cls::__from(buffer))
-                }
-            }
-        }
-    }
-}
-
-macro_rules! define__from_empty {
-    ($helper_cls:ident, $cls:ident, $curr:expr) => {
-        apply_doc_comment! {
-            gen_doc_comment!(
-                $cls,
-                concat!(
-                    "Similar to [`", stringify!($cls), "::from`], but treats the provided buffer as ",
-                    "empty and fills it with [`Frame::EQUILIBRIUM`].",
-                ),
-                {
-                    "// These values get zeroed out.",
-                    concat!("let mut window = ", stringify!($cls), "::from_empty([[-1.0]; 4]);"),
-                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
-                }
-            ),
-            {
-                #[inline]
-                pub fn from_empty(buffer: B) -> Self {
-                    assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
-                    Self($helper_cls::__from_empty(buffer))
-                }
-            }
-        }
-    }
-}
-
-macro_rules! define__reset {
-    ($cls:ident, $curr:expr, $after:expr) => {
-        apply_doc_comment! {
-            gen_doc_comment!(
-                $cls,
-                "Resets the window to its zeroed-out state.",
-                {
-                    concat!("let mut window = ", stringify!($cls), "::from([[0.25], [0.75], [0.25], [0.75]]);"),
-                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");\n"),
-                    concat!("window.reset();"),
-                    concat!("assert_eq!(window.current(), ", stringify!($after), ");"),
-                }
-            ),
-            {
-                #[inline]
-                pub fn reset(&mut self) {
-                    self.0.__reset()
-                }
-            }
-        }
-    }
-}
-
-macro_rules! define__fill {
-    ($cls:ident, $curr:expr, $after:expr) => {
-        apply_doc_comment! {
-            gen_doc_comment!(
-                $cls,
-                "Fills the window with a single constant [`Frame`] value.",
-                {
-                    concat!("let mut window = ", stringify!($cls), "::from_empty([[-1.0]; 4]);"),
-                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");\n"),
-                    concat!("window.fill([0.5]);"),
-                    concat!("assert_eq!(window.current(), ", stringify!($after), ");"),
-                }
-            ),
-            {
-                #[inline]
-                pub fn fill(&mut self, fill_val: B::Frame) {
-                    self.0.__fill(fill_val)
-                }
-            }
-        }
-    }
-}
-
-macro_rules! define__fill_with {
-    ($cls:ident, $curr:expr, $after:expr) => {
-        apply_doc_comment! {
-            gen_doc_comment!(
-                $cls,
-                "Fills the window by repeatedly calling a closure that produces [`Frame`]s.",
-                {
-                    concat!("let mut window = ", stringify!($cls), "::from_empty([[-1.0]; 4]);"),
-                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");\n"),
-                    "let mut x = 1.0;",
-                    "window.fill_with(|| {",
-                    "    x -= 0.25;",
-                    "    [x]",
-                    "});",
-                    concat!("assert_eq!(window.current(), ", stringify!($after), ");"),
-                }
-            ),
-            {
-                #[inline]
-                pub fn fill_with<M>(&mut self, fill_func: M)
-                where
-                    M: FnMut() -> B::Frame,
-                {
-                    self.0.__fill_with(fill_func)
-                }
-            }
-        }
-    }
-}
-
-macro_rules! define__len {
-    ($cls:ident) => {
-        apply_doc_comment! {
-            gen_doc_comment!(
-                $cls,
-                "Returns the length of the window.",
-                {
-                    concat!("let window = ", stringify!($cls), "::from_empty([[0.0]; 99]);"),
-                    "assert_eq!(window.len(), 99);",
-                }
-            ),
-            {
-                #[inline]
-                pub fn len(&self) -> usize {
-                    self.0.__len()
-                }
-            }
-        }
-    }
-}
-
-macro_rules! define__advance {
-    ($cls:ident, $prose:literal, $p1:expr, $p2:expr, $p3:expr, $p4:expr) => {
-        apply_doc_comment! {
-            gen_doc_comment!(
-                $cls,
-                concat!(
-                    "Advances the state of the window buffer by pushing in a new input [`Frame`]. ",
-                    "The oldest frame will be popped off in order to accomodate the new one.\n\n",
-                    "This method does not calculate the current ", $prose, " value, ",
-                    "which can be more performant for workflows that process multiple frames in bulk ",
-                    "and do not need the intermediate ", $prose, " values.",
-                ),
-                {
-                    concat!("let mut window = ", stringify!($cls), "::from([[0.0], [0.25], [0.50], [0.75]]);\n"),
-                    "window.advance([1.0]);",
-                    concat!("assert_eq!(window.current(), ", stringify!($p1), ");"),
-                    "window.advance([1.0]);",
-                    concat!("assert_eq!(window.current(), ", stringify!($p2), ");"),
-                    "window.advance([1.0]);",
-                    concat!("assert_eq!(window.current(), ", stringify!($p3), ");"),
-                    "window.advance([1.0]);",
-                    concat!("assert_eq!(window.current(), ", stringify!($p4), ");"),
-                }
-            ),
-            {
-                #[inline]
-                pub fn advance(&mut self, input: B::Frame) {
-                    self.0.__advance(input)
-                }
-            }
-        }
-    }
-}
-
-macro_rules! define__current {
-    ($cls:ident, $prose:literal, $curr:expr) => {
-        apply_doc_comment! {
-            gen_doc_comment!(
-                $cls,
-                concat!(
-                    "Calculates the current ", $prose, " value using the current window contents.",
-                ),
-                {
-                    concat!("let mut window = ", stringify!($cls), "::from([[0.0], [0.25], [0.50], [0.75]]);\n"),
-                    concat!("assert_eq!(window.current(), ", stringify!($curr), ");"),
-                }
-            ),
-            {
-                #[inline]
-                pub fn current(&self) -> B::Frame {
-                    self.0.__current()
-                }
-            }
-        }
-    }
-}
-
-macro_rules! define__process {
-    ($cls:ident, $prose:literal, $p1:expr, $p2:expr, $p3:expr, $p4:expr) => {
-        apply_doc_comment! {
-            gen_doc_comment!(
-                $cls,
-                concat!(
-                    "Processes a new input frame by advancing the state of the window buffer ",
-                    "and then calculating the current ", $prose, " value.\n\n",
-                    "This is equivalent to a call to [`", stringify!($cls), "::advance`] followed ",
-                    "by a call to [`", stringify!($cls), "::current`].",
-                ),
-                {
-                    concat!("let mut window = ", stringify!($cls), "::from([[0.0], [0.25], [0.50], [0.75]]);\n"),
-                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p1), ");"),
-                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p2), ");"),
-                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p3), ");"),
-                    concat!("assert_eq!(window.process([1.0]), ", stringify!($p4), ");"),
-                }
-            ),
-            {
-                #[inline]
-                pub fn process(&mut self, input: B::Frame) -> B::Frame {
-                    self.0.__process(input)
-                }
-            }
-        }
-    }
 }
 
 #[derive(Clone)]
