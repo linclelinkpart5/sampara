@@ -505,22 +505,6 @@ macro_rules! master {
     };
 }
 
-macro_rules! gen_doc_comment {
-    ($cls:ty, $text:expr, { $($test_stmt:expr),* $(,)? }) => {
-        concat!(
-            $text, "\n",
-            "```\n",
-            "use sampara::stats::", stringify!($cls), ";\n\n",
-            "fn main() {\n",
-            $(
-                concat!("    ", $test_stmt, "\n"),
-            )*
-            "}\n",
-            "```\n",
-        )
-    };
-}
-
 #[derive(Clone)]
 struct SummageInner<B, const N: usize, const SQRT: bool, const POW2: bool>
 where

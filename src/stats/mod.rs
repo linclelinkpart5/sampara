@@ -1,10 +1,26 @@
 #![macro_use]
 
-// LEARN: This needs to be defined before defining the submodules, annoyingly.
+// LEARN: These macros must be defined before defining submodules, annoyingly.
 macro_rules! apply_doc_comment {
     ($doc_comment:expr, { $($tt:tt)* }) => {
         #[doc = $doc_comment]
         $($tt)*
+    };
+}
+
+macro_rules! gen_doc_comment {
+    ($cls:ty, $text:expr, { $($test_stmt:expr),* $(,)? }) => {
+        concat!(
+            $text, "\n",
+            "```\n",
+            "use sampara::stats::", stringify!($cls), ";\n\n",
+            "fn main() {\n",
+            $(
+                concat!("    ", $test_stmt, "\n"),
+            )*
+            "}\n",
+            "```\n",
+        )
     };
 }
 
