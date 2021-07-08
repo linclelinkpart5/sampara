@@ -80,7 +80,7 @@ type RmsInner<F, const N: usize> = SummageInner<F, N, DO_SQRT, DO_POW2>;
 type MsInner<F, const N: usize> = SummageInner<F, N, NO_SQRT, DO_POW2>;
 type MeanInner<F, const N: usize> = SummageInner<F, N, NO_SQRT, NO_POW2>;
 
-struct MinMaxInner<F, const N: usize, const MAX: bool>
+struct ExtremaInner<F, const N: usize, const MAX: bool>
 where
     F: Frame<N>,
 {
@@ -91,7 +91,7 @@ where
     is_empty: bool,
 }
 
-impl<F, const N: usize, const MAX: bool> Default for MinMaxInner<F, N, MAX>
+impl<F, const N: usize, const MAX: bool> Default for ExtremaInner<F, N, MAX>
 where
     F: Frame<N>,
 {
@@ -103,7 +103,7 @@ where
     }
 }
 
-impl<F, const N: usize, const MAX: bool> MinMaxInner<F, N, MAX>
+impl<F, const N: usize, const MAX: bool> ExtremaInner<F, N, MAX>
 where
     F: Frame<N>,
 {
@@ -137,8 +137,8 @@ where
     }
 }
 
-type MinInner<F, const N: usize> = MinMaxInner<F, N, DO_MIN>;
-type MaxInner<F, const N: usize> = MinMaxInner<F, N, DO_MAX>;
+type MinInner<F, const N: usize> = ExtremaInner<F, N, DO_MIN>;
+type MaxInner<F, const N: usize> = ExtremaInner<F, N, DO_MAX>;
 
 #[cfg(test)]
 mod tests {

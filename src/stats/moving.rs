@@ -34,10 +34,6 @@ macro_rules! master {
             // (e.g. `StatsInner`).
             inner_class => $helper_cls:ident,
 
-            // Optional const generic arguments for the `*Inner` class to use
-            // (e.g. `DO_SQRT`, `DO_POW2`).
-            inner_class_const_generic_vals => [ $( $const_gen_state:expr ),* ],
-
             // Optional extra bounds on the `Sample` type for this new
             // calculator (e.g. `FloatSample`).
             sample_trait_bounds => [ $( $sample_kind:ident )? ],
@@ -64,7 +60,7 @@ macro_rules! master {
                     concat!("Keeps a moving (aka \"rolling\" or \"sliding\") ", $prose, " of a window of [`Frame`]s over time."),
                     {
                         #[derive(Clone)]
-                        pub struct $cls<B, const N: usize>($helper_cls<B, N, $( $const_gen_state ),* >)
+                        pub struct $cls<B, const N: usize>($helper_cls<B, N>)
                         where
                             B: Buffer<N>,
                             $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
@@ -718,6 +714,10 @@ where
     }
 }
 
+type RmsInner<B, const N: usize> = SummageInner<B, N, DO_SQRT, DO_POW2>;
+type MsInner<B, const N: usize> = SummageInner<B, N, NO_SQRT, DO_POW2>;
+type MeanInner<B, const N: usize> = SummageInner<B, N, NO_SQRT, NO_POW2>;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum Diff {
     // The new value was not an extrema, and neither the frontier nor horizon
@@ -1048,7 +1048,7 @@ where
 }
 
 #[derive(Clone)]
-struct MinMaxInner<B, const N: usize, const MAX: bool>
+struct ExtremaInner<B, const N: usize, const MAX: bool>
 where
     B: Buffer<N>,
 {
@@ -1056,7 +1056,7 @@ where
     ext_state: ExtremaState<<B::Frame as Frame<N>>::Sample, N, MAX>,
 }
 
-impl<B, const N: usize, const MAX: bool> MinMaxInner<B, N, MAX>
+impl<B, const N: usize, const MAX: bool> ExtremaInner<B, N, MAX>
 where
     B: Buffer<N>,
 {
@@ -1165,6 +1165,9 @@ where
     }
 }
 
+type MinInner<B, const N: usize> = ExtremaInner<B, N, DO_MIN>;
+type MaxInner<B, const N: usize> = ExtremaInner<B, N, DO_MAX>;
+
 master!(
     module_path => crate::stats,
     injector_prefix => stats,
@@ -1172,8 +1175,7 @@ master!(
     {
         class_name => MovingMin,
         func_name => minimum,
-        inner_class => MinMaxInner,
-        inner_class_const_generic_vals => [DO_MIN],
+        inner_class => MinInner,
         sample_trait_bounds => [],
         description => "minimum",
 
@@ -1191,8 +1193,7 @@ master!(
     {
         class_name => MovingMax,
         func_name => maximum,
-        inner_class => MinMaxInner,
-        inner_class_const_generic_vals => [DO_MAX],
+        inner_class => MaxInner,
         sample_trait_bounds => [],
         description => "maximum",
 
@@ -1210,8 +1211,7 @@ master!(
     {
         class_name => MovingMean,
         func_name => mean,
-        inner_class => SummageInner,
-        inner_class_const_generic_vals => [NO_SQRT, NO_POW2],
+        inner_class => MeanInner,
         sample_trait_bounds => [FloatSample],
         description => "mean",
 
@@ -1229,8 +1229,7 @@ master!(
     {
         class_name => MovingMs,
         func_name => ms,
-        inner_class => SummageInner,
-        inner_class_const_generic_vals => [NO_SQRT, DO_POW2],
+        inner_class => MsInner,
         sample_trait_bounds => [FloatSample],
         description => "MS",
 
@@ -1248,8 +1247,7 @@ master!(
     {
         class_name => MovingRms,
         func_name => rms,
-        inner_class => SummageInner,
-        inner_class_const_generic_vals => [DO_SQRT, DO_POW2],
+        inner_class => RmsInner,
         sample_trait_bounds => [FloatSample],
         description => "RMS",
 
