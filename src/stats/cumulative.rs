@@ -20,6 +20,19 @@ where
     count: u64,
 }
 
+impl<F, const N: usize, const SQRT: bool, const POW2: bool> Default for SummageInner<F, N, SQRT, POW2>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+{
+    fn default() -> Self {
+        Self {
+            avg: Frame::EQUILIBRIUM,
+            count: 0,
+        }
+    }
+}
+
 impl<F, const N: usize, const SQRT: bool, const POW2: bool> SummageInner<F, N, SQRT, POW2>
 where
     F: Frame<N>,
@@ -71,8 +84,23 @@ struct MinMaxInner<F, const N: usize, const MAX: bool>
 where
     F: Frame<N>,
 {
+    // NOTE: No need to wrap this in an `Option`, since this is an internal
+    //       class. We can just make sure to never return this until at least
+    //       one frame has been processed.
     extrema: F,
     is_empty: bool,
+}
+
+impl<F, const N: usize, const MAX: bool> Default for MinMaxInner<F, N, MAX>
+where
+    F: Frame<N>,
+{
+    fn default() -> Self {
+        Self {
+            extrema: Frame::EQUILIBRIUM,
+            is_empty: false,
+        }
+    }
 }
 
 impl<F, const N: usize, const MAX: bool> MinMaxInner<F, N, MAX>
@@ -111,3 +139,63 @@ where
 
 type MinInner<F, const N: usize> = MinMaxInner<F, N, DO_MIN>;
 type MaxInner<F, const N: usize> = MinMaxInner<F, N, DO_MAX>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use proptest::prelude::*;
+    use approx::assert_relative_eq;
+
+    const N: usize = 16;
+
+    fn arb_frame() -> impl Strategy<Value = [f32; N]> {
+        prop::array::uniform16(-10000.0f32..=10000.0)
+        // prop::array::uniform16(any::<f32>())
+    }
+
+    fn arb_input_feed() -> impl Strategy<Value = Vec<[f32; N]>> {
+        prop::collection::vec(arb_frame(), 1..=32)
+    }
+
+    proptest! {
+        #[test]
+        fn prop_rms_inner(in_feed in arb_input_feed()) {
+            let mut inner = RmsInner::<[f32; N], N>::default();
+
+            // NOTE: Older less-numerically stable version for comparison.
+            // let expected: [f32; N] = {
+            //     let mut exp: [f32; N] = Frame::EQUILIBRIUM;
+
+            //     for frame in in_feed.iter().copied() {
+            //         exp.zip_transform(frame, |e, x| e + x * x);
+            //     }
+
+            //     let len_f = in_feed.len() as f32;
+
+            //     exp.apply(|x| Float::sqrt(x / len_f))
+            // };
+
+            let expected: [f32; N] = {
+                let mut exp: [f32; N] = Frame::EQUILIBRIUM;
+
+                for (frame, count) in in_feed.iter().copied().zip(1..) {
+                    exp.zip_transform(frame, |e, x| {
+                        let x = x * x;
+                        e + (x - e) / count as f32
+                    });
+                }
+
+                exp.apply(Float::sqrt)
+            };
+
+            for frame in in_feed {
+                inner.__advance(frame);
+            }
+
+            let produced = inner.__current();
+
+            assert_relative_eq!(produced.as_slice(), expected.as_slice());
+        }
+    }
+}
