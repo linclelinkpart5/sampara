@@ -41,16 +41,22 @@ where
             input.transform(|x| x * x);
         }
 
-        self.count += 1;
-        let c = <F::Sample as NumCast>::from(self.count).unwrap();
-        self.avg.zip_transform(input, |a, x| {
-            let mut new_a = a + (x - a) / c;
-            if SQRT {
-                // In case of floating point rounding errors, floor at equilibrium.
-                new_a = new_a.max(Sample::EQUILIBRIUM);
-            }
-            new_a
-        });
+        if self.count <= 0 {
+            self.avg = input;
+            self.count = 1;
+        }
+        else {
+            self.count += 1;
+            let c = <F::Sample as NumCast>::from(self.count).unwrap();
+            self.avg.zip_transform(input, |a, x| {
+                let mut new_a = a + (x - a) / c;
+                if SQRT {
+                    // In case of floating point rounding errors, floor at equilibrium.
+                    new_a = new_a.max(Sample::EQUILIBRIUM);
+                }
+                new_a
+            });
+        }
     }
 
     #[inline]
@@ -92,7 +98,7 @@ where
     fn default() -> Self {
         Self {
             extrema: Frame::EQUILIBRIUM,
-            is_empty: false,
+            is_empty: true,
         }
     }
 }
