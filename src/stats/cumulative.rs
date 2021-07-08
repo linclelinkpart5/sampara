@@ -1,15 +1,9 @@
+use super::*;
+
 use num_traits::{Float, NumCast};
 
 use crate::{Sample, Frame};
 use crate::sample::FloatSample;
-
-const DO_SQRT: bool = true;
-const NO_SQRT: bool = false;
-const DO_POW2: bool = true;
-const NO_POW2: bool = false;
-
-const DO_MAX: bool = true;
-const DO_MIN: bool = false;
 
 struct SummageInner<F, const N: usize, const SQRT: bool, const POW2: bool>
 where
