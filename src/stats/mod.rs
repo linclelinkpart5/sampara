@@ -35,6 +35,7 @@ use std::cmp::Ordering;
 use crate::Sample;
 
 const EMPTY_BUFFER_MSG: &'static str = "buffer cannot be empty";
+const ZERO_FRAMES_MSG: &'static str = "no frames processed yet";
 
 const DO_SQRT: bool = true;
 const NO_SQRT: bool = false;

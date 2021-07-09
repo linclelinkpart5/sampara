@@ -61,6 +61,8 @@ where
 
     #[inline]
     fn __current(&self) -> F {
+        assert!(self.count > 0, "{}", ZERO_FRAMES_MSG);
+
         if SQRT {
             self.avg.apply(Float::sqrt)
         }
@@ -73,6 +75,21 @@ where
     fn __process(&mut self, input: F) -> F {
         self.__advance(input);
         self.__current()
+    }
+
+    #[inline]
+    fn __from(frame: F) -> Self {
+        let mut input = frame;
+
+        if POW2 {
+            // Calculate the square of the new frame and push onto the buffer.
+            input.transform(|x| x * x);
+        }
+
+        Self {
+            avg: input,
+            count: 1,
+        }
     }
 }
 
@@ -127,6 +144,8 @@ where
 
     #[inline]
     fn __current(&self) -> F {
+        assert!(!self.is_empty, "{}", ZERO_FRAMES_MSG);
+
         self.extrema
     }
 
@@ -134,6 +153,14 @@ where
     fn __process(&mut self, input: F) -> F {
         self.__advance(input);
         self.__current()
+    }
+
+    #[inline]
+    fn __from(frame: F) -> Self {
+        Self {
+            extrema: frame,
+            is_empty: false,
+        }
     }
 }
 
