@@ -2,7 +2,7 @@ use super::*;
 
 use num_traits::{Float, NumCast};
 
-use crate::{Sample, Frame};
+use crate::{Frame, Sample, Processor};
 use crate::sample::FloatSample;
 
 macro_rules! master {
@@ -15,15 +15,14 @@ macro_rules! master {
         injector_prefix => $injector_prefix:ident,
 
         $({
-            // Desired name for the public calculator class (e.g. `Rms`).
+            // Desired name for the public calculator class.
             class_name => $cls:ident,
 
             // Desired name for the public method on `Signal` that uses this
-            // calculator (e.g. `Rms`).
+            // calculator.
             func_name => $func_name:ident,
 
-            // The `*Inner` class to use to power this calculator type
-            // (e.g. `StatsInner`).
+            // The `*Inner` class to use to power this calculator type.
             inner_class => $helper_cls:ident,
 
             // Optional extra bounds on the `Sample` type for this new
@@ -65,6 +64,153 @@ macro_rules! master {
                     F: Frame<N>,
                     $(F::Sample: $sample_kind,)?
                 {
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Resets this cumulative ", $prose, " to its initial empty state.",
+                            ),
+                            {
+                                concat!("let mut calc = ", stringify!($cls), "::from([0.5]);"),
+                                concat!("assert_eq!(calc.current(), ", stringify!($ta__reset__before), ");\n"),
+                                concat!("calc.reset();"),
+                                concat!("assert_eq!(calc.try_current(), None);"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn reset(&mut self) {
+                                *self = Self::default();
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Returns true if this cumulative ", $prose, " is active (has ",
+                                "processed at least one frame of data).",
+                            ),
+                            {
+                                concat!("let mut calc = ", stringify!($cls), "::default();"),
+                                concat!("assert_eq!(calc.is_active(), false);\n"),
+                                concat!("calc.advance([0.5]);"),
+                                concat!("assert_eq!(calc.is_active(), true);"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn is_active(&self) -> bool {
+                                self.0.__is_active()
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Advances the state of the cumulative ", $prose, " by pushing in a ",
+                                "new input [`Frame`].\n\n",
+                                "This method does not calculate the current ", $prose, " value, ",
+                                "which can be more performant for workflows that process multiple frames in bulk ",
+                                "and do not need the intermediate ", $prose, " values.",
+                            ),
+                            {
+                                concat!("let mut calc = ", stringify!($cls), "::default();\n"),
+                                "calc.advance([0.0]);",
+                                concat!("assert_eq!(calc.current(), ", stringify!($ta__advance__p1), ");"),
+                                "calc.advance([0.5]);",
+                                concat!("assert_eq!(calc.current(), ", stringify!($ta__advance__p2), ");"),
+                                "calc.advance([1.0]);",
+                                concat!("assert_eq!(calc.current(), ", stringify!($ta__advance__p3), ");"),
+                                "calc.advance([-0.5]);",
+                                concat!("assert_eq!(calc.current(), ", stringify!($ta__advance__p4), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn advance(&mut self, input: F) {
+                                self.0.__advance(input)
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            // TODO: Add doctest for panic case.
+                            concat!(
+                                "Calculates the current cumulative ", $prose, " value. Panics if this ",
+                                "calculator has not yet processed any frames (i.e. [`is_active`] is
+                                `false`)."
+                            ),
+                            {
+                                concat!("let mut calc = ", stringify!($cls), "::from([-0.5]);\n"),
+                                concat!("assert_eq!(calc.current(), ", stringify!($ta__current), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn current(&self) -> F {
+                                self.try_current().expect(ZERO_FRAMES_MSG)
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Calculates the current cumulative ", $prose, " value of this ",
+                                "calculator if it is active. Otherwise, returns `None`"
+                            ),
+                            {
+                                concat!("let mut calc = ", stringify!($cls), "::default();\n"),
+                                "assert_eq!(calc.try_current(), None);",
+                                "calc.advance([-0.5]);",
+                                concat!("assert_eq!(calc.try_current(), Some(", stringify!($ta__try_current), "));"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn try_current(&self) -> Option<F> {
+                                if self.is_active() {
+                                    Some(self.0.__current_unchecked())
+                                }
+                                else {
+                                    None
+                                }
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Processes a new input frame by advancing the cumulative ", $prose,
+                                "state, and then calculating the current ", $prose, " value.\n\n",
+                                "This is equivalent to a call to [`advance`] followed by a call to ",
+                                "[`current`].",
+                            ),
+                            {
+                                concat!("let mut calc = ", stringify!($cls), "::default();\n"),
+                                concat!("assert_eq!(calc.process([0.0]), ", stringify!($ta__process__p1), ");"),
+                                concat!("assert_eq!(calc.process([0.5]), ", stringify!($ta__process__p2), ");"),
+                                concat!("assert_eq!(calc.process([1.0]), ", stringify!($ta__process__p3), ");"),
+                                concat!("assert_eq!(calc.process([-0.5]), ", stringify!($ta__process__p4), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn process(&mut self, input: F) -> F {
+                                self.advance(input);
+                                self.0.__current_unchecked()
+                            }
+                        }
+                    }
                 }
 
                 impl<F, const N: usize> From<F> for $cls<F, N>
@@ -85,7 +231,7 @@ macro_rules! master {
                     $(F::Sample: $sample_kind,)?
                 {
                     fn default() -> Self {
-                        $cls::__default()
+                        Self($helper_cls::__default())
                     }
                 }
 
@@ -107,6 +253,7 @@ macro_rules! master {
     };
 }
 
+#[derive(Clone)]
 struct SummageInner<F, const N: usize, const SQRT: bool, const POW2: bool>
 where
     F: Frame<N>,
@@ -172,6 +319,7 @@ type RmsInner<F, const N: usize> = SummageInner<F, N, DO_SQRT, DO_POW2>;
 type MsInner<F, const N: usize> = SummageInner<F, N, NO_SQRT, DO_POW2>;
 type MeanInner<F, const N: usize> = SummageInner<F, N, NO_SQRT, NO_POW2>;
 
+#[derive(Clone)]
 struct ExtremaInner<F, const N: usize, const MAX: bool>
 where
     F: Frame<N>,
@@ -223,6 +371,29 @@ where
 
 type MinInner<F, const N: usize> = ExtremaInner<F, N, DO_MIN>;
 type MaxInner<F, const N: usize> = ExtremaInner<F, N, DO_MAX>;
+
+master!(
+    module_path => crate::stats,
+    injector_prefix => stats,
+
+    {
+        class_name => CumulativeRms,
+        func_name => cumulative_rms,
+        inner_class => RmsInner,
+        sample_trait_bounds => [FloatSample],
+        description => "RMS",
+
+        methods_defs => {
+            args_from => ([0.5]),
+            args_default => ([0.0]),
+            args_reset => ([0.5]),
+            args_advance => ([0.0], [0.3535533905932738], [0.6454972243679028], [0.6123724356957945]),
+            args_current => ([0.5]),
+            args_try_current => ([0.5]),
+            args_process => ([0.0], [0.3535533905932738], [0.6454972243679028], [0.6123724356957945]),
+        }
+    }
+);
 
 #[cfg(test)]
 mod tests {
