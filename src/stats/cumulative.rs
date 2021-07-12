@@ -1,3 +1,7 @@
+// LEARN: This is needed in order to make the generated injection macros
+// visible in other modules in the crate.
+#![macro_use]
+
 use super::*;
 
 use num_traits::{Float, NumCast};
@@ -249,6 +253,66 @@ macro_rules! master {
                     }
                 }
             )+
+
+            // This is a generated macro that injects adaptors types and typedefs.
+            macro_rules! [< $injector_prefix _inject_signal_adaptors >] {
+                () => {
+                    $(
+                        // NOTE: This is an adaptor type!
+                        apply_doc_comment! {
+                            concat!(
+                                "A [`Signal`] that calculates a cumulative ", $prose, " of one or more [`Frame`]s."
+                            ),
+                            {
+                                pub struct $cls<S, const N: usize>(pub(crate) Process<S, $ns::$cls<S::Frame, N>, N, N>)
+                                where
+                                    S: Signal<N>,
+                                    $(<S::Frame as Frame<N>>::Sample: $sample_kind,)?
+                                ;
+                            }
+                        }
+
+                        impl<S, const N: usize> Signal<N> for $cls<S, N>
+                        where
+                            S: Signal<N>,
+                            $(<S::Frame as Frame<N>>::Sample: $sample_kind,)?
+                        {
+                            type Frame = S::Frame;
+
+                            fn next(&mut self) -> Option<Self::Frame> {
+                                self.0.next()
+                            }
+                        }
+                    )+
+                };
+            }
+
+            // This is a generated macro that injects methods into the `Signal`
+            // trait definition.
+            macro_rules! [< $injector_prefix _inject_signal_methods >] {
+                () => {
+                    $(
+                        apply_doc_comment! {
+                            concat!(
+                                "Calculates a cumulative ", $prose, " of this [`Signal`]. The first ",
+                                "[`Frame`] will set the initial state of the calculator.\n\n",
+                                "For an input [`Signal`] of length `N`, this will produce a new ",
+                                "[`Signal`] that also yields `N` [`Frame`]s.",
+                            ),
+                            {
+                                fn $func_name(self) -> $cls<Self, N>
+                                where
+                                    Self: Sized,
+                                    $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
+                                {
+                                    let processor = $ns::$cls::default();
+                                    $cls(self.process(processor))
+                                }
+                            }
+                        }
+                    )+
+                };
+            }
         }
     };
 }
@@ -374,7 +438,7 @@ type MaxInner<F, const N: usize> = ExtremaInner<F, N, DO_MAX>;
 
 master!(
     module_path => crate::stats,
-    injector_prefix => stats,
+    injector_prefix => stats_cumulative,
 
     {
         class_name => CumulativeRms,

@@ -509,4 +509,5 @@ where
     }
 }
 
-stats_inject_signal_adaptors!();
+stats_moving_inject_signal_adaptors!();
+stats_cumulative_inject_signal_adaptors!();

@@ -1107,7 +1107,7 @@ type MaxInner<B, const N: usize> = ExtremaInner<B, N, DO_MAX>;
 
 master!(
     module_path => crate::stats,
-    injector_prefix => stats,
+    injector_prefix => stats_moving,
 
     {
         class_name => MovingMin,

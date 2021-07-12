@@ -843,7 +843,8 @@ pub trait Signal<const N: usize> {
     //     self.process(processor)
     // }
 
-    stats_inject_signal_methods!();
+    stats_moving_inject_signal_methods!();
+    stats_cumulative_inject_signal_methods!();
 }
 
 impl<S, const N: usize> Signal<N> for &mut S
