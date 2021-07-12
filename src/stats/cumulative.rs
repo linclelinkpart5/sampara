@@ -59,6 +59,49 @@ macro_rules! master {
                         ;
                     }
                 }
+
+                impl<F, const N: usize> $cls<F, N>
+                where
+                    F: Frame<N>,
+                    $(F::Sample: $sample_kind,)?
+                {
+                }
+
+                impl<F, const N: usize> From<F> for $cls<F, N>
+                where
+                    F: Frame<N>,
+                    $(F::Sample: $sample_kind,)?
+                {
+                    fn from(frame: F) -> Self {
+                        let mut new = Self::default();
+                        new.advance(frame);
+                        new
+                    }
+                }
+
+                impl<F, const N: usize> Default for $cls<F, N>
+                where
+                    F: Frame<N>,
+                    $(F::Sample: $sample_kind,)?
+                {
+                    fn default() -> Self {
+                        $cls::__default()
+                    }
+                }
+
+                impl<F, const N: usize> Processor<N, N> for $cls<F, N>
+                where
+                    F: Frame<N>,
+                    $(F::Sample: $sample_kind,)?
+                {
+                    type Input = F;
+                    type Output = F;
+
+                    #[inline]
+                    fn process(&mut self, input: Self::Input) -> Self::Output {
+                        self.process(input)
+                    }
+                }
             )+
         }
     };
