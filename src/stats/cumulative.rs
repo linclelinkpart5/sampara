@@ -39,7 +39,6 @@ macro_rules! master {
 
             methods_defs => {
                 args_from => ( $ta__from:expr ),
-                args_default => ( $ta__default:expr ),
                 args_reset => ( $ta__reset__before:expr ),
                 // args_is_active => (),
                 args_advance => ( $ta__advance__p1:expr, $ta__advance__p2:expr, $ta__advance__p3:expr, $ta__advance__p4:expr ),
@@ -75,7 +74,7 @@ macro_rules! master {
                                 "Resets this cumulative ", $prose, " to its initial empty state.",
                             ),
                             {
-                                concat!("let mut calc = ", stringify!($cls), "::from([0.5]);"),
+                                concat!("let mut calc = ", stringify!($cls), "::from([-0.5]);"),
                                 concat!("assert_eq!(calc.current(), ", stringify!($ta__reset__before), ");\n"),
                                 concat!("calc.reset();"),
                                 concat!("assert_eq!(calc.try_current(), None);"),
@@ -222,10 +221,25 @@ macro_rules! master {
                     F: Frame<N>,
                     $(F::Sample: $sample_kind,)?
                 {
-                    fn from(frame: F) -> Self {
-                        let mut new = Self::default();
-                        new.advance(frame);
-                        new
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Creates a new [`", stringify!($cls), "`] using a given [`Frame`] as ",
+                                "the first input point.",
+                            ),
+                            {
+                                concat!("let mut calc = ", stringify!($cls), "::from([-0.5]);\n"),
+                                concat!("assert_eq!(calc.current(), ", stringify!($ta__from), ");"),
+                            }
+                        ),
+                        {
+                            fn from(frame: F) -> Self {
+                                let mut new = Self::default();
+                                new.advance(frame);
+                                new
+                            }
+                        }
                     }
                 }
 
@@ -234,8 +248,22 @@ macro_rules! master {
                     F: Frame<N>,
                     $(F::Sample: $sample_kind,)?
                 {
-                    fn default() -> Self {
-                        Self($helper_cls::__default())
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Creates a new [`", stringify!($cls), "`] with an empty input state.",
+                            ),
+                            {
+                                concat!("let mut calc = ", stringify!($cls), "::<f32, 1>::default();\n"),
+                                concat!("assert_eq!(calc.try_current(), None);"),
+                            }
+                        ),
+                        {
+                            fn default() -> Self {
+                                Self($helper_cls::__default())
+                            }
+                        }
                     }
                 }
 
@@ -449,12 +477,43 @@ master!(
 
         methods_defs => {
             args_from => ([0.5]),
-            args_default => ([0.0]),
             args_reset => ([0.5]),
             args_advance => ([0.0], [0.3535533905932738], [0.6454972243679028], [0.6123724356957945]),
             args_current => ([0.5]),
             args_try_current => ([0.5]),
             args_process => ([0.0], [0.3535533905932738], [0.6454972243679028], [0.6123724356957945]),
+        }
+    },
+    {
+        class_name => CumulativeMs,
+        func_name => cumulative_ms,
+        inner_class => MsInner,
+        sample_trait_bounds => [FloatSample],
+        description => "MS",
+
+        methods_defs => {
+            args_from => ([0.25]),
+            args_reset => ([0.25]),
+            args_advance => ([0.0], [0.125], [0.4166666666666667], [0.375]),
+            args_current => ([0.25]),
+            args_try_current => ([0.25]),
+            args_process => ([0.0], [0.125], [0.4166666666666667], [0.375]),
+        }
+    },
+    {
+        class_name => CumulativeMean,
+        func_name => cumulative_mean,
+        inner_class => MeanInner,
+        sample_trait_bounds => [FloatSample],
+        description => "mean",
+
+        methods_defs => {
+            args_from => ([-0.5]),
+            args_reset => ([-0.5]),
+            args_advance => ([0.0], [0.25], [0.5], [0.25]),
+            args_current => ([-0.5]),
+            args_try_current => ([-0.5]),
+            args_process => ([0.0], [0.25], [0.5], [0.25]),
         }
     }
 );
