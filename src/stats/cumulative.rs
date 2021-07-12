@@ -515,6 +515,38 @@ master!(
             args_try_current => ([-0.5]),
             args_process => ([0.0], [0.25], [0.5], [0.25]),
         }
+    },
+    {
+        class_name => CumulativeMin,
+        func_name => cumulative_minimum,
+        inner_class => MinInner,
+        sample_trait_bounds => [FloatSample],
+        description => "minimum",
+
+        methods_defs => {
+            args_from => ([-0.5]),
+            args_reset => ([-0.5]),
+            args_advance => ([0.0], [0.0], [0.0], [-0.5]),
+            args_current => ([-0.5]),
+            args_try_current => ([-0.5]),
+            args_process => ([0.0], [0.0], [0.0], [-0.5]),
+        }
+    },
+    {
+        class_name => CumulativeMax,
+        func_name => cumulative_maximum,
+        inner_class => MaxInner,
+        sample_trait_bounds => [FloatSample],
+        description => "maximum",
+
+        methods_defs => {
+            args_from => ([-0.5]),
+            args_reset => ([-0.5]),
+            args_advance => ([0.0], [0.5], [1.0], [1.0]),
+            args_current => ([-0.5]),
+            args_try_current => ([-0.5]),
+            args_process => ([0.0], [0.5], [1.0], [1.0]),
+        }
     }
 );
 
