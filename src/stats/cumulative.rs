@@ -147,8 +147,8 @@ macro_rules! master {
                             // TODO: Add doctest for panic case.
                             concat!(
                                 "Calculates the current cumulative ", $prose, " value. Panics if this ",
-                                "calculator has not yet processed any frames (i.e. [`is_active`] is
-                                `false`)."
+                                "calculator has not yet processed any frames (i.e. [`Self::is_active`] ",
+                                "is `false`)."
                             ),
                             {
                                 concat!("let mut calc = ", stringify!($cls), "::from([-0.5]);\n"),
@@ -196,8 +196,8 @@ macro_rules! master {
                             concat!(
                                 "Processes a new input frame by advancing the cumulative ", $prose,
                                 "state, and then calculating the current ", $prose, " value.\n\n",
-                                "This is equivalent to a call to [`advance`] followed by a call to ",
-                                "[`current`].",
+                                "This is equivalent to a call to [`Self::advance`] followed by a ",
+                                "call to [`Self::current`].",
                             ),
                             {
                                 concat!("let mut calc = ", stringify!($cls), "::default();\n"),
