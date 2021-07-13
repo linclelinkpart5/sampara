@@ -614,20 +614,13 @@ type MovingMaxInner<B, const N: usize> = ExtremaInner<B, N, DO_MAX>;
 // adaptors, as well as sub-macros for injecting the typedefs and signal
 // methods into where they are needed.
 macro_rules! master {
-    (
-        // The module path to find all of these generated calculator classes
-        // (i.e. `sampara::stats`).
-        module_path => $ns:path,
-
-        // A prefix to attach to the generated injection macro names.
-        injector_prefix => $injector_prefix:ident,
-
+    {
         $({
-            // Desired name for the public calculator class (e.g. `Rms`).
+            // Desired name for the public calculator class.
             class_name => $cls:ident,
 
             // Desired name for the public method on `Signal` that uses this
-            // calculator (e.g. `Rms`).
+            // calculator.
             func_name => $func_name:ident,
 
             // Optional extra bounds on the `Sample` type for this new
@@ -638,7 +631,7 @@ macro_rules! master {
             // "RMS", "maximum", etc),
             description => $prose:literal,
 
-            doctest_args => {
+            doctest_expected_vals => {
                 from => ( $ta__from:expr ),
                 from_empty => ( $ta__from_empty:expr ),
                 reset => ( $ta__reset__before:expr, $ta__reset__after:expr ),
@@ -648,8 +641,8 @@ macro_rules! master {
                 current => ( $ta__current:expr ),
                 process => ( $ta__process__p1:expr, $ta__process__p2:expr, $ta__process__p3:expr, $ta__process__p4:expr ),
             }
-        }),+
-    ) => {
+        }),+ $(,)?
+    } => {
         paste::paste! {
             $(
                 apply_doc_comment! {
@@ -891,7 +884,7 @@ macro_rules! master {
             )+
 
             // This is a generated macro that injects adaptors types and typedefs.
-            macro_rules! [< $injector_prefix _inject_signal_adaptors >] {
+            macro_rules! stats_moving_inject_signal_adaptors {
                 () => {
                     $(
                         // NOTE: This is an adaptor type!
@@ -900,7 +893,7 @@ macro_rules! master {
                                 "A [`Signal`] that calculates a moving ", $prose, " of a window of [`Frame`]s over time."
                             ),
                             {
-                                pub struct $cls<S, B, const N: usize>(pub(crate) Process<S, $ns::$cls<B, N>, N, N>)
+                                pub struct $cls<S, B, const N: usize>(pub(crate) Process<S, crate::stats::$cls<B, N>, N, N>)
                                 where
                                     S: Signal<N>,
                                     B: Buffer<N, Frame = S::Frame>,
@@ -929,7 +922,7 @@ macro_rules! master {
                         {
                             Failed,
                             Uninit(B),
-                            Active($ns::$cls<B, N>),
+                            Active(crate::stats::$cls<B, N>),
                         }
 
                         impl<B, const N: usize> [< Lazy $cls State >]<B, N>
@@ -952,7 +945,7 @@ macro_rules! master {
                                         if let Ok(()) = signal.fill_buffer(&mut buffer) {
                                             // The buffer was successfully filled, create a new sliding
                                             // calculator.
-                                            let calc = $ns::$cls::from(buffer);
+                                            let calc = crate::stats::$cls::from(buffer);
                                             (Some(calc.current()), Self::Active(calc))
                                         }
                                         else {
@@ -1032,7 +1025,7 @@ macro_rules! master {
 
             // This is a generated macro that injects methods into the `Signal`
             // trait definition.
-            macro_rules! [< $injector_prefix _inject_signal_methods >] {
+            macro_rules! stats_moving_inject_signal_methods {
                 () => {
                     $(
                         apply_doc_comment! {
@@ -1049,7 +1042,7 @@ macro_rules! master {
                                     $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
                                     B: Buffer<N, Frame = Self::Frame>,
                                 {
-                                    let processor = $ns::$cls::from_empty(window);
+                                    let processor = crate::stats::$cls::from_empty(window);
                                     $cls(self.process(processor))
                                 }
                             }
@@ -1068,7 +1061,7 @@ macro_rules! master {
                                     $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
                                     B: Buffer<N, Frame = Self::Frame>,
                                 {
-                                    let processor = $ns::$cls::from(window);
+                                    let processor = crate::stats::$cls::from(window);
                                     $cls(self.process(processor))
                                 }
                             }
@@ -1101,17 +1094,14 @@ macro_rules! master {
     };
 }
 
-master!(
-    module_path => crate::stats,
-    injector_prefix => stats_moving,
-
+master! {
     {
         class_name => MovingRms,
         func_name => moving_rms,
         sample_trait_bounds => [FloatSample],
         description => "RMS",
 
-        doctest_args => {
+        doctest_expected_vals => {
             from => ([0.5]),
             from_empty => ([0.0]),
             reset => ([0.5590169943749475], [0.0]),
@@ -1128,7 +1118,7 @@ master!(
         sample_trait_bounds => [FloatSample],
         description => "MS",
 
-        doctest_args => {
+        doctest_expected_vals => {
             from => ([0.25]),
             from_empty => ([0.0]),
             reset => ([0.3125], [0.0]),
@@ -1145,7 +1135,7 @@ master!(
         sample_trait_bounds => [FloatSample],
         description => "mean",
 
-        doctest_args => {
+        doctest_expected_vals => {
             from => ([0.5]),
             from_empty => ([0.0]),
             reset => ([0.5], [0.0]),
@@ -1162,7 +1152,7 @@ master!(
         sample_trait_bounds => [],
         description => "minimum",
 
-        doctest_args => {
+        doctest_expected_vals => {
             from => ([0.5]),
             from_empty => ([0.0]),
             reset => ([0.25], [0.0]),
@@ -1179,7 +1169,7 @@ master!(
         sample_trait_bounds => [],
         description => "maximum",
 
-        doctest_args => {
+        doctest_expected_vals => {
             from => ([0.5]),
             from_empty => ([0.0]),
             reset => ([0.75], [0.0]),
@@ -1189,8 +1179,8 @@ master!(
             current => ([0.75]),
             process => ([1.0], [1.0], [1.0], [1.0]),
         }
-    }
-);
+    },
+}
 
 #[cfg(test)]
 mod tests {

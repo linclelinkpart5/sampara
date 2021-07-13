@@ -129,14 +129,7 @@ type CumulativeMinInner<F, const N: usize> = ExtremaInner<F, N, DO_MIN>;
 type CumulativeMaxInner<F, const N: usize> = ExtremaInner<F, N, DO_MAX>;
 
 macro_rules! master {
-    (
-        // The module path to find all of these generated calculator classes
-        // (i.e. `sampara::stats`).
-        module_path => $ns:path,
-
-        // A prefix to attach to the generated injection macro names.
-        injector_prefix => $injector_prefix:ident,
-
+    {
         $({
             // Desired name for the public calculator class.
             class_name => $cls:ident,
@@ -153,17 +146,16 @@ macro_rules! master {
             // "RMS", "maximum", etc),
             description => $prose:literal,
 
-            doctest_args => {
+            doctest_expected_vals => {
                 from => ( $ta__from:expr ),
                 reset => ( $ta__reset__before:expr ),
-                // is_active => (),
                 advance => ( $ta__advance__p1:expr, $ta__advance__p2:expr, $ta__advance__p3:expr, $ta__advance__p4:expr ),
                 current => ( $ta__current:expr ),
                 try_current => ( $ta__try_current:expr ),
                 process => ( $ta__process__p1:expr, $ta__process__p2:expr, $ta__process__p3:expr, $ta__process__p4:expr ),
             }
-        }),+
-    ) => {
+        }),+ $(,)?
+    } => {
         paste::paste! {
             $(
                 apply_doc_comment! {
@@ -399,7 +391,7 @@ macro_rules! master {
             )+
 
             // This is a generated macro that injects adaptors types and typedefs.
-            macro_rules! [< $injector_prefix _inject_signal_adaptors >] {
+            macro_rules! stats_cumulative_inject_signal_adaptors {
                 () => {
                     $(
                         // NOTE: This is an adaptor type!
@@ -408,7 +400,7 @@ macro_rules! master {
                                 "A [`Signal`] that calculates a cumulative ", $prose, " of one or more [`Frame`]s."
                             ),
                             {
-                                pub struct $cls<S, const N: usize>(pub(crate) Process<S, $ns::$cls<S::Frame, N>, N, N>)
+                                pub struct $cls<S, const N: usize>(pub(crate) Process<S, crate::stats::$cls<S::Frame, N>, N, N>)
                                 where
                                     S: Signal<N>,
                                     $(<S::Frame as Frame<N>>::Sample: $sample_kind,)?
@@ -433,7 +425,7 @@ macro_rules! master {
 
             // This is a generated macro that injects methods into the `Signal`
             // trait definition.
-            macro_rules! [< $injector_prefix _inject_signal_methods >] {
+            macro_rules! stats_cumulative_inject_signal_methods {
                 () => {
                     $(
                         apply_doc_comment! {
@@ -449,7 +441,7 @@ macro_rules! master {
                                     Self: Sized,
                                     $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
                                 {
-                                    let processor = $ns::$cls::default();
+                                    let processor = crate::stats::$cls::default();
                                     $cls(self.process(processor))
                                 }
                             }
@@ -461,17 +453,14 @@ macro_rules! master {
     };
 }
 
-master!(
-    module_path => crate::stats,
-    injector_prefix => stats_cumulative,
-
+master! {
     {
         class_name => CumulativeRms,
         func_name => cumulative_rms,
         sample_trait_bounds => [FloatSample],
         description => "RMS",
 
-        doctest_args => {
+        doctest_expected_vals => {
             from => ([0.5]),
             reset => ([0.5]),
             advance => ([0.0], [0.3535533905932738], [0.6454972243679028], [0.6123724356957945]),
@@ -486,7 +475,7 @@ master!(
         sample_trait_bounds => [FloatSample],
         description => "MS",
 
-        doctest_args => {
+        doctest_expected_vals => {
             from => ([0.25]),
             reset => ([0.25]),
             advance => ([0.0], [0.125], [0.4166666666666667], [0.375]),
@@ -501,7 +490,7 @@ master!(
         sample_trait_bounds => [FloatSample],
         description => "mean",
 
-        doctest_args => {
+        doctest_expected_vals => {
             from => ([-0.5]),
             reset => ([-0.5]),
             advance => ([0.0], [0.25], [0.5], [0.25]),
@@ -516,7 +505,7 @@ master!(
         sample_trait_bounds => [FloatSample],
         description => "minimum",
 
-        doctest_args => {
+        doctest_expected_vals => {
             from => ([-0.5]),
             reset => ([-0.5]),
             advance => ([0.0], [0.0], [0.0], [-0.5]),
@@ -531,7 +520,7 @@ master!(
         sample_trait_bounds => [FloatSample],
         description => "maximum",
 
-        doctest_args => {
+        doctest_expected_vals => {
             from => ([-0.5]),
             reset => ([-0.5]),
             advance => ([0.0], [0.5], [1.0], [1.0]),
@@ -539,8 +528,8 @@ master!(
             try_current => ([-0.5]),
             process => ([0.0], [0.5], [1.0], [1.0]),
         }
-    }
-);
+    },
+}
 
 #[cfg(test)]
 mod tests {
