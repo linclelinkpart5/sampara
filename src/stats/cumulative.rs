@@ -153,14 +153,14 @@ macro_rules! master {
             // "RMS", "maximum", etc),
             description => $prose:literal,
 
-            methods_defs => {
-                args_from => ( $ta__from:expr ),
-                args_reset => ( $ta__reset__before:expr ),
-                // args_is_active => (),
-                args_advance => ( $ta__advance__p1:expr, $ta__advance__p2:expr, $ta__advance__p3:expr, $ta__advance__p4:expr ),
-                args_current => ( $ta__current:expr ),
-                args_try_current => ( $ta__try_current:expr ),
-                args_process => ( $ta__process__p1:expr, $ta__process__p2:expr, $ta__process__p3:expr, $ta__process__p4:expr ),
+            doctest_args => {
+                from => ( $ta__from:expr ),
+                reset => ( $ta__reset__before:expr ),
+                // is_active => (),
+                advance => ( $ta__advance__p1:expr, $ta__advance__p2:expr, $ta__advance__p3:expr, $ta__advance__p4:expr ),
+                current => ( $ta__current:expr ),
+                try_current => ( $ta__try_current:expr ),
+                process => ( $ta__process__p1:expr, $ta__process__p2:expr, $ta__process__p3:expr, $ta__process__p4:expr ),
             }
         }),+
     ) => {
@@ -471,13 +471,13 @@ master!(
         sample_trait_bounds => [FloatSample],
         description => "RMS",
 
-        methods_defs => {
-            args_from => ([0.5]),
-            args_reset => ([0.5]),
-            args_advance => ([0.0], [0.3535533905932738], [0.6454972243679028], [0.6123724356957945]),
-            args_current => ([0.5]),
-            args_try_current => ([0.5]),
-            args_process => ([0.0], [0.3535533905932738], [0.6454972243679028], [0.6123724356957945]),
+        doctest_args => {
+            from => ([0.5]),
+            reset => ([0.5]),
+            advance => ([0.0], [0.3535533905932738], [0.6454972243679028], [0.6123724356957945]),
+            current => ([0.5]),
+            try_current => ([0.5]),
+            process => ([0.0], [0.3535533905932738], [0.6454972243679028], [0.6123724356957945]),
         }
     },
     {
@@ -486,13 +486,13 @@ master!(
         sample_trait_bounds => [FloatSample],
         description => "MS",
 
-        methods_defs => {
-            args_from => ([0.25]),
-            args_reset => ([0.25]),
-            args_advance => ([0.0], [0.125], [0.4166666666666667], [0.375]),
-            args_current => ([0.25]),
-            args_try_current => ([0.25]),
-            args_process => ([0.0], [0.125], [0.4166666666666667], [0.375]),
+        doctest_args => {
+            from => ([0.25]),
+            reset => ([0.25]),
+            advance => ([0.0], [0.125], [0.4166666666666667], [0.375]),
+            current => ([0.25]),
+            try_current => ([0.25]),
+            process => ([0.0], [0.125], [0.4166666666666667], [0.375]),
         }
     },
     {
@@ -501,13 +501,13 @@ master!(
         sample_trait_bounds => [FloatSample],
         description => "mean",
 
-        methods_defs => {
-            args_from => ([-0.5]),
-            args_reset => ([-0.5]),
-            args_advance => ([0.0], [0.25], [0.5], [0.25]),
-            args_current => ([-0.5]),
-            args_try_current => ([-0.5]),
-            args_process => ([0.0], [0.25], [0.5], [0.25]),
+        doctest_args => {
+            from => ([-0.5]),
+            reset => ([-0.5]),
+            advance => ([0.0], [0.25], [0.5], [0.25]),
+            current => ([-0.5]),
+            try_current => ([-0.5]),
+            process => ([0.0], [0.25], [0.5], [0.25]),
         }
     },
     {
@@ -516,13 +516,13 @@ master!(
         sample_trait_bounds => [FloatSample],
         description => "minimum",
 
-        methods_defs => {
-            args_from => ([-0.5]),
-            args_reset => ([-0.5]),
-            args_advance => ([0.0], [0.0], [0.0], [-0.5]),
-            args_current => ([-0.5]),
-            args_try_current => ([-0.5]),
-            args_process => ([0.0], [0.0], [0.0], [-0.5]),
+        doctest_args => {
+            from => ([-0.5]),
+            reset => ([-0.5]),
+            advance => ([0.0], [0.0], [0.0], [-0.5]),
+            current => ([-0.5]),
+            try_current => ([-0.5]),
+            process => ([0.0], [0.0], [0.0], [-0.5]),
         }
     },
     {
@@ -531,13 +531,13 @@ master!(
         sample_trait_bounds => [FloatSample],
         description => "maximum",
 
-        methods_defs => {
-            args_from => ([-0.5]),
-            args_reset => ([-0.5]),
-            args_advance => ([0.0], [0.5], [1.0], [1.0]),
-            args_current => ([-0.5]),
-            args_try_current => ([-0.5]),
-            args_process => ([0.0], [0.5], [1.0], [1.0]),
+        doctest_args => {
+            from => ([-0.5]),
+            reset => ([-0.5]),
+            advance => ([0.0], [0.5], [1.0], [1.0]),
+            current => ([-0.5]),
+            try_current => ([-0.5]),
+            process => ([0.0], [0.5], [1.0], [1.0]),
         }
     }
 );

@@ -638,15 +638,15 @@ macro_rules! master {
             // "RMS", "maximum", etc),
             description => $prose:literal,
 
-            methods_defs => {
-                args_from => ( $ta__from:expr ),
-                args_from_empty => ( $ta__from_empty:expr ),
-                args_reset => ( $ta__reset__before:expr, $ta__reset__after:expr ),
-                args_fill => ( $ta__fill__before:expr, $ta__fill__after:expr ),
-                args_fill_with => ( $ta__fill_with__before:expr, $ta__fill_with__after:expr ),
-                args_advance => ( $ta__advance__p1:expr, $ta__advance__p2:expr, $ta__advance__p3:expr, $ta__advance__p4:expr ),
-                args_current => ( $ta__current:expr ),
-                args_process => ( $ta__process__p1:expr, $ta__process__p2:expr, $ta__process__p3:expr, $ta__process__p4:expr ),
+            doctest_args => {
+                from => ( $ta__from:expr ),
+                from_empty => ( $ta__from_empty:expr ),
+                reset => ( $ta__reset__before:expr, $ta__reset__after:expr ),
+                fill => ( $ta__fill__before:expr, $ta__fill__after:expr ),
+                fill_with => ( $ta__fill_with__before:expr, $ta__fill_with__after:expr ),
+                advance => ( $ta__advance__p1:expr, $ta__advance__p2:expr, $ta__advance__p3:expr, $ta__advance__p4:expr ),
+                current => ( $ta__current:expr ),
+                process => ( $ta__process__p1:expr, $ta__process__p2:expr, $ta__process__p3:expr, $ta__process__p4:expr ),
             }
         }),+
     ) => {
@@ -1111,15 +1111,15 @@ master!(
         sample_trait_bounds => [FloatSample],
         description => "RMS",
 
-        methods_defs => {
-            args_from => ([0.5]),
-            args_from_empty => ([0.0]),
-            args_reset => ([0.5590169943749475], [0.0]),
-            args_fill => ([0.0], [0.5]),
-            args_fill_with => ([0.0], [0.46770717334674267]),
-            args_advance => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
-            args_current => ([0.46770717334674267]),
-            args_process => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
+        doctest_args => {
+            from => ([0.5]),
+            from_empty => ([0.0]),
+            reset => ([0.5590169943749475], [0.0]),
+            fill => ([0.0], [0.5]),
+            fill_with => ([0.0], [0.46770717334674267]),
+            advance => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
+            current => ([0.46770717334674267]),
+            process => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
         }
     },
     {
@@ -1128,15 +1128,15 @@ master!(
         sample_trait_bounds => [FloatSample],
         description => "MS",
 
-        methods_defs => {
-            args_from => ([0.25]),
-            args_from_empty => ([0.0]),
-            args_reset => ([0.3125], [0.0]),
-            args_fill => ([0.0], [0.25]),
-            args_fill_with => ([0.0], [0.21875]),
-            args_advance => ([0.46875], [0.703125], [0.890625], [1.0]),
-            args_current => ([0.21875]),
-            args_process => ([0.46875], [0.703125], [0.890625], [1.0]),
+        doctest_args => {
+            from => ([0.25]),
+            from_empty => ([0.0]),
+            reset => ([0.3125], [0.0]),
+            fill => ([0.0], [0.25]),
+            fill_with => ([0.0], [0.21875]),
+            advance => ([0.46875], [0.703125], [0.890625], [1.0]),
+            current => ([0.21875]),
+            process => ([0.46875], [0.703125], [0.890625], [1.0]),
         }
     },
     {
@@ -1145,15 +1145,15 @@ master!(
         sample_trait_bounds => [FloatSample],
         description => "mean",
 
-        methods_defs => {
-            args_from => ([0.5]),
-            args_from_empty => ([0.0]),
-            args_reset => ([0.5], [0.0]),
-            args_fill => ([0.0], [0.5]),
-            args_fill_with => ([0.0], [0.375]),
-            args_advance => ([0.625], [0.8125], [0.9375], [1.0]),
-            args_current => ([0.375]),
-            args_process => ([0.625], [0.8125], [0.9375], [1.0]),
+        doctest_args => {
+            from => ([0.5]),
+            from_empty => ([0.0]),
+            reset => ([0.5], [0.0]),
+            fill => ([0.0], [0.5]),
+            fill_with => ([0.0], [0.375]),
+            advance => ([0.625], [0.8125], [0.9375], [1.0]),
+            current => ([0.375]),
+            process => ([0.625], [0.8125], [0.9375], [1.0]),
         }
     },
     {
@@ -1162,15 +1162,15 @@ master!(
         sample_trait_bounds => [],
         description => "minimum",
 
-        methods_defs => {
-            args_from => ([0.5]),
-            args_from_empty => ([0.0]),
-            args_reset => ([0.25], [0.0]),
-            args_fill => ([0.0], [0.5]),
-            args_fill_with => ([0.0], [0.0]),
-            args_advance => ([0.25], [0.50], [0.75], [1.0]),
-            args_current => ([0.00]),
-            args_process => ([0.25], [0.50], [0.75], [1.0]),
+        doctest_args => {
+            from => ([0.5]),
+            from_empty => ([0.0]),
+            reset => ([0.25], [0.0]),
+            fill => ([0.0], [0.5]),
+            fill_with => ([0.0], [0.0]),
+            advance => ([0.25], [0.50], [0.75], [1.0]),
+            current => ([0.00]),
+            process => ([0.25], [0.50], [0.75], [1.0]),
         }
     },
     {
@@ -1179,15 +1179,15 @@ master!(
         sample_trait_bounds => [],
         description => "maximum",
 
-        methods_defs => {
-            args_from => ([0.5]),
-            args_from_empty => ([0.0]),
-            args_reset => ([0.75], [0.0]),
-            args_fill => ([0.0], [0.5]),
-            args_fill_with => ([0.0], [0.75]),
-            args_advance => ([1.0], [1.0], [1.0], [1.0]),
-            args_current => ([0.75]),
-            args_process => ([1.0], [1.0], [1.0], [1.0]),
+        doctest_args => {
+            from => ([0.5]),
+            from_empty => ([0.0]),
+            reset => ([0.75], [0.0]),
+            fill => ([0.0], [0.5]),
+            fill_with => ([0.0], [0.75]),
+            advance => ([1.0], [1.0], [1.0], [1.0]),
+            current => ([0.75]),
+            process => ([1.0], [1.0], [1.0], [1.0]),
         }
     }
 );
