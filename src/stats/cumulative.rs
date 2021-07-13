@@ -568,44 +568,44 @@ mod tests {
         prop::collection::vec(arb_frame(), 1..=32)
     }
 
-    // proptest! {
-    //     #[test]
-    //     fn prop_rms_inner(in_feed in arb_input_feed()) {
-    //         let mut inner = RmsInner::<[f32; N], N>::__default();
+    proptest! {
+        #[test]
+        fn prop_cumulative_rms(in_feed in arb_input_feed()) {
+            let mut calc = CumulativeRms::<[f32; N], N>::default();
 
-    //         // NOTE: Older less-numerically stable version for comparison.
-    //         // let expected: [f32; N] = {
-    //         //     let mut exp: [f32; N] = Frame::EQUILIBRIUM;
+            // NOTE: Older less-numerically stable version for comparison.
+            // let expected: [f32; N] = {
+            //     let mut exp: [f32; N] = Frame::EQUILIBRIUM;
 
-    //         //     for frame in in_feed.iter().copied() {
-    //         //         exp.zip_transform(frame, |e, x| e + x * x);
-    //         //     }
+            //     for frame in in_feed.iter().copied() {
+            //         exp.zip_transform(frame, |e, x| e + x * x);
+            //     }
 
-    //         //     let len_f = in_feed.len() as f32;
+            //     let len_f = in_feed.len() as f32;
 
-    //         //     exp.apply(|x| Float::sqrt(x / len_f))
-    //         // };
+            //     exp.apply(|x| Float::sqrt(x / len_f))
+            // };
 
-    //         let expected: [f32; N] = {
-    //             let mut exp: [f32; N] = Frame::EQUILIBRIUM;
+            let expected: [f32; N] = {
+                let mut exp: [f32; N] = Frame::EQUILIBRIUM;
 
-    //             for (frame, count) in in_feed.iter().copied().zip(1..) {
-    //                 exp.zip_transform(frame, |e, x| {
-    //                     let x = x * x;
-    //                     e + (x - e) / count as f32
-    //                 });
-    //             }
+                for (frame, count) in in_feed.iter().copied().zip(1..) {
+                    exp.zip_transform(frame, |e, x| {
+                        let x = x * x;
+                        e + (x - e) / count as f32
+                    });
+                }
 
-    //             exp.apply(Float::sqrt)
-    //         };
+                exp.apply(Float::sqrt)
+            };
 
-    //         for frame in in_feed {
-    //             inner.__advance(frame);
-    //         }
+            for frame in in_feed {
+                calc.advance(frame);
+            }
 
-    //         let produced = inner.__current();
+            let produced = calc.current();
 
-    //         assert_relative_eq!(produced.as_slice(), expected.as_slice());
-    //     }
-    // }
+            assert_relative_eq!(produced.as_slice(), expected.as_slice());
+        }
+    }
 }
