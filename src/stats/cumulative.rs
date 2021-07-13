@@ -9,6 +9,125 @@ use num_traits::{Float, NumCast};
 use crate::{Frame, Sample, Processor};
 use crate::sample::FloatSample;
 
+#[derive(Clone)]
+struct SummageInner<F, const N: usize, const SQRT: bool, const POW2: bool>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+{
+    avg: F,
+    count: u64,
+}
+
+impl<F, const N: usize, const SQRT: bool, const POW2: bool> SummageInner<F, N, SQRT, POW2>
+where
+    F: Frame<N>,
+    F::Sample: FloatSample,
+{
+    #[inline]
+    fn __is_active(&self) -> bool {
+        self.count > 0
+    }
+
+    #[inline]
+    fn __advance(&mut self, input: F) {
+        let mut input = input;
+
+        if POW2 {
+            // Calculate the square of the new frame and push onto the buffer.
+            input.transform(|x| x * x);
+        }
+
+        if self.count <= 0 {
+            self.avg = input;
+            self.count = 1;
+        }
+        else {
+            self.count += 1;
+            let c = <F::Sample as NumCast>::from(self.count).unwrap();
+            self.avg.zip_transform(input, |a, x| {
+                let mut new_a = a + (x - a) / c;
+                if SQRT {
+                    // In case of floating point rounding errors, floor at equilibrium.
+                    new_a = new_a.max(Sample::EQUILIBRIUM);
+                }
+                new_a
+            });
+        }
+    }
+
+    #[inline(always)]
+    fn __current_unchecked(&self) -> F {
+        if SQRT { self.avg.apply(Float::sqrt) }
+        else { self.avg }
+    }
+
+    #[inline]
+    fn __default() -> Self {
+        Self {
+            avg: Frame::EQUILIBRIUM,
+            count: 0,
+        }
+    }
+}
+
+type CumulativeRmsInner<F, const N: usize> = SummageInner<F, N, DO_SQRT, DO_POW2>;
+type CumulativeMsInner<F, const N: usize> = SummageInner<F, N, NO_SQRT, DO_POW2>;
+type CumulativeMeanInner<F, const N: usize> = SummageInner<F, N, NO_SQRT, NO_POW2>;
+
+#[derive(Clone)]
+struct ExtremaInner<F, const N: usize, const MAX: bool>
+where
+    F: Frame<N>,
+{
+    extrema: F,
+    is_active: bool,
+}
+
+impl<F, const N: usize, const MAX: bool> ExtremaInner<F, N, MAX>
+where
+    F: Frame<N>,
+{
+    #[inline]
+    fn __is_active(&self) -> bool {
+        self.is_active
+    }
+
+    #[inline]
+    fn __advance(&mut self, input: F) {
+        if !self.is_active {
+            self.extrema = input;
+            self.is_active = true;
+        }
+        else {
+            self.extrema.zip_transform(input, |e, x| {
+                if crate::stats::surpasses::<_, MAX>(&x, &e) {
+                    x
+                }
+                else {
+                    e
+                }
+            });
+        }
+    }
+
+    #[inline(always)]
+    fn __current_unchecked(&self) -> F {
+        self.extrema
+    }
+
+    #[inline]
+    fn __default() -> Self {
+        Self {
+            extrema: Frame::EQUILIBRIUM,
+            is_active: false,
+        }
+    }
+}
+
+type CumulativeMinInner<F, const N: usize> = ExtremaInner<F, N, DO_MIN>;
+type CumulativeMaxInner<F, const N: usize> = ExtremaInner<F, N, DO_MAX>;
+
 macro_rules! master {
     (
         // The module path to find all of these generated calculator classes
@@ -25,9 +144,6 @@ macro_rules! master {
             // Desired name for the public method on `Signal` that uses this
             // calculator.
             func_name => $func_name:ident,
-
-            // The `*Inner` class to use to power this calculator type.
-            inner_class => $helper_cls:ident,
 
             // Optional extra bounds on the `Sample` type for this new
             // calculator (e.g. `FloatSample`).
@@ -54,7 +170,7 @@ macro_rules! master {
                     concat!("Keeps a cumulative ", $prose, " of one or more [`Frame`]s over time."),
                     {
                         #[derive(Clone)]
-                        pub struct $cls<F, const N: usize>($helper_cls<F, N>)
+                        pub struct $cls<F, const N: usize>([<$cls Inner>]<F, N>)
                         where
                             F: Frame<N>,
                             $(F::Sample: $sample_kind,)?
@@ -261,7 +377,7 @@ macro_rules! master {
                         ),
                         {
                             fn default() -> Self {
-                                Self($helper_cls::__default())
+                                Self([<$cls Inner>]::__default())
                             }
                         }
                     }
@@ -345,125 +461,6 @@ macro_rules! master {
     };
 }
 
-#[derive(Clone)]
-struct SummageInner<F, const N: usize, const SQRT: bool, const POW2: bool>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-{
-    avg: F,
-    count: u64,
-}
-
-impl<F, const N: usize, const SQRT: bool, const POW2: bool> SummageInner<F, N, SQRT, POW2>
-where
-    F: Frame<N>,
-    F::Sample: FloatSample,
-{
-    #[inline]
-    fn __is_active(&self) -> bool {
-        self.count > 0
-    }
-
-    #[inline]
-    fn __advance(&mut self, input: F) {
-        let mut input = input;
-
-        if POW2 {
-            // Calculate the square of the new frame and push onto the buffer.
-            input.transform(|x| x * x);
-        }
-
-        if self.count <= 0 {
-            self.avg = input;
-            self.count = 1;
-        }
-        else {
-            self.count += 1;
-            let c = <F::Sample as NumCast>::from(self.count).unwrap();
-            self.avg.zip_transform(input, |a, x| {
-                let mut new_a = a + (x - a) / c;
-                if SQRT {
-                    // In case of floating point rounding errors, floor at equilibrium.
-                    new_a = new_a.max(Sample::EQUILIBRIUM);
-                }
-                new_a
-            });
-        }
-    }
-
-    #[inline(always)]
-    fn __current_unchecked(&self) -> F {
-        if SQRT { self.avg.apply(Float::sqrt) }
-        else { self.avg }
-    }
-
-    #[inline]
-    fn __default() -> Self {
-        Self {
-            avg: Frame::EQUILIBRIUM,
-            count: 0,
-        }
-    }
-}
-
-type RmsInner<F, const N: usize> = SummageInner<F, N, DO_SQRT, DO_POW2>;
-type MsInner<F, const N: usize> = SummageInner<F, N, NO_SQRT, DO_POW2>;
-type MeanInner<F, const N: usize> = SummageInner<F, N, NO_SQRT, NO_POW2>;
-
-#[derive(Clone)]
-struct ExtremaInner<F, const N: usize, const MAX: bool>
-where
-    F: Frame<N>,
-{
-    extrema: F,
-    is_active: bool,
-}
-
-impl<F, const N: usize, const MAX: bool> ExtremaInner<F, N, MAX>
-where
-    F: Frame<N>,
-{
-    #[inline]
-    fn __is_active(&self) -> bool {
-        self.is_active
-    }
-
-    #[inline]
-    fn __advance(&mut self, input: F) {
-        if !self.is_active {
-            self.extrema = input;
-            self.is_active = true;
-        }
-        else {
-            self.extrema.zip_transform(input, |e, x| {
-                if crate::stats::surpasses::<_, MAX>(&x, &e) {
-                    x
-                }
-                else {
-                    e
-                }
-            });
-        }
-    }
-
-    #[inline(always)]
-    fn __current_unchecked(&self) -> F {
-        self.extrema
-    }
-
-    #[inline]
-    fn __default() -> Self {
-        Self {
-            extrema: Frame::EQUILIBRIUM,
-            is_active: false,
-        }
-    }
-}
-
-type MinInner<F, const N: usize> = ExtremaInner<F, N, DO_MIN>;
-type MaxInner<F, const N: usize> = ExtremaInner<F, N, DO_MAX>;
-
 master!(
     module_path => crate::stats,
     injector_prefix => stats_cumulative,
@@ -471,7 +468,6 @@ master!(
     {
         class_name => CumulativeRms,
         func_name => cumulative_rms,
-        inner_class => RmsInner,
         sample_trait_bounds => [FloatSample],
         description => "RMS",
 
@@ -487,7 +483,6 @@ master!(
     {
         class_name => CumulativeMs,
         func_name => cumulative_ms,
-        inner_class => MsInner,
         sample_trait_bounds => [FloatSample],
         description => "MS",
 
@@ -503,7 +498,6 @@ master!(
     {
         class_name => CumulativeMean,
         func_name => cumulative_mean,
-        inner_class => MeanInner,
         sample_trait_bounds => [FloatSample],
         description => "mean",
 
@@ -518,8 +512,7 @@ master!(
     },
     {
         class_name => CumulativeMin,
-        func_name => cumulative_minimum,
-        inner_class => MinInner,
+        func_name => cumulative_min,
         sample_trait_bounds => [FloatSample],
         description => "minimum",
 
@@ -534,8 +527,7 @@ master!(
     },
     {
         class_name => CumulativeMax,
-        func_name => cumulative_maximum,
-        inner_class => MaxInner,
+        func_name => cumulative_max,
         sample_trait_bounds => [FloatSample],
         description => "maximum",
 

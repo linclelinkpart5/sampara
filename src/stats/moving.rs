@@ -10,501 +10,6 @@ use crate::{Frame, Sample, Processor};
 use crate::buffer::{Fixed, Buffer};
 use crate::sample::FloatSample;
 
-// This macro creates all calculators, helper classes, typedefs, and signal
-// adaptors, as well as sub-macros for injecting the typedefs and signal
-// methods into where they are needed.
-macro_rules! master {
-    (
-        // The module path to find all of these generated calculator classes
-        // (i.e. `sampara::stats`).
-        module_path => $ns:path,
-
-        // A prefix to attach to the generated injection macro names.
-        injector_prefix => $injector_prefix:ident,
-
-        $({
-            // Desired name for the public calculator class (e.g. `Rms`).
-            class_name => $cls:ident,
-
-            // Desired name for the public method on `Signal` that uses this
-            // calculator (e.g. `Rms`).
-            func_name => $func_name:ident,
-
-            // The `*Inner` class to use to power this calculator type
-            // (e.g. `StatsInner`).
-            inner_class => $helper_cls:ident,
-
-            // Optional extra bounds on the `Sample` type for this new
-            // calculator (e.g. `FloatSample`).
-            sample_trait_bounds => [ $( $sample_kind:ident )? ],
-
-            // A human-readable term for what this calculator calculates (e.g.
-            // "RMS", "maximum", etc),
-            description => $prose:literal,
-
-            methods_defs => {
-                args_from => ( $ta__from:expr ),
-                args_from_empty => ( $ta__from_empty:expr ),
-                args_reset => ( $ta__reset__before:expr, $ta__reset__after:expr ),
-                args_fill => ( $ta__fill__before:expr, $ta__fill__after:expr ),
-                args_fill_with => ( $ta__fill_with__before:expr, $ta__fill_with__after:expr ),
-                args_advance => ( $ta__advance__p1:expr, $ta__advance__p2:expr, $ta__advance__p3:expr, $ta__advance__p4:expr ),
-                args_current => ( $ta__current:expr ),
-                args_process => ( $ta__process__p1:expr, $ta__process__p2:expr, $ta__process__p3:expr, $ta__process__p4:expr ),
-            }
-        }),+
-    ) => {
-        paste::paste! {
-            $(
-                apply_doc_comment! {
-                    concat!("Keeps a moving (aka \"rolling\" or \"sliding\") ", $prose, " of a window of [`Frame`]s over time."),
-                    {
-                        #[derive(Clone)]
-                        pub struct $cls<B, const N: usize>($helper_cls<B, N>)
-                        where
-                            B: Buffer<N>,
-                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                        ;
-                    }
-                }
-
-                impl<B, const N: usize> $cls<B, N>
-                where
-                    B: Buffer<N>,
-                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                {
-                    apply_doc_comment! {
-                        gen_doc_comment!(
-                            $cls,
-                            concat!(
-                                "Similar to [`", stringify!($cls), "::from`], but treats the provided buffer as ",
-                                "empty and fills it with [`Frame::EQUILIBRIUM`].",
-                            ),
-                            {
-                                "// These values get zeroed out.",
-                                concat!("let mut window = ", stringify!($cls), "::from_empty([[-1.0]; 4]);"),
-                                concat!("assert_eq!(window.current(), ", stringify!($ta__from_empty), ");"),
-                            }
-                        ),
-                        {
-                            #[inline]
-                            pub fn from_empty(buffer: B) -> Self {
-                                assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
-                                Self($helper_cls::__from_empty(buffer))
-                            }
-                        }
-                    }
-
-                    apply_doc_comment! {
-                        gen_doc_comment!(
-                            $cls,
-                            "Resets the window to its zeroed-out state.",
-                            {
-                                concat!("let mut window = ", stringify!($cls), "::from([[0.25], [0.75], [0.25], [0.75]]);"),
-                                concat!("assert_eq!(window.current(), ", stringify!($ta__reset__before), ");\n"),
-                                concat!("window.reset();"),
-                                concat!("assert_eq!(window.current(), ", stringify!($ta__reset__after), ");"),
-                            }
-                        ),
-                        {
-                            #[inline]
-                            pub fn reset(&mut self) {
-                                self.0.__reset()
-                            }
-                        }
-                    }
-
-                    apply_doc_comment! {
-                        gen_doc_comment!(
-                            $cls,
-                            "Fills the window with a single constant [`Frame`] value.",
-                            {
-                                concat!("let mut window = ", stringify!($cls), "::from_empty([[-1.0]; 4]);"),
-                                concat!("assert_eq!(window.current(), ", stringify!($ta__fill__before), ");\n"),
-                                concat!("window.fill([0.5]);"),
-                                concat!("assert_eq!(window.current(), ", stringify!($ta__fill__after), ");"),
-                            }
-                        ),
-                        {
-                            #[inline]
-                            pub fn fill(&mut self, fill_val: B::Frame) {
-                                self.0.__fill(fill_val)
-                            }
-                        }
-                    }
-
-                    apply_doc_comment! {
-                        gen_doc_comment!(
-                            $cls,
-                            "Fills the window by repeatedly calling a closure that produces [`Frame`]s.",
-                            {
-                                concat!("let mut window = ", stringify!($cls), "::from_empty([[-1.0]; 4]);"),
-                                concat!("assert_eq!(window.current(), ", stringify!($ta__fill_with__before), ");\n"),
-                                "let mut x = 1.0;",
-                                "window.fill_with(|| {",
-                                "    x -= 0.25;",
-                                "    [x]",
-                                "});",
-                                concat!("assert_eq!(window.current(), ", stringify!($ta__fill_with__after), ");"),
-                            }
-                        ),
-                        {
-                            #[inline]
-                            pub fn fill_with<M>(&mut self, fill_func: M)
-                            where
-                                M: FnMut() -> B::Frame,
-                            {
-                                self.0.__fill_with(fill_func)
-                            }
-                        }
-                    }
-
-                    apply_doc_comment! {
-                        gen_doc_comment!(
-                            $cls,
-                            "Returns the length of the window.",
-                            {
-                                concat!("let window = ", stringify!($cls), "::from_empty([[0.0]; 99]);"),
-                                "assert_eq!(window.len(), 99);",
-                            }
-                        ),
-                        {
-                            #[inline]
-                            pub fn len(&self) -> usize {
-                                self.0.__len()
-                            }
-                        }
-                    }
-
-                    apply_doc_comment! {
-                        gen_doc_comment!(
-                            $cls,
-                            concat!(
-                                "Advances the state of the window buffer by pushing in a new input [`Frame`]. ",
-                                "The oldest frame will be popped off in order to accomodate the new one.\n\n",
-                                "This method does not calculate the current ", $prose, " value, ",
-                                "which can be more performant for workflows that process multiple frames in bulk ",
-                                "and do not need the intermediate ", $prose, " values.",
-                            ),
-                            {
-                                concat!("let mut window = ", stringify!($cls), "::from([[0.0], [0.25], [0.50], [0.75]]);\n"),
-                                "window.advance([1.0]);",
-                                concat!("assert_eq!(window.current(), ", stringify!($ta__advance__p1), ");"),
-                                "window.advance([1.0]);",
-                                concat!("assert_eq!(window.current(), ", stringify!($ta__advance__p2), ");"),
-                                "window.advance([1.0]);",
-                                concat!("assert_eq!(window.current(), ", stringify!($ta__advance__p3), ");"),
-                                "window.advance([1.0]);",
-                                concat!("assert_eq!(window.current(), ", stringify!($ta__advance__p4), ");"),
-                            }
-                        ),
-                        {
-                            #[inline]
-                            pub fn advance(&mut self, input: B::Frame) {
-                                self.0.__advance(input)
-                            }
-                        }
-                    }
-
-                    apply_doc_comment! {
-                        gen_doc_comment!(
-                            $cls,
-                            concat!(
-                                "Calculates the current ", $prose, " value using the current window contents.",
-                            ),
-                            {
-                                concat!("let mut window = ", stringify!($cls), "::from([[0.0], [0.25], [0.50], [0.75]]);\n"),
-                                concat!("assert_eq!(window.current(), ", stringify!($ta__current), ");"),
-                            }
-                        ),
-                        {
-                            #[inline]
-                            pub fn current(&self) -> B::Frame {
-                                self.0.__current()
-                            }
-                        }
-                    }
-
-                    apply_doc_comment! {
-                        gen_doc_comment!(
-                            $cls,
-                            concat!(
-                                "Processes a new input frame by advancing the state of the window buffer ",
-                                "and then calculating the current ", $prose, " value.\n\n",
-                                "This is equivalent to a call to [`", stringify!($cls), "::advance`] followed ",
-                                "by a call to [`", stringify!($cls), "::current`].",
-                            ),
-                            {
-                                concat!("let mut window = ", stringify!($cls), "::from([[0.0], [0.25], [0.50], [0.75]]);\n"),
-                                concat!("assert_eq!(window.process([1.0]), ", stringify!($ta__process__p1), ");"),
-                                concat!("assert_eq!(window.process([1.0]), ", stringify!($ta__process__p2), ");"),
-                                concat!("assert_eq!(window.process([1.0]), ", stringify!($ta__process__p3), ");"),
-                                concat!("assert_eq!(window.process([1.0]), ", stringify!($ta__process__p4), ");"),
-                            }
-                        ),
-                        {
-                            #[inline]
-                            pub fn process(&mut self, input: B::Frame) -> B::Frame {
-                                self.0.__process(input)
-                            }
-                        }
-                    }
-                }
-
-                impl<B, const N: usize> From<B> for $cls<B, N>
-                where
-                    B: Buffer<N>,
-                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                {
-                    apply_doc_comment! {
-                        gen_doc_comment!(
-                            $cls,
-                            concat!(
-                                "Creates a new [`", stringify!($cls), "`] using a given [`Buffer`] as a window. ",
-                                "The provided buffer is assumed to be filled with the initial window buffer [`Frame`]s.",
-                            ),
-                            {
-                                concat!("let mut window = ", stringify!($cls), "::from([[0.5]; 4]);\n"),
-                                concat!("assert_eq!(window.current(), ", stringify!($ta__from), ");"),
-                            }
-                        ),
-                        {
-                            #[inline]
-                            fn from(buffer: B) -> Self {
-                                assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
-                                Self($helper_cls::__from(buffer))
-                            }
-                        }
-                    }
-                }
-
-                // Implement `Processor` and forward all methods to `Self`.
-                impl<B, const N: usize> Processor<N, N> for $cls<B, N>
-                where
-                    B: Buffer<N>,
-                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                {
-                    type Input = B::Frame;
-                    type Output = B::Frame;
-
-                    #[inline]
-                    fn process(&mut self, input: Self::Input) -> Self::Output {
-                        self.process(input)
-                    }
-                }
-            )+
-
-            // This is a generated macro that injects adaptors types and typedefs.
-            macro_rules! [< $injector_prefix _inject_signal_adaptors >] {
-                () => {
-                    $(
-                        // NOTE: This is an adaptor type!
-                        apply_doc_comment! {
-                            concat!(
-                                "A [`Signal`] that calculates a moving ", $prose, " of a window of [`Frame`]s over time."
-                            ),
-                            {
-                                pub struct $cls<S, B, const N: usize>(pub(crate) Process<S, $ns::$cls<B, N>, N, N>)
-                                where
-                                    S: Signal<N>,
-                                    B: Buffer<N, Frame = S::Frame>,
-                                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                                ;
-                            }
-                        }
-
-                        impl<S, B, const N: usize> Signal<N> for $cls<S, B, N>
-                        where
-                            S: Signal<N>,
-                            B: Buffer<N, Frame = S::Frame>,
-                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                        {
-                            type Frame = B::Frame;
-
-                            fn next(&mut self) -> Option<Self::Frame> {
-                                self.0.next()
-                            }
-                        }
-
-                        enum [< Lazy $cls State >]<B, const N: usize>
-                        where
-                            B: Buffer<N>,
-                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                        {
-                            Failed,
-                            Uninit(B),
-                            Active($ns::$cls<B, N>),
-                        }
-
-                        impl<B, const N: usize> [< Lazy $cls State >]<B, N>
-                        where
-                            B: Buffer<N>,
-                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                        {
-                            #[inline(always)]
-                            fn advance_inner<S>(self, signal: &mut S) -> (Option<S::Frame>, Self)
-                            where
-                                S: Signal<N, Frame = B::Frame>,
-                            {
-                                match self {
-                                    Self::Active(mut calc) => {
-                                        (signal.next().map(|f| calc.process(f)), Self::Active(calc))
-                                    },
-
-                                    Self::Uninit(mut buffer) => {
-                                        // Try and fill the buffer now.
-                                        if let Ok(()) = signal.fill_buffer(&mut buffer) {
-                                            // The buffer was successfully filled, create a new sliding
-                                            // calculator.
-                                            let calc = $ns::$cls::from(buffer);
-                                            (Some(calc.current()), Self::Active(calc))
-                                        }
-                                        else {
-                                            (None, Self::Failed)
-                                        }
-                                    },
-
-                                    Self::Failed => (None, Self::Failed),
-                                }
-                            }
-
-                            #[inline(always)]
-                            fn advance<S>(&mut self, signal: &mut S) -> Option<S::Frame>
-                            where
-                                S: Signal<N, Frame = B::Frame>,
-                            {
-                                // Swap `self` with a dummy value.
-                                let mut snatched = Self::Failed;
-                                std::mem::swap(&mut snatched, self);
-
-                                let (ret, new_state) = snatched.advance_inner(signal);
-                                *self = new_state;
-
-                                ret
-                            }
-                        }
-
-                        apply_doc_comment! {
-                            concat!(
-                                "A [`Signal`] that lazily calculates a moving ", $prose, " of a window of [`Frame`]s over time.\n\n",
-                                "This signal adaptor is lazy in the sense that the initial window is treated as uninitialized: ",
-                                "before yielding the first ", $prose, " value, the window is filled with [`Frame`]s from a source [`Signal`]. ",
-                                "The newly-filled window then yields the first ", $prose, " value. ",
-                            ),
-                            {
-                                pub struct [<Lazy $cls>]<S, B, const N: usize>
-                                where
-                                    S: Signal<N>,
-                                    B: Buffer<N, Frame = S::Frame>,
-                                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                                {
-                                    signal: S,
-                                    state: [< Lazy $cls State >]<B, N>,
-                                }
-                            }
-                        }
-
-                        impl<S, B, const N: usize> [<Lazy $cls>]<S, B, N>
-                        where
-                            S: Signal<N>,
-                            B: Buffer<N, Frame = S::Frame>,
-                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                        {
-                            pub(crate) fn new(signal: S, buffer: B) -> Self {
-                                Self {
-                                    signal,
-                                    state: [< Lazy $cls State >]::<B, N>::Uninit(buffer),
-                                }
-                            }
-                        }
-
-                        impl<S, B, const N: usize> Signal<N> for [<Lazy $cls>]<S, B, N>
-                        where
-                            S: Signal<N>,
-                            B: Buffer<N, Frame = S::Frame>,
-                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                        {
-                            type Frame = B::Frame;
-
-                            fn next(&mut self) -> Option<Self::Frame> {
-                                self.state.advance(&mut self.signal)
-                            }
-                        }
-                    )+
-                };
-            }
-
-            // This is a generated macro that injects methods into the `Signal`
-            // trait definition.
-            macro_rules! [< $injector_prefix _inject_signal_methods >] {
-                () => {
-                    $(
-                        apply_doc_comment! {
-                            concat!(
-                                "Calculates a windowed ", $prose, " of this [`Signal`]. ",
-                                "The given [`Buffer`] will be zeroed out, and its length will determine the ",
-                                $prose, " window length.\n\n",
-                                "For an input [`Signal`] of length `N`, this will produce a new [`Signal`] that also yields `N` [`Frame`]s.",
-                            ),
-                            {
-                                fn $func_name<B>(self, window: B) -> $cls<Self, B, N>
-                                where
-                                    Self: Sized,
-                                    $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
-                                    B: Buffer<N, Frame = Self::Frame>,
-                                {
-                                    let processor = $ns::$cls::from_empty(window);
-                                    $cls(self.process(processor))
-                                }
-                            }
-                        }
-
-                        apply_doc_comment! {
-                            concat!(
-                                "Similar to [`Signal::", stringify!($func_name), "`], but treats the passed-in ",
-                                "[`Buffer`] as already full and containing valid [`Frame`]s.\n\n",
-                                "For an input [`Signal`] of length `N`, this will produce a new [`Signal`] that also yields `N` [`Frame`]s.",
-                            ),
-                            {
-                                fn [< $func_name _padded >]<B>(self, window: B) -> $cls<Self, B, N>
-                                where
-                                    Self: Sized,
-                                    $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
-                                    B: Buffer<N, Frame = Self::Frame>,
-                                {
-                                    let processor = $ns::$cls::from(window);
-                                    $cls(self.process(processor))
-                                }
-                            }
-                        }
-
-                        apply_doc_comment! {
-                            concat!(
-                                "Similar to [`Signal::", stringify!($func_name), "`], but fills the ",
-                                "given [`Buffer`] with input [`Frame`]s from the [`Signal`]. ",
-                                "Upon filling, the first [`Frame`] will be yielded.\n\n",
-                                "For an input [`Signal`] of length `N` and an input [`Buffer`] of ",
-                                "length `B`, this will produce a new [`Signal`] that yields ",
-                                "`N - B + 1` [`Frame`]s (or 0 if `N < B`).",
-                            ),
-                            {
-                                fn [< lazy_ $func_name >]<B>(self, window: B) -> [<Lazy $cls>]<Self, B, N>
-                                where
-                                    Self: Sized,
-                                    $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
-                                    B: Buffer<N, Frame = Self::Frame>,
-                                {
-                                    [<Lazy $cls>]::new(self, window)
-                                }
-                            }
-                        }
-                    )+
-                };
-            }
-        }
-    };
-}
-
 #[derive(Clone)]
 struct SummageInner<B, const N: usize, const SQRT: bool, const POW2: bool>
 where
@@ -651,9 +156,9 @@ where
     }
 }
 
-type RmsInner<B, const N: usize> = SummageInner<B, N, DO_SQRT, DO_POW2>;
-type MsInner<B, const N: usize> = SummageInner<B, N, NO_SQRT, DO_POW2>;
-type MeanInner<B, const N: usize> = SummageInner<B, N, NO_SQRT, NO_POW2>;
+type MovingRmsInner<B, const N: usize> = SummageInner<B, N, DO_SQRT, DO_POW2>;
+type MovingMsInner<B, const N: usize> = SummageInner<B, N, NO_SQRT, DO_POW2>;
+type MovingMeanInner<B, const N: usize> = SummageInner<B, N, NO_SQRT, NO_POW2>;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum Diff {
@@ -1102,17 +607,558 @@ where
     }
 }
 
-type MinInner<B, const N: usize> = ExtremaInner<B, N, DO_MIN>;
-type MaxInner<B, const N: usize> = ExtremaInner<B, N, DO_MAX>;
+type MovingMinInner<B, const N: usize> = ExtremaInner<B, N, DO_MIN>;
+type MovingMaxInner<B, const N: usize> = ExtremaInner<B, N, DO_MAX>;
+
+// This macro creates all calculators, helper classes, typedefs, and signal
+// adaptors, as well as sub-macros for injecting the typedefs and signal
+// methods into where they are needed.
+macro_rules! master {
+    (
+        // The module path to find all of these generated calculator classes
+        // (i.e. `sampara::stats`).
+        module_path => $ns:path,
+
+        // A prefix to attach to the generated injection macro names.
+        injector_prefix => $injector_prefix:ident,
+
+        $({
+            // Desired name for the public calculator class (e.g. `Rms`).
+            class_name => $cls:ident,
+
+            // Desired name for the public method on `Signal` that uses this
+            // calculator (e.g. `Rms`).
+            func_name => $func_name:ident,
+
+            // Optional extra bounds on the `Sample` type for this new
+            // calculator (e.g. `FloatSample`).
+            sample_trait_bounds => [ $( $sample_kind:ident )? ],
+
+            // A human-readable term for what this calculator calculates (e.g.
+            // "RMS", "maximum", etc),
+            description => $prose:literal,
+
+            methods_defs => {
+                args_from => ( $ta__from:expr ),
+                args_from_empty => ( $ta__from_empty:expr ),
+                args_reset => ( $ta__reset__before:expr, $ta__reset__after:expr ),
+                args_fill => ( $ta__fill__before:expr, $ta__fill__after:expr ),
+                args_fill_with => ( $ta__fill_with__before:expr, $ta__fill_with__after:expr ),
+                args_advance => ( $ta__advance__p1:expr, $ta__advance__p2:expr, $ta__advance__p3:expr, $ta__advance__p4:expr ),
+                args_current => ( $ta__current:expr ),
+                args_process => ( $ta__process__p1:expr, $ta__process__p2:expr, $ta__process__p3:expr, $ta__process__p4:expr ),
+            }
+        }),+
+    ) => {
+        paste::paste! {
+            $(
+                apply_doc_comment! {
+                    concat!("Keeps a moving (aka \"rolling\" or \"sliding\") ", $prose, " of a window of [`Frame`]s over time."),
+                    {
+                        #[derive(Clone)]
+                        pub struct $cls<B, const N: usize>([<$cls Inner>]<B, N>)
+                        where
+                            B: Buffer<N>,
+                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                        ;
+                    }
+                }
+
+                impl<B, const N: usize> $cls<B, N>
+                where
+                    B: Buffer<N>,
+                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                {
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Similar to [`", stringify!($cls), "::from`], but treats the provided buffer as ",
+                                "empty and fills it with [`Frame::EQUILIBRIUM`].",
+                            ),
+                            {
+                                "// These values get zeroed out.",
+                                concat!("let mut window = ", stringify!($cls), "::from_empty([[-1.0]; 4]);"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__from_empty), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn from_empty(buffer: B) -> Self {
+                                assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
+                                Self([<$cls Inner>]::__from_empty(buffer))
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            "Resets the window to its zeroed-out state.",
+                            {
+                                concat!("let mut window = ", stringify!($cls), "::from([[0.25], [0.75], [0.25], [0.75]]);"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__reset__before), ");\n"),
+                                concat!("window.reset();"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__reset__after), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn reset(&mut self) {
+                                self.0.__reset()
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            "Fills the window with a single constant [`Frame`] value.",
+                            {
+                                concat!("let mut window = ", stringify!($cls), "::from_empty([[-1.0]; 4]);"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__fill__before), ");\n"),
+                                concat!("window.fill([0.5]);"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__fill__after), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn fill(&mut self, fill_val: B::Frame) {
+                                self.0.__fill(fill_val)
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            "Fills the window by repeatedly calling a closure that produces [`Frame`]s.",
+                            {
+                                concat!("let mut window = ", stringify!($cls), "::from_empty([[-1.0]; 4]);"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__fill_with__before), ");\n"),
+                                "let mut x = 1.0;",
+                                "window.fill_with(|| {",
+                                "    x -= 0.25;",
+                                "    [x]",
+                                "});",
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__fill_with__after), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn fill_with<M>(&mut self, fill_func: M)
+                            where
+                                M: FnMut() -> B::Frame,
+                            {
+                                self.0.__fill_with(fill_func)
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            "Returns the length of the window.",
+                            {
+                                concat!("let window = ", stringify!($cls), "::from_empty([[0.0]; 99]);"),
+                                "assert_eq!(window.len(), 99);",
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn len(&self) -> usize {
+                                self.0.__len()
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Advances the state of the window buffer by pushing in a new input [`Frame`]. ",
+                                "The oldest frame will be popped off in order to accomodate the new one.\n\n",
+                                "This method does not calculate the current ", $prose, " value, ",
+                                "which can be more performant for workflows that process multiple frames in bulk ",
+                                "and do not need the intermediate ", $prose, " values.",
+                            ),
+                            {
+                                concat!("let mut window = ", stringify!($cls), "::from([[0.0], [0.25], [0.50], [0.75]]);\n"),
+                                "window.advance([1.0]);",
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__advance__p1), ");"),
+                                "window.advance([1.0]);",
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__advance__p2), ");"),
+                                "window.advance([1.0]);",
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__advance__p3), ");"),
+                                "window.advance([1.0]);",
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__advance__p4), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn advance(&mut self, input: B::Frame) {
+                                self.0.__advance(input)
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Calculates the current ", $prose, " value using the current window contents.",
+                            ),
+                            {
+                                concat!("let mut window = ", stringify!($cls), "::from([[0.0], [0.25], [0.50], [0.75]]);\n"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__current), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn current(&self) -> B::Frame {
+                                self.0.__current()
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Processes a new input frame by advancing the state of the window buffer ",
+                                "and then calculating the current ", $prose, " value.\n\n",
+                                "This is equivalent to a call to [`", stringify!($cls), "::advance`] followed ",
+                                "by a call to [`", stringify!($cls), "::current`].",
+                            ),
+                            {
+                                concat!("let mut window = ", stringify!($cls), "::from([[0.0], [0.25], [0.50], [0.75]]);\n"),
+                                concat!("assert_eq!(window.process([1.0]), ", stringify!($ta__process__p1), ");"),
+                                concat!("assert_eq!(window.process([1.0]), ", stringify!($ta__process__p2), ");"),
+                                concat!("assert_eq!(window.process([1.0]), ", stringify!($ta__process__p3), ");"),
+                                concat!("assert_eq!(window.process([1.0]), ", stringify!($ta__process__p4), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn process(&mut self, input: B::Frame) -> B::Frame {
+                                self.0.__process(input)
+                            }
+                        }
+                    }
+                }
+
+                impl<B, const N: usize> From<B> for $cls<B, N>
+                where
+                    B: Buffer<N>,
+                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                {
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Creates a new [`", stringify!($cls), "`] using a given [`Buffer`] as a window. ",
+                                "The provided buffer is assumed to be filled with the initial window buffer [`Frame`]s.",
+                            ),
+                            {
+                                concat!("let mut window = ", stringify!($cls), "::from([[0.5]; 4]);\n"),
+                                concat!("assert_eq!(window.current(), ", stringify!($ta__from), ");"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            fn from(buffer: B) -> Self {
+                                assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
+                                Self([<$cls Inner>]::__from(buffer))
+                            }
+                        }
+                    }
+                }
+
+                // Implement `Processor` and forward all methods to `Self`.
+                impl<B, const N: usize> Processor<N, N> for $cls<B, N>
+                where
+                    B: Buffer<N>,
+                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                {
+                    type Input = B::Frame;
+                    type Output = B::Frame;
+
+                    #[inline]
+                    fn process(&mut self, input: Self::Input) -> Self::Output {
+                        self.process(input)
+                    }
+                }
+            )+
+
+            // This is a generated macro that injects adaptors types and typedefs.
+            macro_rules! [< $injector_prefix _inject_signal_adaptors >] {
+                () => {
+                    $(
+                        // NOTE: This is an adaptor type!
+                        apply_doc_comment! {
+                            concat!(
+                                "A [`Signal`] that calculates a moving ", $prose, " of a window of [`Frame`]s over time."
+                            ),
+                            {
+                                pub struct $cls<S, B, const N: usize>(pub(crate) Process<S, $ns::$cls<B, N>, N, N>)
+                                where
+                                    S: Signal<N>,
+                                    B: Buffer<N, Frame = S::Frame>,
+                                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                                ;
+                            }
+                        }
+
+                        impl<S, B, const N: usize> Signal<N> for $cls<S, B, N>
+                        where
+                            S: Signal<N>,
+                            B: Buffer<N, Frame = S::Frame>,
+                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                        {
+                            type Frame = B::Frame;
+
+                            fn next(&mut self) -> Option<Self::Frame> {
+                                self.0.next()
+                            }
+                        }
+
+                        enum [< Lazy $cls State >]<B, const N: usize>
+                        where
+                            B: Buffer<N>,
+                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                        {
+                            Failed,
+                            Uninit(B),
+                            Active($ns::$cls<B, N>),
+                        }
+
+                        impl<B, const N: usize> [< Lazy $cls State >]<B, N>
+                        where
+                            B: Buffer<N>,
+                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                        {
+                            #[inline(always)]
+                            fn advance_inner<S>(self, signal: &mut S) -> (Option<S::Frame>, Self)
+                            where
+                                S: Signal<N, Frame = B::Frame>,
+                            {
+                                match self {
+                                    Self::Active(mut calc) => {
+                                        (signal.next().map(|f| calc.process(f)), Self::Active(calc))
+                                    },
+
+                                    Self::Uninit(mut buffer) => {
+                                        // Try and fill the buffer now.
+                                        if let Ok(()) = signal.fill_buffer(&mut buffer) {
+                                            // The buffer was successfully filled, create a new sliding
+                                            // calculator.
+                                            let calc = $ns::$cls::from(buffer);
+                                            (Some(calc.current()), Self::Active(calc))
+                                        }
+                                        else {
+                                            (None, Self::Failed)
+                                        }
+                                    },
+
+                                    Self::Failed => (None, Self::Failed),
+                                }
+                            }
+
+                            #[inline(always)]
+                            fn advance<S>(&mut self, signal: &mut S) -> Option<S::Frame>
+                            where
+                                S: Signal<N, Frame = B::Frame>,
+                            {
+                                // Swap `self` with a dummy value.
+                                let mut snatched = Self::Failed;
+                                std::mem::swap(&mut snatched, self);
+
+                                let (ret, new_state) = snatched.advance_inner(signal);
+                                *self = new_state;
+
+                                ret
+                            }
+                        }
+
+                        apply_doc_comment! {
+                            concat!(
+                                "A [`Signal`] that lazily calculates a moving ", $prose, " of a window of [`Frame`]s over time.\n\n",
+                                "This signal adaptor is lazy in the sense that the initial window is treated as uninitialized: ",
+                                "before yielding the first ", $prose, " value, the window is filled with [`Frame`]s from a source [`Signal`]. ",
+                                "The newly-filled window then yields the first ", $prose, " value. ",
+                            ),
+                            {
+                                pub struct [<Lazy $cls>]<S, B, const N: usize>
+                                where
+                                    S: Signal<N>,
+                                    B: Buffer<N, Frame = S::Frame>,
+                                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                                {
+                                    signal: S,
+                                    state: [< Lazy $cls State >]<B, N>,
+                                }
+                            }
+                        }
+
+                        impl<S, B, const N: usize> [<Lazy $cls>]<S, B, N>
+                        where
+                            S: Signal<N>,
+                            B: Buffer<N, Frame = S::Frame>,
+                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                        {
+                            pub(crate) fn new(signal: S, buffer: B) -> Self {
+                                Self {
+                                    signal,
+                                    state: [< Lazy $cls State >]::<B, N>::Uninit(buffer),
+                                }
+                            }
+                        }
+
+                        impl<S, B, const N: usize> Signal<N> for [<Lazy $cls>]<S, B, N>
+                        where
+                            S: Signal<N>,
+                            B: Buffer<N, Frame = S::Frame>,
+                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                        {
+                            type Frame = B::Frame;
+
+                            fn next(&mut self) -> Option<Self::Frame> {
+                                self.state.advance(&mut self.signal)
+                            }
+                        }
+                    )+
+                };
+            }
+
+            // This is a generated macro that injects methods into the `Signal`
+            // trait definition.
+            macro_rules! [< $injector_prefix _inject_signal_methods >] {
+                () => {
+                    $(
+                        apply_doc_comment! {
+                            concat!(
+                                "Calculates a windowed ", $prose, " of this [`Signal`]. ",
+                                "The given [`Buffer`] will be zeroed out, and its length will determine the ",
+                                $prose, " window length.\n\n",
+                                "For an input [`Signal`] of length `N`, this will produce a new [`Signal`] that also yields `N` [`Frame`]s.",
+                            ),
+                            {
+                                fn $func_name<B>(self, window: B) -> $cls<Self, B, N>
+                                where
+                                    Self: Sized,
+                                    $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
+                                    B: Buffer<N, Frame = Self::Frame>,
+                                {
+                                    let processor = $ns::$cls::from_empty(window);
+                                    $cls(self.process(processor))
+                                }
+                            }
+                        }
+
+                        apply_doc_comment! {
+                            concat!(
+                                "Similar to [`Signal::", stringify!($func_name), "`], but treats the passed-in ",
+                                "[`Buffer`] as already full and containing valid [`Frame`]s.\n\n",
+                                "For an input [`Signal`] of length `N`, this will produce a new [`Signal`] that also yields `N` [`Frame`]s.",
+                            ),
+                            {
+                                fn [< $func_name _padded >]<B>(self, window: B) -> $cls<Self, B, N>
+                                where
+                                    Self: Sized,
+                                    $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
+                                    B: Buffer<N, Frame = Self::Frame>,
+                                {
+                                    let processor = $ns::$cls::from(window);
+                                    $cls(self.process(processor))
+                                }
+                            }
+                        }
+
+                        apply_doc_comment! {
+                            concat!(
+                                "Similar to [`Signal::", stringify!($func_name), "`], but fills the ",
+                                "given [`Buffer`] with input [`Frame`]s from the [`Signal`]. ",
+                                "Upon filling, the first [`Frame`] will be yielded.\n\n",
+                                "For an input [`Signal`] of length `N` and an input [`Buffer`] of ",
+                                "length `B`, this will produce a new [`Signal`] that yields ",
+                                "`N - B + 1` [`Frame`]s (or 0 if `N < B`).",
+                            ),
+                            {
+                                fn [< lazy_ $func_name >]<B>(self, window: B) -> [<Lazy $cls>]<Self, B, N>
+                                where
+                                    Self: Sized,
+                                    $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
+                                    B: Buffer<N, Frame = Self::Frame>,
+                                {
+                                    [<Lazy $cls>]::new(self, window)
+                                }
+                            }
+                        }
+                    )+
+                };
+            }
+        }
+    };
+}
 
 master!(
     module_path => crate::stats,
     injector_prefix => stats_moving,
 
     {
+        class_name => MovingRms,
+        func_name => moving_rms,
+        sample_trait_bounds => [FloatSample],
+        description => "RMS",
+
+        methods_defs => {
+            args_from => ([0.5]),
+            args_from_empty => ([0.0]),
+            args_reset => ([0.5590169943749475], [0.0]),
+            args_fill => ([0.0], [0.5]),
+            args_fill_with => ([0.0], [0.46770717334674267]),
+            args_advance => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
+            args_current => ([0.46770717334674267]),
+            args_process => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
+        }
+    },
+    {
+        class_name => MovingMs,
+        func_name => moving_ms,
+        sample_trait_bounds => [FloatSample],
+        description => "MS",
+
+        methods_defs => {
+            args_from => ([0.25]),
+            args_from_empty => ([0.0]),
+            args_reset => ([0.3125], [0.0]),
+            args_fill => ([0.0], [0.25]),
+            args_fill_with => ([0.0], [0.21875]),
+            args_advance => ([0.46875], [0.703125], [0.890625], [1.0]),
+            args_current => ([0.21875]),
+            args_process => ([0.46875], [0.703125], [0.890625], [1.0]),
+        }
+    },
+    {
+        class_name => MovingMean,
+        func_name => moving_mean,
+        sample_trait_bounds => [FloatSample],
+        description => "mean",
+
+        methods_defs => {
+            args_from => ([0.5]),
+            args_from_empty => ([0.0]),
+            args_reset => ([0.5], [0.0]),
+            args_fill => ([0.0], [0.5]),
+            args_fill_with => ([0.0], [0.375]),
+            args_advance => ([0.625], [0.8125], [0.9375], [1.0]),
+            args_current => ([0.375]),
+            args_process => ([0.625], [0.8125], [0.9375], [1.0]),
+        }
+    },
+    {
         class_name => MovingMin,
-        func_name => minimum,
-        inner_class => MinInner,
+        func_name => moving_min,
         sample_trait_bounds => [],
         description => "minimum",
 
@@ -1129,8 +1175,7 @@ master!(
     },
     {
         class_name => MovingMax,
-        func_name => maximum,
-        inner_class => MaxInner,
+        func_name => moving_max,
         sample_trait_bounds => [],
         description => "maximum",
 
@@ -1143,60 +1188,6 @@ master!(
             args_advance => ([1.0], [1.0], [1.0], [1.0]),
             args_current => ([0.75]),
             args_process => ([1.0], [1.0], [1.0], [1.0]),
-        }
-    },
-    {
-        class_name => MovingMean,
-        func_name => mean,
-        inner_class => MeanInner,
-        sample_trait_bounds => [FloatSample],
-        description => "mean",
-
-        methods_defs => {
-            args_from => ([0.5]),
-            args_from_empty => ([0.0]),
-            args_reset => ([0.5], [0.0]),
-            args_fill => ([0.0], [0.5]),
-            args_fill_with => ([0.0], [0.375]),
-            args_advance => ([0.625], [0.8125], [0.9375], [1.0]),
-            args_current => ([0.375]),
-            args_process => ([0.625], [0.8125], [0.9375], [1.0]),
-        }
-    },
-    {
-        class_name => MovingMs,
-        func_name => ms,
-        inner_class => MsInner,
-        sample_trait_bounds => [FloatSample],
-        description => "MS",
-
-        methods_defs => {
-            args_from => ([0.25]),
-            args_from_empty => ([0.0]),
-            args_reset => ([0.3125], [0.0]),
-            args_fill => ([0.0], [0.25]),
-            args_fill_with => ([0.0], [0.21875]),
-            args_advance => ([0.46875], [0.703125], [0.890625], [1.0]),
-            args_current => ([0.21875]),
-            args_process => ([0.46875], [0.703125], [0.890625], [1.0]),
-        }
-    },
-    {
-        class_name => MovingRms,
-        func_name => rms,
-        inner_class => RmsInner,
-        sample_trait_bounds => [FloatSample],
-        description => "RMS",
-
-        methods_defs => {
-            args_from => ([0.5]),
-            args_from_empty => ([0.0]),
-            args_reset => ([0.5590169943749475], [0.0]),
-            args_fill => ([0.0], [0.5]),
-            args_fill_with => ([0.0], [0.46770717334674267]),
-            args_advance => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
-            args_current => ([0.46770717334674267]),
-            args_process => ([0.6846531968814576], [0.8385254915624212], [0.9437293044088437], [1.0]),
         }
     }
 );
