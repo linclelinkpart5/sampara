@@ -1,3 +1,14 @@
+//! Statistical calculators for processing frames.
+//!
+//! These statistical calculators include, but are not limited to, mean
+//! (average), root mean square (RMS), and min/max. Each of these calculators
+//! come in different flavors:
+//!
+//! * Cumulative, where all previously processed frames factor into the
+//! calculation.
+//! * Moving, where a finite sized window of the most recent `N` frames factor
+//! into the calculation.
+
 #![macro_use]
 
 // LEARN: These macros must be defined before defining submodules, annoyingly.
@@ -24,8 +35,8 @@ macro_rules! gen_doc_comment {
     };
 }
 
-pub mod cumulative;
-pub mod moving;
+pub(crate) mod cumulative;
+pub(crate) mod moving;
 
 pub use cumulative::*;
 pub use moving::*;

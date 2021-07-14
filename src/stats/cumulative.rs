@@ -458,7 +458,7 @@ master! {
         class_name => CumulativeRms,
         func_name => cumulative_rms,
         sample_trait_bounds => [FloatSample],
-        description => "RMS",
+        description => "root mean square",
 
         doctest_expected_vals => {
             from => ([0.5]),
@@ -473,7 +473,7 @@ master! {
         class_name => CumulativeMs,
         func_name => cumulative_ms,
         sample_trait_bounds => [FloatSample],
-        description => "MS",
+        description => "mean square",
 
         doctest_expected_vals => {
             from => ([0.25]),

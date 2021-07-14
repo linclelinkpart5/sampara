@@ -1099,7 +1099,7 @@ master! {
         class_name => MovingRms,
         func_name => moving_rms,
         sample_trait_bounds => [FloatSample],
-        description => "RMS",
+        description => "root mean square",
 
         doctest_expected_vals => {
             from => ([0.5]),
@@ -1116,7 +1116,7 @@ master! {
         class_name => MovingMs,
         func_name => moving_ms,
         sample_trait_bounds => [FloatSample],
-        description => "MS",
+        description => "mean square",
 
         doctest_expected_vals => {
             from => ([0.25]),
