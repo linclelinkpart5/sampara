@@ -7,6 +7,25 @@ pub trait Processor<const NI: usize, const NO: usize> {
     fn process(&mut self, input: Self::Input) -> Self::Output;
 }
 
+pub trait BlockingProcessor<const NI: usize, const NO: usize> {
+    type Input: Frame<NI>;
+    type Output: Frame<NO>;
+
+    fn try_process(&mut self, input: Self::Input) -> Option<Self::Output>;
+}
+
+impl<P, const NI: usize, const NO: usize> BlockingProcessor<NI, NO> for P
+where
+    P: Processor<NI, NO>,
+{
+    type Input = P::Input;
+    type Output = P::Output;
+
+    fn try_process(&mut self, input: Self::Input) -> Option<Self::Output> {
+        Some(self.process(input))
+    }
+}
+
 /// A [`Processor`] that calls a closure for each input [`Frame`] and returns
 /// the output.
 ///
