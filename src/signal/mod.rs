@@ -5,7 +5,7 @@ mod iterators;
 use crate::{Frame, Sample, Duplex};
 use crate::biquad::Params;
 use crate::buffer::Buffer;
-use crate::components::{Processor, Combinator};
+use crate::components::{Processor, BlockingProcessor, Combinator};
 use crate::sample::FloatSample;
 use crate::interpolate::Interpolator;
 
@@ -576,6 +576,20 @@ pub trait Signal<const N: usize> {
         Process {
             signal: self,
             processor,
+        }
+    }
+
+    /// Creates a new [`Signal`] that passes the [`Frame`]s yielded from this
+    /// [`Signal`] into a [`BlockingProcessor`], and yields the output
+    /// [`Frame`]s if/when they are emitted.
+    fn blocking_process<BP, const NO: usize>(self, blocking_processor: BP) -> BlockingProcess<Self, BP, N, NO>
+    where
+        Self: Sized,
+        BP: BlockingProcessor<N, NO, Input = Self::Frame>,
+    {
+        BlockingProcess {
+            signal: self,
+            blocking_processor,
         }
     }
 

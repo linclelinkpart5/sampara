@@ -1,4 +1,4 @@
-use crate::{Frame, Sample, Duplex, Processor, Combinator};
+use crate::{Frame, Sample, Duplex, Processor, BlockingProcessor, Combinator};
 use crate::buffer::Buffer;
 use crate::sample::FloatSample;
 use crate::signal::Signal;
@@ -393,6 +393,54 @@ where
         let input = self.signal.next()?;
         let output = self.processor.process(input);
         Some(output)
+    }
+}
+
+/// A [`Signal`] that processes [`Frame`]s from an input [`Signal`] with a
+/// given [`BlockingProcessor`] and yields the output [`Frame`]s if/when they
+/// are emitted.
+pub struct BlockingProcess<S, BP, const NI: usize, const NO: usize>
+where
+    S: Signal<NI>,
+    BP: BlockingProcessor<NI, NO, Input = S::Frame>,
+{
+    pub(super) signal: S,
+    pub(crate) blocking_processor: BP,
+}
+
+impl<S, BP, const NI: usize, const NO: usize> BlockingProcess<S, BP, NI, NO>
+where
+    S: Signal<NI>,
+    BP: BlockingProcessor<NI, NO, Input = S::Frame>,
+{
+    /// Returns a reference to the internal [`BlockingProcessor`] state.
+    pub fn state(&self) -> &BP {
+        &self.blocking_processor
+    }
+
+    /// Returns a mutable reference to the internal [`BlockingProcessor`] state.
+    pub fn state_mut(&mut self) -> &mut BP {
+        &mut self.blocking_processor
+    }
+}
+
+impl<S, BP, const NI: usize, const NO: usize> Signal<NO>
+for BlockingProcess<S, BP, NI, NO>
+where
+    S: Signal<NI>,
+    BP: BlockingProcessor<NI, NO, Input = S::Frame>,
+{
+    type Frame = BP::Output;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        loop {
+            let input = self.signal.next()?;
+
+            if let Some(output) = self.blocking_processor.try_process(input) {
+                return Some(output);
+            }
+        }
     }
 }
 
