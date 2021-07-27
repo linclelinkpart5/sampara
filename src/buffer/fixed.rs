@@ -119,6 +119,28 @@ where
         self.buffer.as_ref().len()
     }
 
+    pub(crate) fn push_with_flag(&mut self, item: B::Frame) -> (B::Frame, bool) {
+        if self.capacity() == 0 {
+            // Buffer has zero capacity, just re-return the passed-in element.
+            return (item, true);
+        }
+
+        // Calculate the next head position after this push.
+        let mut was_reset = false;
+        let mut next_head = self.head + 1;
+        if next_head >= self.capacity() {
+            next_head = 0;
+            was_reset = true;
+        }
+
+        // SAFETY: Bounds checking can be skipped since the length is constant.
+        let old_item = unsafe {
+            std::mem::replace(self.buffer.as_mut().get_unchecked_mut(self.head), item)
+        };
+        self.head = next_head;
+        (old_item, was_reset)
+    }
+
     /// Pushes a new element onto the rear of the buffer, and pops off and
     /// returns the replaced element from the front.
     ///
@@ -136,22 +158,8 @@ where
     /// }
     /// ```
     pub fn push(&mut self, item: B::Frame) -> B::Frame {
-        if self.capacity() == 0 {
-            // Buffer has zero capacity, just re-return the passed-in element.
-            return item;
-        }
-
-        let mut next_head = self.head + 1;
-        if next_head >= self.capacity() {
-            next_head = 0;
-        }
-
-        // Bounds checking can be skipped safely since the length is constant.
-        let old_item = unsafe {
-            std::mem::replace(self.buffer.as_mut().get_unchecked_mut(self.head), item)
-        };
-        self.head = next_head;
-        old_item
+        let (popped, _) = self.push_with_flag(item);
+        popped
     }
 
     fn lookup(&self, index: usize, wrap: bool) -> Option<usize> {
