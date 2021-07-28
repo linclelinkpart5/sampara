@@ -14,17 +14,59 @@ pub trait BlockingProcessor<const NI: usize, const NO: usize> {
     fn try_process(&mut self, input: Self::Input) -> Option<Self::Output>;
 }
 
-impl<P, const NI: usize, const NO: usize> BlockingProcessor<NI, NO> for P
+pub trait StatefulBlocking<const NI: usize, const NO: usize> {
+    type Input: Frame<NI>;
+    type Output: Frame<NO>;
+
+    fn advance(&mut self, input: Self::Input);
+    fn try_current(&self) -> Option<Self::Output>;
+}
+
+pub trait StatefulNonblocking<const NI: usize, const NO: usize> {
+    type Input: Frame<NI>;
+    type Output: Frame<NO>;
+
+    fn advance(&mut self, input: Self::Input);
+    fn current(&self) -> Self::Output;
+}
+
+impl<S, const NI: usize, const NO: usize> BlockingProcessor<NI, NO> for S
 where
-    P: Processor<NI, NO>,
+    S: StatefulBlocking<NI, NO>,
 {
-    type Input = P::Input;
-    type Output = P::Output;
+    type Input = S::Input;
+    type Output = S::Output;
 
     fn try_process(&mut self, input: Self::Input) -> Option<Self::Output> {
-        Some(self.process(input))
+        self.advance(input);
+        self.try_current()
     }
 }
+
+impl<S, const NI: usize, const NO: usize> Processor<NI, NO> for S
+where
+    S: StatefulNonblocking<NI, NO>,
+{
+    type Input = S::Input;
+    type Output = S::Output;
+
+    fn process(&mut self, input: Self::Input) -> Self::Output {
+        self.advance(input);
+        self.current()
+    }
+}
+
+// impl<P, const NI: usize, const NO: usize> BlockingProcessor<NI, NO> for P
+// where
+//     P: Processor<NI, NO>,
+// {
+//     type Input = P::Input;
+//     type Output = P::Output;
+
+//     fn try_process(&mut self, input: Self::Input) -> Option<Self::Output> {
+//         Some(self.process(input))
+//     }
+// }
 
 /// A [`Processor`] that calls a closure for each input [`Frame`] and returns
 /// the output.
