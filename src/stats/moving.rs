@@ -6,7 +6,8 @@ use super::*;
 
 use num_traits::Float;
 
-use crate::{Frame, Sample, Processor};
+use crate::{Frame, Sample, Processor, BlockingProcessor};
+use crate::processors::StatefulBlocking;
 use crate::buffer::{Fixed, Buffer};
 use crate::sample::FloatSample;
 
@@ -646,7 +647,10 @@ macro_rules! master {
         paste::paste! {
             $(
                 apply_doc_comment! {
-                    concat!("Keeps a moving (aka \"rolling\" or \"sliding\") ", $prose, " of a window of [`Frame`]s over time."),
+                    concat!(
+                        "Keeps a moving (aka \"rolling\" or \"sliding\") ",
+                        $prose, " of a window of [`Frame`]s over time.",
+                    ),
                     {
                         #[derive(Clone)]
                         pub struct $cls<B, const N: usize>([<$cls Inner>]<B, N>)
@@ -879,6 +883,410 @@ macro_rules! master {
                     #[inline]
                     fn process(&mut self, input: Self::Input) -> Self::Output {
                         self.process(input)
+                    }
+                }
+
+                #[derive(Clone)]
+                enum [< Lazy $cls State >]<B, const N: usize>
+                where
+                    B: Buffer<N>,
+                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                {
+                    Dummy,
+                    Uninit(Fixed<B, N>),
+                    Active($cls<B, N>),
+                }
+
+                impl<B, const N: usize> [< Lazy $cls State >]<B, N>
+                where
+                    B: Buffer<N>,
+                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                {
+                    #[inline]
+                    fn __promote_inner(self) -> Self {
+                        match self {
+                            Self::Dummy => self,
+                            Self::Active(..) => self,
+                            Self::Uninit(ring_buffer) => {
+                                let buffer = ring_buffer.into_buffer();
+                                let calc = $cls::from(buffer);
+                                Self::Active(calc)
+                            }
+                        }
+                    }
+
+                    #[inline]
+                    fn __promote(&mut self) {
+                        // Swap `self` with a dummy value.
+                        let mut snatched = Self::Dummy;
+                        std::mem::swap(&mut snatched, self);
+
+                        let new_state = snatched.__promote_inner();
+                        *self = new_state;
+                    }
+
+                    #[inline]
+                    fn __from(buffer: B) -> Self {
+                        Self::Uninit(Fixed::from_offset(buffer, 0))
+                    }
+
+                    #[inline]
+                    fn __from_full(buffer: B) -> Self {
+                        let mut new = Self::__from(buffer);
+                        new.__promote();
+                        new
+                    }
+
+                    #[inline]
+                    fn __reset_inner(self) -> Self {
+                        let raw_buffer = match self {
+                            Self::Dummy => {
+                                return self;
+                            },
+
+                            Self::Active(calc) => calc.0.window.into_buffer(),
+
+                            Self::Uninit(ring_buffer) => ring_buffer.into_buffer(),
+                        };
+
+                        Self::__from(raw_buffer)
+                    }
+
+                    #[inline]
+                    fn __reset(&mut self) {
+                        // Swap `self` with a dummy value.
+                        let mut snatched = Self::Dummy;
+                        std::mem::swap(&mut snatched, self);
+
+                        let new_state = snatched.__reset_inner();
+                        *self = new_state;
+                    }
+
+                    #[inline]
+                    fn __fill(&mut self, fill_val: B::Frame) {
+                        match self {
+                            Self::Dummy => {},
+                            Self::Uninit(ring_buffer) => {
+                                // This fills the buffer correctly, starting at index 0.
+                                ring_buffer.fill(fill_val);
+                                self.__promote();
+                            },
+                            Self::Active(calc) => {
+                                calc.fill(fill_val);
+                            },
+                        }
+                    }
+
+                    #[inline]
+                    fn __fill_with<M>(&mut self, fill_func: M)
+                    where
+                        M: FnMut() -> B::Frame,
+                    {
+                        match self {
+                            Self::Dummy => {},
+                            Self::Uninit(ring_buffer) => {
+                                // This fills the buffer correctly, starting at index 0.
+                                ring_buffer.fill_with(fill_func);
+                                self.__promote();
+                            },
+                            Self::Active(calc) => {
+                                calc.fill_with(fill_func);
+                            },
+                        }
+                    }
+
+                    #[inline]
+                    fn __is_active(&self) -> bool {
+                        match self {
+                            Self::Active(..) => true,
+                            _ => false,
+                        }
+                    }
+
+                    #[inline]
+                    fn __advance(&mut self, input: B::Frame) {
+                        match self {
+                            Self::Active(calc) => {
+                                calc.advance(input);
+                            },
+
+                            Self::Uninit(ring_buffer) => {
+                                let (_, was_reset) = ring_buffer.push_with_flag(input);
+
+                                if was_reset {
+                                    // The buffer has been filled, promote.
+                                    self.__promote();
+                                }
+                            },
+
+                            Self::Dummy => {},
+                        }
+                    }
+
+                    #[inline]
+                    fn __try_current(&self) -> Option<B::Frame> {
+                        match self {
+                            Self::Active(calc) => Some(calc.current()),
+                            Self::Uninit(..) => None,
+                            Self::Dummy => None,
+                        }
+                    }
+                }
+
+                apply_doc_comment! {
+                    concat!(
+                        "Keeps a lazy moving (aka \"rolling\" or \"sliding\") ",
+                        $prose, " of a window of [`Frame`]s over time.\n\n",
+                        "This ", $prose, " calculation is \"lazy\" in the sense ",
+                        "that the initial [`Buffer`] is assumed to be empty, ",
+                        "which means that this will not start producing output ",
+                        "frames until the buffer is filled."
+                    ),
+                    {
+                        #[derive(Clone)]
+                        pub struct [< Lazy $cls >]<B, const N: usize>([<Lazy $cls State>]<B, N>)
+                        where
+                            B: Buffer<N>,
+                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                        ;
+                    }
+                }
+
+                impl<B, const N: usize> [< Lazy $cls >]<B, N>
+                where
+                    B: Buffer<N>,
+                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                {
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            [< Lazy $cls >],
+                            concat!(
+                                "Similar to [`", stringify!([< Lazy $cls >]), "::from`], ",
+                                "but treats the provided buffer as already ",
+                                "initialized.",
+                            ),
+                            {
+                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from_full([[0.5]; 4]);"),
+                                concat!("assert_eq!(window.try_current(), Some(", stringify!($ta__from), "));"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn from_full(buffer: B) -> Self {
+                                Self([< Lazy $cls State >]::__from_full(buffer))
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            [< Lazy $cls >],
+                            "Resets the window to its uninitialized state.",
+                            {
+                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from_full([[-1.0]; 4]);"),
+                                concat!("assert_eq!(window.is_active(), true);\n"),
+                                concat!("window.reset();"),
+                                concat!("assert_eq!(window.is_active(), false);"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn reset(&mut self) {
+                                self.0.__reset()
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            [< Lazy $cls >],
+                            "Reinitializes the window with a single constant [`Frame`] value.",
+                            {
+                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from([[-1.0]; 4]);"),
+                                "assert_eq!(window.try_current(), None);\n",
+                                "window.fill([0.5]);",
+                                concat!("assert_eq!(window.try_current(), Some(", stringify!($ta__fill__after), "));"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn fill(&mut self, fill_val: B::Frame) {
+                                self.0.__fill(fill_val)
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            [< Lazy $cls >],
+                            "Reinitializes the window by repeatedly calling a closure that produces [`Frame`]s.",
+                            {
+                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from([[-1.0]; 4]);"),
+                                "assert_eq!(window.try_current(), None);\n",
+                                "let mut x = 1.0;",
+                                "window.fill_with(|| {",
+                                "    x -= 0.25;",
+                                "    [x]",
+                                "});",
+                                concat!("assert_eq!(window.try_current(), Some(", stringify!($ta__fill_with__after), "));"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn fill_with<M>(&mut self, fill_func: M)
+                            where
+                                M: FnMut() -> B::Frame,
+                            {
+                                self.0.__fill_with(fill_func)
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            [< Lazy $cls >],
+                            "Returns `true` if this window is active (i.e. initialized), `false` otherwise.",
+                            {
+                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from([[-1.0]; 4]);"),
+                                "assert_eq!(window.is_active(), false);",
+                                "window.fill([-1.0]);",
+                                "assert_eq!(window.is_active(), true);",
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn is_active(&self) -> bool {
+                                self.0.__is_active()
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            [< Lazy $cls >],
+                            concat!(
+                                "Advances the state of the window buffer by pushing in a new input [`Frame`]. ",
+                                "The oldest frame will be popped off in order to accomodate the new one.\n\n",
+                                "This method does not calculate the current ", $prose, " value, ",
+                                "which can be more performant for workflows that process multiple frames in bulk ",
+                                "and do not need the intermediate ", $prose, " values.",
+                            ),
+                            {
+                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from([[-1.0]; 4]);\n"),
+                                "window.advance([0.25]);",
+                                "assert_eq!(window.try_current(), None);",
+                                "window.advance([0.50]);",
+                                "assert_eq!(window.try_current(), None);",
+                                "window.advance([0.75]);",
+                                "assert_eq!(window.try_current(), None);",
+                                "window.advance([1.00]);",
+                                concat!("assert_eq!(window.try_current(), Some(", stringify!($ta__advance__p1), "));"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn advance(&mut self, input: B::Frame) {
+                                self.0.__advance(input)
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            [< Lazy $cls >],
+                            concat!(
+                                "Calculates the current ", $prose, " value using the current ",
+                                "window contents, if initialized. Otherwise, returns `None`.",
+                            ),
+                            {
+                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from_full([[0.0], [0.25], [0.50], [0.75]]);"),
+                                concat!("assert_eq!(window.try_current(), Some(", stringify!($ta__current), "));\n\n"),
+                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from([[0.0]; 4]);"),
+                                "assert_eq!(window.try_current(), None);",
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn try_current(&self) -> Option<B::Frame> {
+                                self.0.__try_current()
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            [< Lazy $cls >],
+                            concat!(
+                                "Processes a new input frame by advancing the state of the window buffer ",
+                                "and then calculating the current ", $prose, " value.\n\n",
+                                "This is equivalent to a call to [`", stringify!([< Lazy $cls >]), "::advance`] followed ",
+                                "by a call to [`", stringify!([< Lazy $cls >]), "::try_current`].",
+                            ),
+                            {
+                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from([[-1.0]; 4]);\n"),
+                                concat!("assert_eq!(window.try_process([0.25]), None);"),
+                                concat!("assert_eq!(window.try_process([0.50]), None);"),
+                                concat!("assert_eq!(window.try_process([0.75]), None);"),
+                                concat!("assert_eq!(window.try_process([1.00]), Some(", stringify!($ta__process__p1), "));"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn try_process(&mut self, input: B::Frame) -> Option<B::Frame> {
+                                // NOTE: We delegate like this since we want to take
+                                //       advantage of the `BlockingProcessor` blanket impl.
+                                BlockingProcessor::try_process(self, input)
+                            }
+                        }
+                    }
+                }
+
+                impl<B, const N: usize> From<B> for [< Lazy $cls >]<B, N>
+                where
+                    B: Buffer<N>,
+                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                {
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            [< Lazy $cls >],
+                            concat!(
+                                "Creates a new [`", stringify!([< Lazy $cls >]), "`] ",
+                                "using a given [`Buffer`] as a window. The provided ",
+                                "buffer is assumed to be uninitialized, and will ",
+                                "have its contents overwritten.",
+                            ),
+                            {
+                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from([[-1.0]; 4]);\n"),
+                                concat!("assert_eq!(window.try_current(), None);"),
+                            }
+                        ),
+                        {
+                            #[inline]
+                            fn from(buffer: B) -> Self {
+                                assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
+                                Self([< Lazy $cls State >]::__from(buffer))
+                            }
+                        }
+                    }
+                }
+
+                // Implement `Processor` and forward all methods to `Self`.
+                impl<B, const N: usize> StatefulBlocking<N, N> for [< Lazy $cls >]<B, N>
+                where
+                    B: Buffer<N>,
+                    $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
+                {
+                    type Input = B::Frame;
+                    type Output = B::Frame;
+
+                    #[inline]
+                    fn advance(&mut self, input: Self::Input) {
+                        self.advance(input)
+                    }
+
+                    #[inline]
+                    fn try_current(&self) -> Option<Self::Output> {
+                        self.try_current()
                     }
                 }
             )+
