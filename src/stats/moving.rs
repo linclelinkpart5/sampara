@@ -7,7 +7,7 @@ use super::*;
 use num_traits::Float;
 
 use crate::{Frame, Sample, Processor, BlockingProcessor};
-use crate::processors::StatefulBlocking;
+use crate::processors::{StatefulBlocking, StatefulNonblocking};
 use crate::buffer::{Fixed, Buffer};
 use crate::sample::FloatSample;
 
@@ -838,7 +838,7 @@ macro_rules! master {
                         {
                             #[inline]
                             pub fn process(&mut self, input: B::Frame) -> B::Frame {
-                                self.0.__process(input)
+                                Processor::process(self, input)
                             }
                         }
                     }
@@ -871,8 +871,8 @@ macro_rules! master {
                     }
                 }
 
-                // Implement `Processor` and forward all methods to `Self`.
-                impl<B, const N: usize> Processor<N, N> for $cls<B, N>
+                // Implement `StatefulNonblocking` and forward all methods to `Self`.
+                impl<B, const N: usize> StatefulNonblocking<N, N> for $cls<B, N>
                 where
                     B: Buffer<N>,
                     $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
@@ -880,9 +880,16 @@ macro_rules! master {
                     type Input = B::Frame;
                     type Output = B::Frame;
 
+                    /// Same as [`Self::advance`].
                     #[inline]
-                    fn process(&mut self, input: Self::Input) -> Self::Output {
-                        self.process(input)
+                    fn advance(&mut self, input: Self::Input) {
+                        self.advance(input)
+                    }
+
+                    /// Same as [`Self::current`].
+                    #[inline]
+                    fn current(&self) -> Self::Output {
+                        self.current()
                     }
                 }
 
@@ -1270,7 +1277,7 @@ macro_rules! master {
                     }
                 }
 
-                // Implement `Processor` and forward all methods to `Self`.
+                // Implement `StatefulBlocking` and forward all methods to `Self`.
                 impl<B, const N: usize> StatefulBlocking<N, N> for [< Lazy $cls >]<B, N>
                 where
                     B: Buffer<N>,
@@ -1279,11 +1286,13 @@ macro_rules! master {
                     type Input = B::Frame;
                     type Output = B::Frame;
 
+                    /// Same as [`Self::advance`].
                     #[inline]
                     fn advance(&mut self, input: Self::Input) {
                         self.advance(input)
                     }
 
+                    /// Same as [`Self::try_current`].
                     #[inline]
                     fn try_current(&self) -> Option<Self::Output> {
                         self.try_current()
