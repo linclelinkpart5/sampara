@@ -1307,7 +1307,8 @@ macro_rules! master {
                         // NOTE: This is an adaptor type!
                         apply_doc_comment! {
                             concat!(
-                                "A [`Signal`] that calculates a moving ", $prose, " of a window of [`Frame`]s over time."
+                                "A [`Signal`] that calculates a moving ",
+                                $prose, " of a window of [`Frame`]s over time."
                             ),
                             {
                                 pub struct $cls<S, B, const N: usize>(pub(crate) Process<S, crate::stats::$cls<B, N>, N, N>)
@@ -1332,95 +1333,24 @@ macro_rules! master {
                             }
                         }
 
-                        enum [< Lazy $cls State >]<B, const N: usize>
-                        where
-                            B: Buffer<N>,
-                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                        {
-                            Failed,
-                            Uninit(B),
-                            Active(crate::stats::$cls<B, N>),
-                        }
-
-                        impl<B, const N: usize> [< Lazy $cls State >]<B, N>
-                        where
-                            B: Buffer<N>,
-                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                        {
-                            #[inline(always)]
-                            fn advance_inner<S>(self, signal: &mut S) -> (Option<S::Frame>, Self)
-                            where
-                                S: Signal<N, Frame = B::Frame>,
-                            {
-                                match self {
-                                    Self::Active(mut calc) => {
-                                        (signal.next().map(|f| calc.process(f)), Self::Active(calc))
-                                    },
-
-                                    Self::Uninit(mut buffer) => {
-                                        // Try and fill the buffer now.
-                                        if let Ok(()) = signal.fill_buffer(&mut buffer) {
-                                            // The buffer was successfully filled, create a new sliding
-                                            // calculator.
-                                            let calc = crate::stats::$cls::from(buffer);
-                                            (Some(calc.current()), Self::Active(calc))
-                                        }
-                                        else {
-                                            (None, Self::Failed)
-                                        }
-                                    },
-
-                                    Self::Failed => (None, Self::Failed),
-                                }
-                            }
-
-                            #[inline(always)]
-                            fn advance<S>(&mut self, signal: &mut S) -> Option<S::Frame>
-                            where
-                                S: Signal<N, Frame = B::Frame>,
-                            {
-                                // Swap `self` with a dummy value.
-                                let mut snatched = Self::Failed;
-                                std::mem::swap(&mut snatched, self);
-
-                                let (ret, new_state) = snatched.advance_inner(signal);
-                                *self = new_state;
-
-                                ret
-                            }
-                        }
-
                         apply_doc_comment! {
                             concat!(
-                                "A [`Signal`] that lazily calculates a moving ", $prose, " of a window of [`Frame`]s over time.\n\n",
-                                "This signal adaptor is lazy in the sense that the initial window is treated as uninitialized: ",
-                                "before yielding the first ", $prose, " value, the window is filled with [`Frame`]s from a source [`Signal`]. ",
-                                "The newly-filled window then yields the first ", $prose, " value. ",
+                                "A [`Signal`] that lazily calculates a moving ",
+                                $prose, " of a window of [`Frame`]s over time.\n\n",
+                                "This signal adaptor is lazy in the sense that the ",
+                                "initial window is treated as uninitialized: ",
+                                "before yielding the first ", $prose, " value, ",
+                                "the window is filled with [`Frame`]s from a ",
+                                "source [`Signal`]. The newly-filled window then ",
+                                "yields the first ", $prose, " value. ",
                             ),
                             {
-                                pub struct [<Lazy $cls>]<S, B, const N: usize>
+                                pub struct [< Lazy $cls >]<S, B, const N: usize>(pub(crate) BlockingProcess<S, crate::stats::[< Lazy $cls >]<B, N>, N, N>)
                                 where
                                     S: Signal<N>,
                                     B: Buffer<N, Frame = S::Frame>,
                                     $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                                {
-                                    signal: S,
-                                    state: [< Lazy $cls State >]<B, N>,
-                                }
-                            }
-                        }
-
-                        impl<S, B, const N: usize> [<Lazy $cls>]<S, B, N>
-                        where
-                            S: Signal<N>,
-                            B: Buffer<N, Frame = S::Frame>,
-                            $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
-                        {
-                            pub(crate) fn new(signal: S, buffer: B) -> Self {
-                                Self {
-                                    signal,
-                                    state: [< Lazy $cls State >]::<B, N>::Uninit(buffer),
-                                }
+                                ;
                             }
                         }
 
@@ -1433,7 +1363,7 @@ macro_rules! master {
                             type Frame = B::Frame;
 
                             fn next(&mut self) -> Option<Self::Frame> {
-                                self.state.advance(&mut self.signal)
+                                self.0.next()
                             }
                         }
                     )+
@@ -1500,7 +1430,8 @@ macro_rules! master {
                                     $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
                                     B: Buffer<N, Frame = Self::Frame>,
                                 {
-                                    [<Lazy $cls>]::new(self, window)
+                                    let blocking_processor = crate::stats::[< Lazy $cls >]::from(window);
+                                    [< Lazy $cls >](self.blocking_process(blocking_processor))
                                 }
                             }
                         }
