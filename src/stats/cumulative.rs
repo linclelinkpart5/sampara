@@ -7,6 +7,7 @@ use super::*;
 use num_traits::{Float, NumCast};
 
 use crate::{Frame, Sample, Processor};
+use crate::processors::StatefulNonblocking;
 use crate::sample::FloatSample;
 
 #[derive(Clone)]
@@ -147,7 +148,6 @@ macro_rules! master {
             description => $prose:literal,
 
             doctest_expected_vals => {
-                from => ( $ta__from:expr ),
                 reset => ( $ta__reset__before:expr ),
                 advance => ( $ta__advance__p1:expr, $ta__advance__p2:expr, $ta__advance__p3:expr, $ta__advance__p4:expr ),
                 current => ( $ta__current:expr ),
@@ -182,10 +182,11 @@ macro_rules! master {
                                 "Resets this cumulative ", $prose, " to its initial empty state.",
                             ),
                             {
-                                concat!("let mut calc = ", stringify!($cls), "::from([-0.5]);"),
+                                concat!("let mut calc = ", stringify!($cls), "::default();"),
+                                "calc.advance([-0.5]);",
                                 concat!("assert_eq!(calc.current(), ", stringify!($ta__reset__before), ");\n"),
-                                concat!("calc.reset();"),
-                                concat!("assert_eq!(calc.try_current(), None);"),
+                                "calc.reset();",
+                                "assert_eq!(calc.try_current(), None);",
                             }
                         ),
                         {
@@ -258,7 +259,8 @@ macro_rules! master {
                                 "is `false`)."
                             ),
                             {
-                                concat!("let mut calc = ", stringify!($cls), "::from([-0.5]);\n"),
+                                concat!("let mut calc = ", stringify!($cls), "::default();"),
+                                "calc.advance([-0.5]);",
                                 concat!("assert_eq!(calc.current(), ", stringify!($ta__current), ");"),
                             }
                         ),
@@ -317,35 +319,7 @@ macro_rules! master {
                         {
                             #[inline]
                             pub fn process(&mut self, input: F) -> F {
-                                self.advance(input);
-                                self.0.__current_unchecked()
-                            }
-                        }
-                    }
-                }
-
-                impl<F, const N: usize> From<F> for $cls<F, N>
-                where
-                    F: Frame<N>,
-                    $(F::Sample: $sample_kind,)?
-                {
-                    apply_doc_comment! {
-                        gen_doc_comment!(
-                            $cls,
-                            concat!(
-                                "Creates a new [`", stringify!($cls), "`] using a given [`Frame`] as ",
-                                "the first input point.",
-                            ),
-                            {
-                                concat!("let mut calc = ", stringify!($cls), "::from([-0.5]);\n"),
-                                concat!("assert_eq!(calc.current(), ", stringify!($ta__from), ");"),
-                            }
-                        ),
-                        {
-                            fn from(frame: F) -> Self {
-                                let mut new = Self::default();
-                                new.advance(frame);
-                                new
+                                Processor::process(self, input)
                             }
                         }
                     }
@@ -360,7 +334,7 @@ macro_rules! master {
                         gen_doc_comment!(
                             $cls,
                             concat!(
-                                "Creates a new [`", stringify!($cls), "`] with an empty input state.",
+                                "Creates a new empty [`", stringify!($cls), "`].",
                             ),
                             {
                                 concat!("let mut calc = ", stringify!($cls), "::<f32, 1>::default();\n"),
@@ -375,7 +349,7 @@ macro_rules! master {
                     }
                 }
 
-                impl<F, const N: usize> Processor<N, N> for $cls<F, N>
+                impl<F, const N: usize> StatefulNonblocking<N, N> for $cls<F, N>
                 where
                     F: Frame<N>,
                     $(F::Sample: $sample_kind,)?
@@ -384,8 +358,13 @@ macro_rules! master {
                     type Output = F;
 
                     #[inline]
-                    fn process(&mut self, input: Self::Input) -> Self::Output {
-                        self.process(input)
+                    fn advance(&mut self, input: Self::Input) {
+                        self.advance(input)
+                    }
+
+                    #[inline]
+                    fn current(&self) -> Self::Output {
+                        self.current()
                     }
                 }
             )+
@@ -461,7 +440,6 @@ master! {
         description => "root mean square",
 
         doctest_expected_vals => {
-            from => ([0.5]),
             reset => ([0.5]),
             advance => ([0.0], [0.3535533905932738], [0.6454972243679028], [0.6123724356957945]),
             current => ([0.5]),
@@ -476,7 +454,6 @@ master! {
         description => "mean square",
 
         doctest_expected_vals => {
-            from => ([0.25]),
             reset => ([0.25]),
             advance => ([0.0], [0.125], [0.4166666666666667], [0.375]),
             current => ([0.25]),
@@ -491,7 +468,6 @@ master! {
         description => "mean",
 
         doctest_expected_vals => {
-            from => ([-0.5]),
             reset => ([-0.5]),
             advance => ([0.0], [0.25], [0.5], [0.25]),
             current => ([-0.5]),
@@ -506,7 +482,6 @@ master! {
         description => "minimum",
 
         doctest_expected_vals => {
-            from => ([-0.5]),
             reset => ([-0.5]),
             advance => ([0.0], [0.0], [0.0], [-0.5]),
             current => ([-0.5]),
@@ -521,7 +496,6 @@ master! {
         description => "maximum",
 
         doctest_expected_vals => {
-            from => ([-0.5]),
             reset => ([-0.5]),
             advance => ([0.0], [0.5], [1.0], [1.0]),
             current => ([-0.5]),
