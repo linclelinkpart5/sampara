@@ -1,7 +1,9 @@
-pub mod processors;
 pub mod combinators;
+pub mod consumers;
 pub mod generators;
+pub mod processors;
 
-pub use processors::{Processor, BlockingProcessor};
 pub use combinators::Combinator;
+pub use consumers::Consumer;
 pub use generators::Generator;
+pub use processors::{Processor, BlockingProcessor};
