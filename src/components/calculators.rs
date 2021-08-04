@@ -1,9 +1,9 @@
 use crate::Frame;
 
-pub trait Consumer<const N: usize> {
+pub trait Calculator<const N: usize> {
     type Input: Frame<N>;
     type Output;
 
     fn push(&mut self, input: Self::Input);
-    fn consume(self) -> Self::Output;
+    fn calculate(self) -> Self::Output;
 }

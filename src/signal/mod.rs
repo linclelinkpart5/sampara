@@ -5,7 +5,7 @@ mod iterators;
 use crate::{Frame, Sample, Duplex};
 use crate::biquad::Params;
 use crate::buffer::Buffer;
-use crate::components::{Processor, BlockingProcessor, Combinator, Consumer};
+use crate::components::{Processor, BlockingProcessor, Combinator, Calculator};
 use crate::sample::FloatSample;
 use crate::interpolate::Interpolator;
 
@@ -718,20 +718,20 @@ pub trait Signal<const N: usize> {
         }
     }
 
-    /// Feeds this [`Signal`] into a [`Consumer`], then returns the output of
+    /// Feeds this [`Signal`] into a [`Calculator`], then returns the output of
     /// the consumed [`Frame`]s.
-    fn consume<C>(mut self, consumer: C) -> C::Output
+    fn calculate<C>(mut self, calculator: C) -> C::Output
     where
         Self: Sized,
-        C: Consumer<N, Input = Self::Frame>,
+        C: Calculator<N, Input = Self::Frame>,
     {
-        let mut consumer = consumer;
+        let mut calculator = calculator;
 
         while let Some(frame) = self.next() {
-            consumer.push(frame);
+            calculator.push(frame);
         }
 
-        consumer.consume()
+        calculator.calculate()
     }
 
     stats_moving_inject_signal_methods!();
