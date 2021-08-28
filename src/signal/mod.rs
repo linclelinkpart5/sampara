@@ -5,40 +5,40 @@ mod iterators;
 use crate::{Frame, Sample, Duplex};
 use crate::biquad::Params;
 use crate::buffer::Buffer;
-use crate::components::{Processor, BlockingProcessor, Combinator, Calculator};
+use crate::components::{Processor, Combinator, Calculator};
 use crate::sample::FloatSample;
 use crate::interpolate::Interpolator;
 
-use crate::combinators as combs;
-use crate::processors as procs;
+// use crate::combinators as combs;
+// use crate::processors as procs;
 
 pub use adaptors::*;
 pub use generators::*;
 pub use iterators::*;
 
-pub type Map<S, FO, M, const NI: usize, const NO: usize> =
-    Process<
-        S,
-        procs::Map<
-            <S as Signal<NI>>::Frame,
-            FO, M, NI, NO,
-        >,
-        NI, NO,
-    >;
+// pub type Map<S, FO, M, const NI: usize, const NO: usize> =
+//     Process<
+//         S,
+//         procs::Map<
+//             <S as Signal<NI>>::Frame,
+//             FO, M, NI, NO,
+//         >,
+//         NI, NO,
+//     >;
 
-pub type Mix<SL, SR, FO, M, const NL: usize, const NR: usize, const NO: usize> =
-    Combine<
-        SL, SR,
-        combs::Mix<
-            <SL as Signal<NL>>::Frame,
-            <SR as Signal<NR>>::Frame,
-            FO, M, NL, NR, NO,
-        >,
-        NL, NR, NO,
-    >;
+// pub type Mix<SL, SR, FO, M, const NL: usize, const NR: usize, const NO: usize> =
+//     Combine<
+//         SL, SR,
+//         combs::Mix<
+//             <SL as Signal<NL>>::Frame,
+//             <SR as Signal<NR>>::Frame,
+//             FO, M, NL, NR, NO,
+//         >,
+//         NL, NR, NO,
+//     >;
 
-pub type Select<SL, SR, const N: usize> =
-    Combine<SL, SR, combs::Selector<<SL as Signal<N>>::Frame, N>, N, N, N>;
+// pub type Select<SL, SR, const N: usize> =
+//     Combine<SL, SR, combs::Selector<<SL as Signal<N>>::Frame, N>, N, N, N>;
 
 /// Types that yield a sequence of [`Frame`]s, representing an audio signal.
 ///
@@ -101,132 +101,132 @@ pub trait Signal<const N: usize> {
         self
     }
 
-    /// Creates a new [`Signal`] that applies a function to each [`Frame`] of
-    /// [`Self`].
-    ///
-    /// ```
-    /// use sampara::{signal, Signal};
-    ///
-    /// fn main() {
-    ///     let signal = signal::from_frames(0i32..=3);
-    ///     let mut mapped = signal.map(|f| f * f);
-    ///
-    ///     assert_eq!(mapped.next(), Some(0));
-    ///     assert_eq!(mapped.next(), Some(1));
-    ///     assert_eq!(mapped.next(), Some(4));
-    ///     assert_eq!(mapped.next(), Some(9));
-    ///     assert_eq!(mapped.next(), None);
-    /// }
-    /// ```
-    fn map<FO, M, const NO: usize>(self, func: M)
-        -> Map<Self, FO, M, N, NO>
-    where
-        Self: Sized,
-        FO: Frame<NO>,
-        M: FnMut(Self::Frame) -> FO,
-    {
-        let processor = procs::Map::new(func);
-        self.process(processor)
-    }
+    // /// Creates a new [`Signal`] that applies a function to each [`Frame`] of
+    // /// [`Self`].
+    // ///
+    // /// ```
+    // /// use sampara::{signal, Signal};
+    // ///
+    // /// fn main() {
+    // ///     let signal = signal::from_frames(0i32..=3);
+    // ///     let mut mapped = signal.map(|f| f * f);
+    // ///
+    // ///     assert_eq!(mapped.next(), Some(0));
+    // ///     assert_eq!(mapped.next(), Some(1));
+    // ///     assert_eq!(mapped.next(), Some(4));
+    // ///     assert_eq!(mapped.next(), Some(9));
+    // ///     assert_eq!(mapped.next(), None);
+    // /// }
+    // /// ```
+    // fn map<FO, M, const NO: usize>(self, func: M)
+    //     -> Map<Self, FO, M, N, NO>
+    // where
+    //     Self: Sized,
+    //     FO: Frame<NO>,
+    //     M: FnMut(Self::Frame) -> FO,
+    // {
+    //     let processor = procs::Map::new(func);
+    //     self.process(processor)
+    // }
 
-    /// Creates a new [`Signal`] that applies a function to each pair of
-    /// [`Frame`]s from [`Self`] and another input [`Signal`], in lockstep.
-    ///
-    /// If either input [`Signal`] becomes exhausted, this will also become
-    /// exhausted.
-    ///
-    /// ```
-    /// use sampara::{signal, Signal};
-    ///
-    /// fn main() {
-    ///     let signal_l = signal::from_frames(0i32..=3);
-    ///     let signal_r = signal::from_frames(4i32..);
-    ///     let mut mixed = signal_l.mix(signal_r, |l, r| [l + r, l * r]);
-    ///
-    ///     assert_eq!(mixed.next(), Some([4, 0]));
-    ///     assert_eq!(mixed.next(), Some([6, 5]));
-    ///     assert_eq!(mixed.next(), Some([8, 12]));
-    ///     assert_eq!(mixed.next(), Some([10, 21]));
-    ///
-    ///     // At this point `signal_l` is exhausted, so this is as well.
-    ///     assert_eq!(mixed.next(), None);
-    /// }
-    /// ```
-    fn mix<S, FO, M, const NR: usize, const NO: usize>(self, other: S, func: M)
-        -> Mix<Self, S, FO, M, N, NR, NO>
-    where
-        Self: Sized,
-        S: Signal<NR>,
-        FO: Frame<NO>,
-        M: FnMut(Self::Frame, S::Frame) -> FO,
-    {
-        let combinator = combs::Mix::new(func);
-        self.combine(other, combinator)
-    }
+    // /// Creates a new [`Signal`] that applies a function to each pair of
+    // /// [`Frame`]s from [`Self`] and another input [`Signal`], in lockstep.
+    // ///
+    // /// If either input [`Signal`] becomes exhausted, this will also become
+    // /// exhausted.
+    // ///
+    // /// ```
+    // /// use sampara::{signal, Signal};
+    // ///
+    // /// fn main() {
+    // ///     let signal_l = signal::from_frames(0i32..=3);
+    // ///     let signal_r = signal::from_frames(4i32..);
+    // ///     let mut mixed = signal_l.mix(signal_r, |l, r| [l + r, l * r]);
+    // ///
+    // ///     assert_eq!(mixed.next(), Some([4, 0]));
+    // ///     assert_eq!(mixed.next(), Some([6, 5]));
+    // ///     assert_eq!(mixed.next(), Some([8, 12]));
+    // ///     assert_eq!(mixed.next(), Some([10, 21]));
+    // ///
+    // ///     // At this point `signal_l` is exhausted, so this is as well.
+    // ///     assert_eq!(mixed.next(), None);
+    // /// }
+    // /// ```
+    // fn mix<S, FO, M, const NR: usize, const NO: usize>(self, other: S, func: M)
+    //     -> Mix<Self, S, FO, M, N, NR, NO>
+    // where
+    //     Self: Sized,
+    //     S: Signal<NR>,
+    //     FO: Frame<NO>,
+    //     M: FnMut(Self::Frame, S::Frame) -> FO,
+    // {
+    //     let combinator = combs::Mix::new(func);
+    //     self.combine(other, combinator)
+    // }
 
-    /// Creates a new [`Signal`] that takes pairs of [`Frame`]s from [`Self`]
-    /// and another input [`Signal`] in lockstep, and returns one of them
-    /// (left or right) based on a selector switch.
-    ///
-    /// The resulting [`Signal`] will start off yielding only [`Frame`]s from
-    /// [`Self`] (left), but this can be changed at runtime.
-    ///
-    /// ```
-    /// use sampara::{signal, Signal};
-    ///
-    /// fn main() {
-    ///     let signal_l = signal::from_frames(10i32..);
-    ///     let signal_r = signal::from_frames(20i32..);
-    ///
-    ///     let mut selected = signal_l.select_left(signal_r);
-    ///     assert_eq!(selected.next(), Some(10));
-    ///     assert_eq!(selected.next(), Some(11));
-    ///     assert_eq!(selected.next(), Some(12));
-    ///
-    ///     selected.state_mut().toggle();
-    ///     assert_eq!(selected.next(), Some(23));
-    ///     assert_eq!(selected.next(), Some(24));
-    ///     assert_eq!(selected.next(), Some(25));
-    /// }
-    /// ```
-    fn select_left<S>(self, other: S) -> Select<Self, S, N>
-    where
-        Self: Sized,
-        S: Signal<N, Frame = Self::Frame>,
-    {
-        let combinator = combs::Selector::left();
-        self.combine(other, combinator)
-    }
+    // /// Creates a new [`Signal`] that takes pairs of [`Frame`]s from [`Self`]
+    // /// and another input [`Signal`] in lockstep, and returns one of them
+    // /// (left or right) based on a selector switch.
+    // ///
+    // /// The resulting [`Signal`] will start off yielding only [`Frame`]s from
+    // /// [`Self`] (left), but this can be changed at runtime.
+    // ///
+    // /// ```
+    // /// use sampara::{signal, Signal};
+    // ///
+    // /// fn main() {
+    // ///     let signal_l = signal::from_frames(10i32..);
+    // ///     let signal_r = signal::from_frames(20i32..);
+    // ///
+    // ///     let mut selected = signal_l.select_left(signal_r);
+    // ///     assert_eq!(selected.next(), Some(10));
+    // ///     assert_eq!(selected.next(), Some(11));
+    // ///     assert_eq!(selected.next(), Some(12));
+    // ///
+    // ///     selected.state_mut().toggle();
+    // ///     assert_eq!(selected.next(), Some(23));
+    // ///     assert_eq!(selected.next(), Some(24));
+    // ///     assert_eq!(selected.next(), Some(25));
+    // /// }
+    // /// ```
+    // fn select_left<S>(self, other: S) -> Select<Self, S, N>
+    // where
+    //     Self: Sized,
+    //     S: Signal<N, Frame = Self::Frame>,
+    // {
+    //     let combinator = combs::Selector::left();
+    //     self.combine(other, combinator)
+    // }
 
-    /// Similar to [`Self::select_left`], except starts off yielding the right
-    /// [`Frame`]s.
-    ///
-    /// ```
-    /// use sampara::{signal, Signal};
-    ///
-    /// fn main() {
-    ///     let signal_l = signal::from_frames(10i32..);
-    ///     let signal_r = signal::from_frames(20i32..);
-    ///
-    ///     let mut selected = signal_l.select_right(signal_r);
-    ///     assert_eq!(selected.next(), Some(20));
-    ///     assert_eq!(selected.next(), Some(21));
-    ///     assert_eq!(selected.next(), Some(22));
-    ///
-    ///     selected.state_mut().toggle();
-    ///     assert_eq!(selected.next(), Some(13));
-    ///     assert_eq!(selected.next(), Some(14));
-    ///     assert_eq!(selected.next(), Some(15));
-    /// }
-    /// ```
-    fn select_right<S>(self, other: S) -> Select<Self, S, N>
-    where
-        Self: Sized,
-        S: Signal<N, Frame = Self::Frame>,
-    {
-        let combinator = combs::Selector::right();
-        self.combine(other, combinator)
-    }
+    // /// Similar to [`Self::select_left`], except starts off yielding the right
+    // /// [`Frame`]s.
+    // ///
+    // /// ```
+    // /// use sampara::{signal, Signal};
+    // ///
+    // /// fn main() {
+    // ///     let signal_l = signal::from_frames(10i32..);
+    // ///     let signal_r = signal::from_frames(20i32..);
+    // ///
+    // ///     let mut selected = signal_l.select_right(signal_r);
+    // ///     assert_eq!(selected.next(), Some(20));
+    // ///     assert_eq!(selected.next(), Some(21));
+    // ///     assert_eq!(selected.next(), Some(22));
+    // ///
+    // ///     selected.state_mut().toggle();
+    // ///     assert_eq!(selected.next(), Some(13));
+    // ///     assert_eq!(selected.next(), Some(14));
+    // ///     assert_eq!(selected.next(), Some(15));
+    // /// }
+    // /// ```
+    // fn select_right<S>(self, other: S) -> Select<Self, S, N>
+    // where
+    //     Self: Sized,
+    //     S: Signal<N, Frame = Self::Frame>,
+    // {
+    //     let combinator = combs::Selector::right();
+    //     self.combine(other, combinator)
+    // }
 
     /// Creates a new [`Signal`] that yields the sum of pairs of [`Frame`]s
     /// yielded by [`Self`] and another [`Signal`] in lockstep.
@@ -567,11 +567,13 @@ pub trait Signal<const N: usize> {
     }
 
     /// Creates a new [`Signal`] that passes the [`Frame`]s yielded from this
-    /// [`Signal`] into a [`Processor`], and yields the output [`Frame`]s.
+    /// [`Signal`] into a [`Processor`] that outputs [`Frame`]s, and yields the
+    /// output [`Frame`]s.
     fn process<P, const NO: usize>(self, processor: P) -> Process<Self, P, N, NO>
     where
         Self: Sized,
-        P: Processor<N, NO, Input = Self::Frame>,
+        P: Processor<Input = Self::Frame>,
+        P::Output: Frame<NO>,
     {
         Process {
             signal: self,
@@ -579,17 +581,15 @@ pub trait Signal<const N: usize> {
         }
     }
 
-    /// Creates a new [`Signal`] that passes the [`Frame`]s yielded from this
-    /// [`Signal`] into a [`BlockingProcessor`], and yields the output
-    /// [`Frame`]s if/when they are emitted.
-    fn blocking_process<BP, const NO: usize>(self, blocking_processor: BP) -> BlockingProcess<Self, BP, N, NO>
+    fn process_lazy<P, F, const NO: usize>(self, lazy_processor: P) -> ProcessLazy<Self, P, F, N, NO>
     where
         Self: Sized,
-        BP: BlockingProcessor<N, NO, Input = Self::Frame>,
+        P: Processor<Input = Self::Frame, Output = Option<F>>,
+        F: Frame<NO>,
     {
-        BlockingProcess {
+        ProcessLazy {
             signal: self,
-            blocking_processor,
+            lazy_processor,
         }
     }
 
@@ -599,16 +599,31 @@ pub trait Signal<const N: usize> {
     ///
     /// If one of the input [`Signal`]s finishes before the other, this new
     /// [`Signal`] will finish as well.
-    fn combine<C, S, const NB: usize, const NO: usize>(self, other: S, combinator: C) -> Combine<Self, S, C, N, NB, NO>
+    fn combine<S, C, const NB: usize, const NO: usize>(self, other: S, combinator: C) -> Combine<Self, S, C, N, NB, NO>
     where
         Self: Sized,
         S: Signal<NB>,
-        C: Combinator<N, NB, NO, InputL = Self::Frame, InputR = S::Frame>,
+        C: Combinator<InputL = Self::Frame, InputR = S::Frame>,
+        C::Output: Frame<NO>,
     {
         Combine {
             signal_l: self,
             signal_r: other,
             combinator,
+        }
+    }
+
+    fn combine_lazy<S, C, F, const NB: usize, const NO: usize>(self, other: S, lazy_combinator: C) -> CombineLazy<Self, S, C, F, N, NB, NO>
+    where
+        Self: Sized,
+        S: Signal<NB>,
+        C: Combinator<InputL = Self::Frame, InputR = S::Frame, Output = Option<F>>,
+        F: Frame<NO>,
+    {
+        CombineLazy {
+            signal_l: self,
+            signal_r: other,
+            lazy_combinator,
         }
     }
 
@@ -720,14 +735,15 @@ pub trait Signal<const N: usize> {
 
     /// Feeds this [`Signal`] into a [`Calculator`], then returns the output of
     /// the consumed [`Frame`]s.
-    fn calculate<C>(mut self, calculator: C) -> C::Output
+    fn calculate<C>(self, calculator: C) -> C::Output
     where
         Self: Sized,
-        C: Calculator<N, Input = Self::Frame>,
+        C: Calculator<Input = Self::Frame>,
     {
+        let mut this = self;
         let mut calculator = calculator;
 
-        while let Some(frame) = self.next() {
+        while let Some(frame) = this.next() {
             calculator.push(frame);
         }
 

@@ -7,7 +7,7 @@ use super::*;
 use num_traits::{Float, NumCast};
 
 use crate::{Frame, Sample, Processor};
-use crate::processors::StatefulNonblocking;
+use crate::processors::StatefulProcessor;
 use crate::sample::FloatSample;
 
 #[derive(Clone)]
@@ -349,7 +349,7 @@ macro_rules! master {
                     }
                 }
 
-                impl<F, const N: usize> StatefulNonblocking<N, N> for $cls<F, N>
+                impl<F, const N: usize> StatefulProcessor for $cls<F, N>
                 where
                     F: Frame<N>,
                     $(F::Sample: $sample_kind,)?

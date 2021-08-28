@@ -261,7 +261,7 @@ where
     }
 }
 
-impl<F, const N: usize> Processor<N, N> for Biquad<F, N>
+impl<F, const N: usize> Processor for Biquad<F, N>
 where
     F: Frame<N>,
     F::Sample: FloatSample,

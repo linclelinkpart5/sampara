@@ -1,51 +1,21 @@
-use crate::Frame;
-
-pub trait Processor<const NI: usize, const NO: usize> {
-    type Input: Frame<NI>;
-    type Output: Frame<NO>;
+pub trait Processor {
+    type Input;
+    type Output;
 
     fn process(&mut self, input: Self::Input) -> Self::Output;
 }
 
-pub trait BlockingProcessor<const NI: usize, const NO: usize> {
-    type Input: Frame<NI>;
-    type Output: Frame<NO>;
-
-    fn try_process(&mut self, input: Self::Input) -> Option<Self::Output>;
-}
-
-pub trait StatefulBlocking<const NI: usize, const NO: usize> {
-    type Input: Frame<NI>;
-    type Output: Frame<NO>;
-
-    fn advance(&mut self, input: Self::Input);
-    fn try_current(&self) -> Option<Self::Output>;
-}
-
-pub trait StatefulNonblocking<const NI: usize, const NO: usize> {
-    type Input: Frame<NI>;
-    type Output: Frame<NO>;
+pub trait StatefulProcessor {
+    type Input;
+    type Output;
 
     fn advance(&mut self, input: Self::Input);
     fn current(&self) -> Self::Output;
 }
 
-impl<S, const NI: usize, const NO: usize> BlockingProcessor<NI, NO> for S
+impl<S> Processor for S
 where
-    S: StatefulBlocking<NI, NO>,
-{
-    type Input = S::Input;
-    type Output = S::Output;
-
-    fn try_process(&mut self, input: Self::Input) -> Option<Self::Output> {
-        self.advance(input);
-        self.try_current()
-    }
-}
-
-impl<S, const NI: usize, const NO: usize> Processor<NI, NO> for S
-where
-    S: StatefulNonblocking<NI, NO>,
+    S: StatefulProcessor,
 {
     type Input = S::Input;
     type Output = S::Output;
@@ -56,20 +26,7 @@ where
     }
 }
 
-// impl<P, const NI: usize, const NO: usize> BlockingProcessor<NI, NO> for P
-// where
-//     P: Processor<NI, NO>,
-// {
-//     type Input = P::Input;
-//     type Output = P::Output;
-
-//     fn try_process(&mut self, input: Self::Input) -> Option<Self::Output> {
-//         Some(self.process(input))
-//     }
-// }
-
-/// A [`Processor`] that calls a closure for each input [`Frame`] and returns
-/// the output.
+/// A [`Processor`] that calls a closure to map each input to an output.
 ///
 /// ```
 /// use sampara::Processor;
@@ -86,21 +43,17 @@ where
 ///     assert_eq!(p.process([-30, 30]), [0, 0]);
 /// }
 /// ```
-pub struct Map<FI, FO, M, const NI: usize, const NO: usize>
+pub struct Map<I, O, M>
 where
-    FI: Frame<NI>,
-    FO: Frame<NO>,
-    M: FnMut(FI) -> FO,
+    M: FnMut(I) -> O,
 {
     pub(super) func: M,
-    pub(super) _marker: std::marker::PhantomData<(FI, FO)>,
+    pub(super) _marker: std::marker::PhantomData<(I, O)>,
 }
 
-impl<FI, FO, M, const NI: usize, const NO: usize> Map<FI, FO, M, NI, NO>
+impl<I, O, M> Map<I, O, M>
 where
-    FI: Frame<NI>,
-    FO: Frame<NO>,
-    M: FnMut(FI) -> FO,
+    M: FnMut(I) -> O,
 {
     pub fn new(func: M) -> Self {
         Self {
@@ -110,25 +63,21 @@ where
     }
 }
 
-impl<FI, FO, M, const NI: usize, const NO: usize> Processor<NI, NO> for Map<FI, FO, M, NI, NO>
+impl<I, O, M> Processor for Map<I, O, M>
 where
-    FI: Frame<NI>,
-    FO: Frame<NO>,
-    M: FnMut(FI) -> FO,
+    M: FnMut(I) -> O,
 {
-    type Input = FI;
-    type Output = FO;
+    type Input = I;
+    type Output = O;
 
     fn process(&mut self, input: Self::Input) -> Self::Output {
         (self.func)(input)
     }
 }
 
-impl<M, FI, FO, const NI: usize, const NO: usize> From<M> for Map<FI, FO, M, NI, NO>
+impl<M, I, O> From<M> for Map<I, O, M>
 where
-    FI: Frame<NI>,
-    FO: Frame<NO>,
-    M: FnMut(FI) -> FO,
+    M: FnMut(I) -> O,
 {
     fn from(func: M) -> Self {
         Self::new(func)
@@ -152,19 +101,19 @@ where
 ///     assert_eq!(p.process(-3), -4);
 /// }
 /// ```
-pub struct Chain<PA, PB, const NI: usize, const NX: usize, const NO: usize>
+pub struct Chain<PA, PB>
 where
-    PA: Processor<NI, NX>,
-    PB: Processor<NX, NO, Input = PA::Output>,
+    PA: Processor,
+    PB: Processor<Input = PA::Output>,
 {
     pub(super) processor_a: PA,
     pub(super) processor_b: PB,
 }
 
-impl<PA, PB, const NI: usize, const NX: usize, const NO: usize> Chain<PA, PB, NI, NX, NO>
+impl<PA, PB> Chain<PA, PB>
 where
-    PA: Processor<NI, NX>,
-    PB: Processor<NX, NO, Input = PA::Output>,
+    PA: Processor,
+    PB: Processor<Input = PA::Output>,
 {
     pub fn new(processor_a: PA, processor_b: PB) -> Self {
         Self {
@@ -174,11 +123,10 @@ where
     }
 }
 
-impl<PA, PB, const NI: usize, const NX: usize, const NO: usize> Processor<NI, NO>
-for Chain<PA, PB, NI, NX, NO>
+impl<PA, PB> Processor for Chain<PA, PB>
 where
-    PA: Processor<NI, NX>,
-    PB: Processor<NX, NO, Input = PA::Output>,
+    PA: Processor,
+    PB: Processor<Input = PA::Output>,
 {
     type Input = PA::Input;
     type Output = PB::Output;

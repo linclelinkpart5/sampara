@@ -1,4 +1,4 @@
-use crate::{Frame, Sample, Duplex, Processor, BlockingProcessor, Combinator};
+use crate::{Frame, Sample, Duplex, Processor, Combinator};
 use crate::buffer::Buffer;
 use crate::sample::FloatSample;
 use crate::signal::Signal;
@@ -353,12 +353,13 @@ where
     }
 }
 
-/// A [`Signal`] that processes [`Frame`]s from an input [`Signal`] with a
-/// given [`Processor`] and yields the output [`Frame`]s.
+/// A [`Signal`] that feeds [`Frame`]s from an input [`Signal`] into a
+/// [`Processor`] that outputs [`Frame`]s, and yields the outputs.
 pub struct Process<S, P, const NI: usize, const NO: usize>
 where
     S: Signal<NI>,
-    P: Processor<NI, NO, Input = S::Frame>,
+    P: Processor<Input = S::Frame>,
+    P::Output: Frame<NO>,
 {
     pub(super) signal: S,
     pub(crate) processor: P,
@@ -367,7 +368,8 @@ where
 impl<S, P, const NI: usize, const NO: usize> Process<S, P, NI, NO>
 where
     S: Signal<NI>,
-    P: Processor<NI, NO, Input = S::Frame>,
+    P: Processor<Input = S::Frame>,
+    P::Output: Frame<NO>,
 {
     /// Returns a reference to the internal [`Processor`] state.
     pub fn state(&self) -> &P {
@@ -384,7 +386,8 @@ impl<S, P, const NI: usize, const NO: usize> Signal<NO>
 for Process<S, P, NI, NO>
 where
     S: Signal<NI>,
-    P: Processor<NI, NO, Input = S::Frame>,
+    P: Processor<Input = S::Frame>,
+    P::Output: Frame<NO>,
 {
     type Frame = P::Output;
 
@@ -396,48 +399,50 @@ where
     }
 }
 
-/// A [`Signal`] that processes [`Frame`]s from an input [`Signal`] with a
-/// given [`BlockingProcessor`] and yields the output [`Frame`]s if/when they
-/// are emitted.
-pub struct BlockingProcess<S, BP, const NI: usize, const NO: usize>
+/// A [`Signal`] that feeds [`Frame`]s from an input [`Signal`] into a
+/// [`Processor`] that outputs [`Frame`]s, and yields the outputs.
+pub struct ProcessLazy<S, P, F, const NI: usize, const NO: usize>
 where
     S: Signal<NI>,
-    BP: BlockingProcessor<NI, NO, Input = S::Frame>,
+    P: Processor<Input = S::Frame, Output = Option<F>>,
+    F: Frame<NO>,
 {
     pub(super) signal: S,
-    pub(crate) blocking_processor: BP,
+    pub(crate) lazy_processor: P,
 }
 
-impl<S, BP, const NI: usize, const NO: usize> BlockingProcess<S, BP, NI, NO>
+impl<S, P, F, const NI: usize, const NO: usize> ProcessLazy<S, P, F, NI, NO>
 where
     S: Signal<NI>,
-    BP: BlockingProcessor<NI, NO, Input = S::Frame>,
+    P: Processor<Input = S::Frame, Output = Option<F>>,
+    F: Frame<NO>,
 {
-    /// Returns a reference to the internal [`BlockingProcessor`] state.
-    pub fn state(&self) -> &BP {
-        &self.blocking_processor
+    /// Returns a reference to the internal [`Processor`] state.
+    pub fn state(&self) -> &P {
+        &self.lazy_processor
     }
 
-    /// Returns a mutable reference to the internal [`BlockingProcessor`] state.
-    pub fn state_mut(&mut self) -> &mut BP {
-        &mut self.blocking_processor
+    /// Returns a mutable reference to the internal [`Processor`] state.
+    pub fn state_mut(&mut self) -> &mut P {
+        &mut self.lazy_processor
     }
 }
 
-impl<S, BP, const NI: usize, const NO: usize> Signal<NO>
-for BlockingProcess<S, BP, NI, NO>
+impl<S, P, F, const NI: usize, const NO: usize> Signal<NO>
+for ProcessLazy<S, P, F, NI, NO>
 where
     S: Signal<NI>,
-    BP: BlockingProcessor<NI, NO, Input = S::Frame>,
+    P: Processor<Input = S::Frame, Output = Option<F>>,
+    F: Frame<NO>,
 {
-    type Frame = BP::Output;
+    type Frame = F;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Frame> {
         loop {
             let input = self.signal.next()?;
 
-            if let Some(output) = self.blocking_processor.try_process(input) {
+            if let Some(output) = self.lazy_processor.process(input) {
                 return Some(output);
             }
         }
@@ -450,7 +455,8 @@ pub struct Combine<SL, SR, C, const NL: usize, const NR: usize, const NO: usize>
 where
     SL: Signal<NL>,
     SR: Signal<NR>,
-    C: Combinator<NL, NR, NO, InputL = SL::Frame, InputR = SR::Frame>,
+    C: Combinator<InputL = SL::Frame, InputR = SR::Frame>,
+    C::Output: Frame<NO>,
 {
     pub(super) signal_l: SL,
     pub(super) signal_r: SR,
@@ -461,7 +467,8 @@ impl<SL, SR, C, const NL: usize, const NR: usize, const NO: usize> Combine<SL, S
 where
     SL: Signal<NL>,
     SR: Signal<NR>,
-    C: Combinator<NL, NR, NO, InputL = SL::Frame, InputR = SR::Frame>,
+    C: Combinator<InputL = SL::Frame, InputR = SR::Frame>,
+    C::Output: Frame<NO>,
 {
     /// Returns a reference to the internal [`Combinator`] state.
     pub fn state(&self) -> &C {
@@ -479,7 +486,8 @@ for Combine<SL, SR, C, NL, NR, NO>
 where
     SL: Signal<NL>,
     SR: Signal<NR>,
-    C: Combinator<NL, NR, NO, InputL = SL::Frame, InputR = SR::Frame>,
+    C: Combinator<InputL = SL::Frame, InputR = SR::Frame>,
+    C::Output: Frame<NO>,
 {
     type Frame = C::Output;
 
@@ -489,6 +497,59 @@ where
         let input_r = self.signal_r.next()?;
         let output = self.combinator.combine(input_l, input_r);
         Some(output)
+    }
+}
+
+pub struct CombineLazy<SL, SR, C, F, const NL: usize, const NR: usize, const NO: usize>
+where
+    SL: Signal<NL>,
+    SR: Signal<NR>,
+    C: Combinator<InputL = SL::Frame, InputR = SR::Frame, Output = Option<F>>,
+    F: Frame<NO>,
+{
+    pub(super) signal_l: SL,
+    pub(super) signal_r: SR,
+    pub(super) lazy_combinator: C,
+}
+
+impl<SL, SR, C, F, const NL: usize, const NR: usize, const NO: usize> CombineLazy<SL, SR, C, F, NL, NR, NO>
+where
+    SL: Signal<NL>,
+    SR: Signal<NR>,
+    C: Combinator<InputL = SL::Frame, InputR = SR::Frame, Output = Option<F>>,
+    F: Frame<NO>,
+{
+    /// Returns a reference to the internal [`Combinator`] state.
+    pub fn state(&self) -> &C {
+        &self.lazy_combinator
+    }
+
+    /// Returns a mutable reference to the internal [`Combinator`] state.
+    pub fn state_mut(&mut self) -> &mut C {
+        &mut self.lazy_combinator
+    }
+}
+
+impl<SL, SR, C, F, const NL: usize, const NR: usize, const NO: usize> Signal<NO>
+for CombineLazy<SL, SR, C, F, NL, NR, NO>
+where
+    SL: Signal<NL>,
+    SR: Signal<NR>,
+    C: Combinator<InputL = SL::Frame, InputR = SR::Frame, Output = Option<F>>,
+    F: Frame<NO>,
+{
+    type Frame = F;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        loop {
+            let input_l = self.signal_l.next()?;
+            let input_r = self.signal_r.next()?;
+
+            if let Some(output) = self.lazy_combinator.combine(input_l, input_r) {
+                return Some(output);
+            }
+        }
     }
 }
 

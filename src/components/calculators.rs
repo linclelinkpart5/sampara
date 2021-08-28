@@ -1,7 +1,5 @@
-use crate::Frame;
-
-pub trait Calculator<const N: usize> {
-    type Input: Frame<N>;
+pub trait Calculator {
+    type Input;
     type Output;
 
     fn push(&mut self, input: Self::Input);

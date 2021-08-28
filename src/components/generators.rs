@@ -1,11 +1,28 @@
 use std::marker::PhantomData;
 
-use crate::Frame;
-
-pub trait Generator<const NO: usize> {
-    type Output: Frame<NO>;
+pub trait Generator {
+    type Output;
 
     fn generate(&mut self) -> Self::Output;
+}
+
+pub trait StatefulGenerator {
+    type Output;
+
+    fn advance(&mut self);
+    fn current(&self) -> Self::Output;
+}
+
+impl<S> Generator for S
+where
+    S: StatefulGenerator,
+{
+    type Output = S::Output;
+
+    fn generate(&mut self) -> Self::Output {
+        self.advance();
+        self.current()
+    }
 }
 
 /// A [`Generator`] that calls a closure to produce each output [`Frame`].
@@ -26,19 +43,17 @@ pub trait Generator<const NO: usize> {
 ///     assert_eq!(gen.generate(), [30, 60]);
 /// }
 /// ```
-pub struct GenFn<FO, M, const NO: usize>
+pub struct GenFn<T, M>
 where
-    FO: Frame<NO>,
-    M: FnMut() -> FO,
+    M: FnMut() -> T,
 {
     func: M,
-    _marker: PhantomData<FO>,
+    _marker: PhantomData<T>,
 }
 
-impl<FO, M, const NO: usize> GenFn<FO, M, NO>
+impl<T, M> GenFn<T, M>
 where
-    FO: Frame<NO>,
-    M: FnMut() -> FO,
+    M: FnMut() -> T,
 {
     pub fn new(func: M) -> Self {
         Self {
@@ -48,12 +63,11 @@ where
     }
 }
 
-impl<FO, M, const NO: usize> Generator<NO> for GenFn<FO, M, NO>
+impl<T, M> Generator for GenFn<T, M>
 where
-    FO: Frame<NO>,
-    M: FnMut() -> FO,
+    M: FnMut() -> T,
 {
-    type Output = FO;
+    type Output = T;
 
     fn generate(&mut self) -> Self::Output {
         (self.func)()

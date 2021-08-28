@@ -6,8 +6,7 @@ use super::*;
 
 use num_traits::Float;
 
-use crate::{Frame, Sample, Processor, BlockingProcessor};
-use crate::processors::{StatefulBlocking, StatefulNonblocking};
+use crate::{Frame, Sample, Processor, StatefulProcessor};
 use crate::buffer::{Fixed, Buffer};
 use crate::sample::FloatSample;
 
@@ -872,7 +871,7 @@ macro_rules! master {
                 }
 
                 // Implement `StatefulNonblocking` and forward all methods to `Self`.
-                impl<B, const N: usize> StatefulNonblocking<N, N> for $cls<B, N>
+                impl<B, const N: usize> StatefulProcessor for $cls<B, N>
                 where
                     B: Buffer<N>,
                     $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
@@ -1241,8 +1240,8 @@ macro_rules! master {
                             #[inline]
                             pub fn try_process(&mut self, input: B::Frame) -> Option<B::Frame> {
                                 // NOTE: We delegate like this since we want to take
-                                //       advantage of the `BlockingProcessor` blanket impl.
-                                BlockingProcessor::try_process(self, input)
+                                //       advantage of the `Processor` blanket impl.
+                                Processor::process(self, input)
                             }
                         }
                     }
@@ -1278,13 +1277,13 @@ macro_rules! master {
                 }
 
                 // Implement `StatefulBlocking` and forward all methods to `Self`.
-                impl<B, const N: usize> StatefulBlocking<N, N> for [< Lazy $cls >]<B, N>
+                impl<B, const N: usize> StatefulProcessor for [< Lazy $cls >]<B, N>
                 where
                     B: Buffer<N>,
                     $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                 {
                     type Input = B::Frame;
-                    type Output = B::Frame;
+                    type Output = Option<B::Frame>;
 
                     /// Same as [`Self::advance`].
                     #[inline]
@@ -1294,7 +1293,7 @@ macro_rules! master {
 
                     /// Same as [`Self::try_current`].
                     #[inline]
-                    fn try_current(&self) -> Option<Self::Output> {
+                    fn current(&self) -> Self::Output {
                         self.try_current()
                     }
                 }
@@ -1345,7 +1344,7 @@ macro_rules! master {
                                 "yields the first ", $prose, " value. ",
                             ),
                             {
-                                pub struct [< Lazy $cls >]<S, B, const N: usize>(pub(crate) BlockingProcess<S, crate::stats::[< Lazy $cls >]<B, N>, N, N>)
+                                pub struct [< Lazy $cls >]<S, B, const N: usize>(pub(crate) ProcessLazy<S, crate::stats::[< Lazy $cls >]<B, N>, S::Frame, N, N>)
                                 where
                                     S: Signal<N>,
                                     B: Buffer<N, Frame = S::Frame>,
@@ -1430,8 +1429,8 @@ macro_rules! master {
                                     $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
                                     B: Buffer<N, Frame = Self::Frame>,
                                 {
-                                    let blocking_processor = crate::stats::[< Lazy $cls >]::from(window);
-                                    [< Lazy $cls >](self.blocking_process(blocking_processor))
+                                    let lazy_processor = crate::stats::[< Lazy $cls >]::from(window);
+                                    [< Lazy $cls >](self.process_lazy(lazy_processor))
                                 }
                             }
                         }

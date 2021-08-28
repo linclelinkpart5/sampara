@@ -1,13 +1,34 @@
 use std::marker::PhantomData;
 
-use crate::Frame;
-
-pub trait Combinator<const NL: usize, const NR: usize, const NO: usize> {
-    type InputL: Frame<NL>;
-    type InputR: Frame<NR>;
-    type Output: Frame<NO>;
+pub trait Combinator {
+    type InputL;
+    type InputR;
+    type Output;
 
     fn combine(&mut self, input_l: Self::InputL, input_r: Self::InputR) -> Self::Output;
+}
+
+pub trait StatefulCombinator {
+    type InputL;
+    type InputR;
+    type Output;
+
+    fn advance(&mut self, input_l: Self::InputL, input_r: Self::InputR);
+    fn current(&self) -> Self::Output;
+}
+
+impl<S> Combinator for S
+where
+    S: StatefulCombinator,
+{
+    type InputL = S::InputL;
+    type InputR = S::InputR;
+    type Output = S::Output;
+
+    fn combine(&mut self, input_l: Self::InputL, input_r: Self::InputR) -> Self::Output {
+        self.advance(input_l, input_r);
+        self.current()
+    }
 }
 
 /// A [`Combinator`] that calls a closure for each pair of input [`Frame`]s and
@@ -29,24 +50,17 @@ pub trait Combinator<const NL: usize, const NR: usize, const NO: usize> {
 ///     assert_eq!(c.combine([30, -20], [40, -30]), [5, 5]);
 /// }
 /// ```
-pub struct Mix<FL, FR, FO, M, const NL: usize, const NR: usize, const NO: usize>
+pub struct Mix<L, R, O, M>
 where
-    FL: Frame<NL>,
-    FR: Frame<NR>,
-    FO: Frame<NO>,
-    M: FnMut(FL, FR) -> FO,
+    M: FnMut(L, R) -> O,
 {
     func: M,
-    _marker: PhantomData<(FL, FR, FO)>,
+    _marker: PhantomData<(L, R, O)>,
 }
 
-impl<FL, FR, FO, M, const NL: usize, const NR: usize, const NO: usize>
-    Mix<FL, FR, FO, M, NL, NR, NO>
+impl<L, R, O, M> Mix<L, R, O, M>
 where
-    FL: Frame<NL>,
-    FR: Frame<NR>,
-    FO: Frame<NO>,
-    M: FnMut(FL, FR) -> FO,
+    M: FnMut(L, R) -> O,
 {
     pub fn new(func: M) -> Self {
         Self {
@@ -56,30 +70,22 @@ where
     }
 }
 
-impl<FL, FR, FO, M, const NL: usize, const NR: usize, const NO: usize> Combinator<NL, NR, NO>
-for Mix<FL, FR, FO, M, NL, NR, NO>
+impl<L, R, O, M> Combinator for Mix<L, R, O, M>
 where
-    FL: Frame<NL>,
-    FR: Frame<NR>,
-    FO: Frame<NO>,
-    M: FnMut(FL, FR) -> FO,
+    M: FnMut(L, R) -> O,
 {
-    type InputL = FL;
-    type InputR = FR;
-    type Output = FO;
+    type InputL = L;
+    type InputR = R;
+    type Output = O;
 
     fn combine(&mut self, input_l: Self::InputL, input_r: Self::InputR) -> Self::Output {
         (self.func)(input_l, input_r)
     }
 }
 
-impl<FL, FR, FO, M, const NL: usize, const NR: usize, const NO: usize> From<M>
-for Mix<FL, FR, FO, M, NL, NR, NO>
+impl<L, R, O, M> From<M> for Mix<L, R, O, M>
 where
-    FL: Frame<NL>,
-    FR: Frame<NR>,
-    FO: Frame<NO>,
-    M: FnMut(FL, FR) -> FO,
+    M: FnMut(L, R) -> O,
 {
     fn from(func: M) -> Self {
         Self::new(func)
@@ -108,18 +114,12 @@ where
 ///     assert_eq!(c.combine(L, R), L);
 /// }
 /// ```
-pub struct Selector<F, const N: usize>
-where
-    F: Frame<N>,
-{
+pub struct Selector<T> {
     select_right: bool,
-    _marker: PhantomData<F>,
+    _marker: PhantomData<T>,
 }
 
-impl<F, const N: usize> Selector<F, N>
-where
-    F: Frame<N>,
-{
+impl<T> Selector<T> {
     fn new(r: bool) -> Self {
         Self {
             select_right: r,
@@ -148,13 +148,10 @@ where
     }
 }
 
-impl<F, const N: usize> Combinator<N, N, N> for Selector<F, N>
-where
-    F: Frame<N>,
-{
-    type InputL = F;
-    type InputR = F;
-    type Output = F;
+impl<T> Combinator for Selector<T> {
+    type InputL = T;
+    type InputR = T;
+    type Output = T;
 
     fn combine(&mut self, input_l: Self::InputL, input_r: Self::InputR) -> Self::Output {
         if self.select_right {
