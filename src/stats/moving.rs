@@ -870,7 +870,7 @@ macro_rules! master {
                     }
                 }
 
-                // Implement `StatefulNonblocking` and forward all methods to `Self`.
+                // Implement `StatefulProcessor` and forward all methods to `Self`.
                 impl<B, const N: usize> StatefulProcessor for $cls<B, N>
                 where
                     B: Buffer<N>,
@@ -893,7 +893,7 @@ macro_rules! master {
                 }
 
                 #[derive(Clone)]
-                enum [< Lazy $cls State >]<B, const N: usize>
+                enum [< Buffered $cls State >]<B, const N: usize>
                 where
                     B: Buffer<N>,
                     $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
@@ -903,7 +903,7 @@ macro_rules! master {
                     Active($cls<B, N>),
                 }
 
-                impl<B, const N: usize> [< Lazy $cls State >]<B, N>
+                impl<B, const N: usize> [< Buffered $cls State >]<B, N>
                 where
                     B: Buffer<N>,
                     $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
@@ -1030,7 +1030,7 @@ macro_rules! master {
                     }
 
                     #[inline]
-                    fn __try_current(&self) -> Option<B::Frame> {
+                    fn __current(&self) -> Option<B::Frame> {
                         match self {
                             Self::Active(calc) => Some(calc.current()),
                             Self::Uninit(..) => None,
@@ -1041,16 +1041,16 @@ macro_rules! master {
 
                 apply_doc_comment! {
                     concat!(
-                        "Keeps a lazy moving (aka \"rolling\" or \"sliding\") ",
+                        "Keeps a buffered moving (aka \"rolling\" or \"sliding\") ",
                         $prose, " of a window of [`Frame`]s over time.\n\n",
-                        "This ", $prose, " calculation is \"lazy\" in the sense ",
+                        "This ", $prose, " calculation is \"buffered\" in the sense ",
                         "that the initial [`Buffer`] is assumed to be empty, ",
                         "which means that this will not start producing output ",
                         "frames until the buffer is filled."
                     ),
                     {
                         #[derive(Clone)]
-                        pub struct [< Lazy $cls >]<B, const N: usize>([<Lazy $cls State>]<B, N>)
+                        pub struct [< Buffered $cls >]<B, const N: usize>([<Buffered $cls State>]<B, N>)
                         where
                             B: Buffer<N>,
                             $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
@@ -1058,38 +1058,38 @@ macro_rules! master {
                     }
                 }
 
-                impl<B, const N: usize> [< Lazy $cls >]<B, N>
+                impl<B, const N: usize> [< Buffered $cls >]<B, N>
                 where
                     B: Buffer<N>,
                     $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                 {
                     apply_doc_comment! {
                         gen_doc_comment!(
-                            [< Lazy $cls >],
+                            [< Buffered $cls >],
                             concat!(
-                                "Similar to [`", stringify!([< Lazy $cls >]), "::from`], ",
+                                "Similar to [`", stringify!([< Buffered $cls >]), "::from`], ",
                                 "but treats the provided buffer as already ",
                                 "initialized.",
                             ),
                             {
-                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from_full([[0.5]; 4]);"),
-                                concat!("assert_eq!(window.try_current(), Some(", stringify!($ta__from), "));"),
+                                concat!("let mut window = ", stringify!([< Buffered $cls >]), "::from_full([[0.5]; 4]);"),
+                                concat!("assert_eq!(window.current(), Some(", stringify!($ta__from), "));"),
                             }
                         ),
                         {
                             #[inline]
                             pub fn from_full(buffer: B) -> Self {
-                                Self([< Lazy $cls State >]::__from_full(buffer))
+                                Self([< Buffered $cls State >]::__from_full(buffer))
                             }
                         }
                     }
 
                     apply_doc_comment! {
                         gen_doc_comment!(
-                            [< Lazy $cls >],
+                            [< Buffered $cls >],
                             "Resets the window to its uninitialized state.",
                             {
-                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from_full([[-1.0]; 4]);"),
+                                concat!("let mut window = ", stringify!([< Buffered $cls >]), "::from_full([[-1.0]; 4]);"),
                                 concat!("assert_eq!(window.is_active(), true);\n"),
                                 concat!("window.reset();"),
                                 concat!("assert_eq!(window.is_active(), false);"),
@@ -1105,13 +1105,13 @@ macro_rules! master {
 
                     apply_doc_comment! {
                         gen_doc_comment!(
-                            [< Lazy $cls >],
+                            [< Buffered $cls >],
                             "Reinitializes the window with a single constant [`Frame`] value.",
                             {
-                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from([[-1.0]; 4]);"),
-                                "assert_eq!(window.try_current(), None);\n",
+                                concat!("let mut window = ", stringify!([< Buffered $cls >]), "::from([[-1.0]; 4]);"),
+                                "assert_eq!(window.current(), None);\n",
                                 "window.fill([0.5]);",
-                                concat!("assert_eq!(window.try_current(), Some(", stringify!($ta__fill__after), "));"),
+                                concat!("assert_eq!(window.current(), Some(", stringify!($ta__fill__after), "));"),
                             }
                         ),
                         {
@@ -1124,17 +1124,17 @@ macro_rules! master {
 
                     apply_doc_comment! {
                         gen_doc_comment!(
-                            [< Lazy $cls >],
+                            [< Buffered $cls >],
                             "Reinitializes the window by repeatedly calling a closure that produces [`Frame`]s.",
                             {
-                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from([[-1.0]; 4]);"),
-                                "assert_eq!(window.try_current(), None);\n",
+                                concat!("let mut window = ", stringify!([< Buffered $cls >]), "::from([[-1.0]; 4]);"),
+                                "assert_eq!(window.current(), None);\n",
                                 "let mut x = 1.0;",
                                 "window.fill_with(|| {",
                                 "    x -= 0.25;",
                                 "    [x]",
                                 "});",
-                                concat!("assert_eq!(window.try_current(), Some(", stringify!($ta__fill_with__after), "));"),
+                                concat!("assert_eq!(window.current(), Some(", stringify!($ta__fill_with__after), "));"),
                             }
                         ),
                         {
@@ -1150,10 +1150,10 @@ macro_rules! master {
 
                     apply_doc_comment! {
                         gen_doc_comment!(
-                            [< Lazy $cls >],
+                            [< Buffered $cls >],
                             "Returns `true` if this window is active (i.e. initialized), `false` otherwise.",
                             {
-                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from([[-1.0]; 4]);"),
+                                concat!("let mut window = ", stringify!([< Buffered $cls >]), "::from([[-1.0]; 4]);"),
                                 "assert_eq!(window.is_active(), false);",
                                 "window.fill([-1.0]);",
                                 "assert_eq!(window.is_active(), true);",
@@ -1169,7 +1169,7 @@ macro_rules! master {
 
                     apply_doc_comment! {
                         gen_doc_comment!(
-                            [< Lazy $cls >],
+                            [< Buffered $cls >],
                             concat!(
                                 "Advances the state of the window buffer by pushing in a new input [`Frame`]. ",
                                 "The oldest frame will be popped off in order to accomodate the new one.\n\n",
@@ -1178,15 +1178,15 @@ macro_rules! master {
                                 "and do not need the intermediate ", $prose, " values.",
                             ),
                             {
-                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from([[-1.0]; 4]);\n"),
+                                concat!("let mut window = ", stringify!([< Buffered $cls >]), "::from([[-1.0]; 4]);\n"),
                                 "window.advance([0.25]);",
-                                "assert_eq!(window.try_current(), None);",
+                                "assert_eq!(window.current(), None);",
                                 "window.advance([0.50]);",
-                                "assert_eq!(window.try_current(), None);",
+                                "assert_eq!(window.current(), None);",
                                 "window.advance([0.75]);",
-                                "assert_eq!(window.try_current(), None);",
+                                "assert_eq!(window.current(), None);",
                                 "window.advance([1.00]);",
-                                concat!("assert_eq!(window.try_current(), Some(", stringify!($ta__advance__p1), "));"),
+                                concat!("assert_eq!(window.current(), Some(", stringify!($ta__advance__p1), "));"),
                             }
                         ),
                         {
@@ -1199,46 +1199,46 @@ macro_rules! master {
 
                     apply_doc_comment! {
                         gen_doc_comment!(
-                            [< Lazy $cls >],
+                            [< Buffered $cls >],
                             concat!(
                                 "Calculates the current ", $prose, " value using the current ",
                                 "window contents, if initialized. Otherwise, returns `None`.",
                             ),
                             {
-                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from_full([[0.0], [0.25], [0.50], [0.75]]);"),
-                                concat!("assert_eq!(window.try_current(), Some(", stringify!($ta__current), "));\n\n"),
-                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from([[0.0]; 4]);"),
-                                "assert_eq!(window.try_current(), None);",
+                                concat!("let mut window = ", stringify!([< Buffered $cls >]), "::from_full([[0.0], [0.25], [0.50], [0.75]]);"),
+                                concat!("assert_eq!(window.current(), Some(", stringify!($ta__current), "));\n\n"),
+                                concat!("let mut window = ", stringify!([< Buffered $cls >]), "::from([[0.0]; 4]);"),
+                                "assert_eq!(window.current(), None);",
                             }
                         ),
                         {
                             #[inline]
-                            pub fn try_current(&self) -> Option<B::Frame> {
-                                self.0.__try_current()
+                            pub fn current(&self) -> Option<B::Frame> {
+                                self.0.__current()
                             }
                         }
                     }
 
                     apply_doc_comment! {
                         gen_doc_comment!(
-                            [< Lazy $cls >],
+                            [< Buffered $cls >],
                             concat!(
                                 "Processes a new input frame by advancing the state of the window buffer ",
                                 "and then calculating the current ", $prose, " value.\n\n",
-                                "This is equivalent to a call to [`", stringify!([< Lazy $cls >]), "::advance`] followed ",
-                                "by a call to [`", stringify!([< Lazy $cls >]), "::try_current`].",
+                                "This is equivalent to a call to [`", stringify!([< Buffered $cls >]), "::advance`] followed ",
+                                "by a call to [`", stringify!([< Buffered $cls >]), "::current`].",
                             ),
                             {
-                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from([[-1.0]; 4]);\n"),
-                                concat!("assert_eq!(window.try_process([0.25]), None);"),
-                                concat!("assert_eq!(window.try_process([0.50]), None);"),
-                                concat!("assert_eq!(window.try_process([0.75]), None);"),
-                                concat!("assert_eq!(window.try_process([1.00]), Some(", stringify!($ta__process__p1), "));"),
+                                concat!("let mut window = ", stringify!([< Buffered $cls >]), "::from([[-1.0]; 4]);\n"),
+                                concat!("assert_eq!(window.process([0.25]), None);"),
+                                concat!("assert_eq!(window.process([0.50]), None);"),
+                                concat!("assert_eq!(window.process([0.75]), None);"),
+                                concat!("assert_eq!(window.process([1.00]), Some(", stringify!($ta__process__p1), "));"),
                             }
                         ),
                         {
                             #[inline]
-                            pub fn try_process(&mut self, input: B::Frame) -> Option<B::Frame> {
+                            pub fn process(&mut self, input: B::Frame) -> Option<B::Frame> {
                                 // NOTE: We delegate like this since we want to take
                                 //       advantage of the `Processor` blanket impl.
                                 Processor::process(self, input)
@@ -1247,37 +1247,37 @@ macro_rules! master {
                     }
                 }
 
-                impl<B, const N: usize> From<B> for [< Lazy $cls >]<B, N>
+                impl<B, const N: usize> From<B> for [< Buffered $cls >]<B, N>
                 where
                     B: Buffer<N>,
                     $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
                 {
                     apply_doc_comment! {
                         gen_doc_comment!(
-                            [< Lazy $cls >],
+                            [< Buffered $cls >],
                             concat!(
-                                "Creates a new [`", stringify!([< Lazy $cls >]), "`] ",
+                                "Creates a new [`", stringify!([< Buffered $cls >]), "`] ",
                                 "using a given [`Buffer`] as a window. The provided ",
                                 "buffer is assumed to be uninitialized, and will ",
                                 "have its contents overwritten.",
                             ),
                             {
-                                concat!("let mut window = ", stringify!([< Lazy $cls >]), "::from([[-1.0]; 4]);\n"),
-                                concat!("assert_eq!(window.try_current(), None);"),
+                                concat!("let mut window = ", stringify!([< Buffered $cls >]), "::from([[-1.0]; 4]);\n"),
+                                concat!("assert_eq!(window.current(), None);"),
                             }
                         ),
                         {
                             #[inline]
                             fn from(buffer: B) -> Self {
                                 assert!(buffer.as_ref().len() > 0, "{}", EMPTY_BUFFER_MSG);
-                                Self([< Lazy $cls State >]::__from(buffer))
+                                Self([< Buffered $cls State >]::__from(buffer))
                             }
                         }
                     }
                 }
 
-                // Implement `StatefulBlocking` and forward all methods to `Self`.
-                impl<B, const N: usize> StatefulProcessor for [< Lazy $cls >]<B, N>
+                // Implement `StatefulProcessor` and forward all methods to `Self`.
+                impl<B, const N: usize> StatefulProcessor for [< Buffered $cls >]<B, N>
                 where
                     B: Buffer<N>,
                     $(<B::Frame as Frame<N>>::Sample: $sample_kind,)?
@@ -1291,10 +1291,10 @@ macro_rules! master {
                         self.advance(input)
                     }
 
-                    /// Same as [`Self::try_current`].
+                    /// Same as [`Self::current`].
                     #[inline]
                     fn current(&self) -> Self::Output {
-                        self.try_current()
+                        self.current()
                     }
                 }
             )+
@@ -1334,9 +1334,9 @@ macro_rules! master {
 
                         apply_doc_comment! {
                             concat!(
-                                "A [`Signal`] that lazily calculates a moving ",
+                                "A [`Signal`] that calculates a buffered moving ",
                                 $prose, " of a window of [`Frame`]s over time.\n\n",
-                                "This signal adaptor is lazy in the sense that the ",
+                                "This signal adaptor is buffered in the sense that the ",
                                 "initial window is treated as uninitialized: ",
                                 "before yielding the first ", $prose, " value, ",
                                 "the window is filled with [`Frame`]s from a ",
@@ -1344,7 +1344,7 @@ macro_rules! master {
                                 "yields the first ", $prose, " value. ",
                             ),
                             {
-                                pub struct [< Lazy $cls >]<S, B, const N: usize>(pub(crate) ProcessLazy<S, crate::stats::[< Lazy $cls >]<B, N>, S::Frame, N, N>)
+                                pub struct [< Buffered $cls >]<S, B, const N: usize>(pub(crate) ProcessLazy<S, crate::stats::[< Buffered $cls >]<B, N>, S::Frame, N, N>)
                                 where
                                     S: Signal<N>,
                                     B: Buffer<N, Frame = S::Frame>,
@@ -1353,7 +1353,7 @@ macro_rules! master {
                             }
                         }
 
-                        impl<S, B, const N: usize> Signal<N> for [<Lazy $cls>]<S, B, N>
+                        impl<S, B, const N: usize> Signal<N> for [<Buffered $cls>]<S, B, N>
                         where
                             S: Signal<N>,
                             B: Buffer<N, Frame = S::Frame>,
@@ -1423,14 +1423,14 @@ macro_rules! master {
                                 "`N - B + 1` [`Frame`]s (or 0 if `N < B`).",
                             ),
                             {
-                                fn [< lazy_ $func_name >]<B>(self, window: B) -> [<Lazy $cls>]<Self, B, N>
+                                fn [< buffered_ $func_name >]<B>(self, window: B) -> [<Buffered $cls>]<Self, B, N>
                                 where
                                     Self: Sized,
                                     $(<Self::Frame as Frame<N>>::Sample: $sample_kind,)?
                                     B: Buffer<N, Frame = Self::Frame>,
                                 {
-                                    let lazy_processor = crate::stats::[< Lazy $cls >]::from(window);
-                                    [< Lazy $cls >](self.process_lazy(lazy_processor))
+                                    let lazy_processor = crate::stats::[< Buffered $cls >]::from(window);
+                                    [< Buffered $cls >](self.process_lazy(lazy_processor))
                                 }
                             }
                         }

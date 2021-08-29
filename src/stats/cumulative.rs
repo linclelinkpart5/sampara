@@ -277,7 +277,7 @@ macro_rules! master {
                             $cls,
                             concat!(
                                 "Calculates the current cumulative ", $prose, " value of this ",
-                                "calculator if it is active. Otherwise, returns `None`"
+                                "calculator if it is active. Otherwise, returns `None`."
                             ),
                             {
                                 concat!("let mut calc = ", stringify!($cls), "::default();\n"),
