@@ -26,11 +26,6 @@ where
     F::Sample: FloatSample,
 {
     #[inline]
-    fn __is_active(&self) -> bool {
-        self.count > 0
-    }
-
-    #[inline]
     fn __advance(&mut self, input: F) {
         let mut input = input;
 
@@ -39,7 +34,7 @@ where
             input.transform(|x| x * x);
         }
 
-        if self.count <= 0 {
+        if self.count == 0 {
             self.avg = input;
             self.count = 1;
         }
@@ -59,6 +54,7 @@ where
 
     #[inline(always)]
     fn __current_unchecked(&self) -> F {
+        // No unsafe behavior here, but need to keep the interface the same.
         if SQRT { self.avg.apply(Float::sqrt) }
         else { self.avg }
     }
@@ -82,7 +78,7 @@ where
     F: Frame<N>,
 {
     extrema: F,
-    is_active: bool,
+    count: u64,
 }
 
 impl<F, const N: usize, const MAX: bool> ExtremaInner<F, N, MAX>
@@ -90,24 +86,16 @@ where
     F: Frame<N>,
 {
     #[inline]
-    fn __is_active(&self) -> bool {
-        self.is_active
-    }
-
-    #[inline]
     fn __advance(&mut self, input: F) {
-        if !self.is_active {
+        if self.count == 0 {
             self.extrema = input;
-            self.is_active = true;
+            self.count = 1;
         }
         else {
+            self.count += 1;
             self.extrema.zip_transform(input, |e, x| {
-                if crate::stats::surpasses::<_, MAX>(&x, &e) {
-                    x
-                }
-                else {
-                    e
-                }
+                if crate::stats::surpasses::<_, MAX>(&x, &e) { x }
+                else { e }
             });
         }
     }
@@ -121,7 +109,7 @@ where
     fn __default() -> Self {
         Self {
             extrema: Frame::EQUILIBRIUM,
-            is_active: false,
+            count: 0,
         }
     }
 }
@@ -201,20 +189,44 @@ macro_rules! master {
                         gen_doc_comment!(
                             $cls,
                             concat!(
-                                "Returns true if this cumulative ", $prose, " is active (has ",
-                                "processed at least one frame of data).",
+                                "Returns true if this cumulative ", $prose, " is ",
+                                "empty (i.e. has not yet processed any frames).",
                             ),
                             {
                                 concat!("let mut calc = ", stringify!($cls), "::default();"),
-                                concat!("assert_eq!(calc.is_active(), false);\n"),
+                                concat!("assert_eq!(calc.is_empty(), true);\n"),
                                 concat!("calc.advance([0.5]);"),
-                                concat!("assert_eq!(calc.is_active(), true);"),
+                                concat!("assert_eq!(calc.is_empty(), false);"),
                             }
                         ),
                         {
                             #[inline]
-                            pub fn is_active(&self) -> bool {
-                                self.0.__is_active()
+                            pub fn is_empty(&self) -> bool {
+                                self.0.count == 0
+                            }
+                        }
+                    }
+
+                    apply_doc_comment! {
+                        gen_doc_comment!(
+                            $cls,
+                            concat!(
+                                "Returns the number of [`Frame`]s that have been ",
+                                "processed by this cumulative ", $prose, ".",
+                            ),
+                            {
+                                concat!("let mut calc = ", stringify!($cls), "::default();"),
+                                "assert_eq!(calc.count(), 0);",
+                                "calc.advance([0.0]);",
+                                "assert_eq!(calc.count(), 1);",
+                                "calc.advance([0.0]);",
+                                "assert_eq!(calc.count(), 2);",
+                            }
+                        ),
+                        {
+                            #[inline]
+                            pub fn count(&self) -> u64 {
+                                self.0.count
                             }
                         }
                     }
@@ -289,7 +301,7 @@ macro_rules! master {
                         {
                             #[inline]
                             pub fn try_current(&self) -> Option<F> {
-                                if self.is_active() {
+                                if !self.is_empty() {
                                     Some(self.0.__current_unchecked())
                                 }
                                 else {
