@@ -225,6 +225,11 @@ where
     F: Frame<N>,
     F::Sample: FloatSample,
 {
+    pub fn reset(&mut self) {
+        self.t0 = Frame::EQUILIBRIUM;
+        self.t1 = Frame::EQUILIBRIUM;
+    }
+
     pub fn process(&mut self, input: F) -> F {
         // Calculate scaled inputs.
         let input_by_b0 = input.mul_amp(self.params.b0).into_signed_frame();
