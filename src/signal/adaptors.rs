@@ -5,6 +5,8 @@ use crate::signal::Signal;
 use crate::biquad::Biquad as BQFilter;
 use crate::interpolate::Interpolator;
 
+use crate::processors as procs;
+
 fn zm_helper<S, O, F, M, const N: usize, const NO: usize, const NF: usize>(
     signal_a: &mut S,
     signal_b: &mut O,
@@ -615,6 +617,29 @@ where
         let out = interpolator.interpolate(*interpolant);
         *interpolant += step;
         Some(out)
+    }
+}
+
+pub struct Map<S, M, FO, const NI: usize, const NO: usize>(pub(super) Process<S, procs::Map<S::Frame, FO, M>, NI, NO>)
+where
+    S: Signal<NI>,
+    S::Frame: Frame<NI>,
+    M: FnMut(S::Frame) -> FO,
+    FO: Frame<NO>,
+;
+
+impl<S, M, FO, const NI: usize, const NO: usize> Signal<NO> for Map<S, M, FO, NI, NO>
+where
+    S: Signal<NI>,
+    S::Frame: Frame<NI>,
+    M: FnMut(S::Frame) -> FO,
+    FO: Frame<NO>,
+{
+    type Frame = FO;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        self.0.next()
     }
 }
 

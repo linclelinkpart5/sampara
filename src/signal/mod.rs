@@ -10,7 +10,7 @@ use crate::sample::FloatSample;
 use crate::interpolate::Interpolator;
 
 // use crate::combinators as combs;
-// use crate::processors as procs;
+use crate::processors as procs;
 
 pub use adaptors::*;
 pub use generators::*;
@@ -101,33 +101,34 @@ pub trait Signal<const N: usize> {
         self
     }
 
-    // /// Creates a new [`Signal`] that applies a function to each [`Frame`] of
-    // /// [`Self`].
-    // ///
-    // /// ```
-    // /// use sampara::{signal, Signal};
-    // ///
-    // /// fn main() {
-    // ///     let signal = signal::from_frames(0i32..=3);
-    // ///     let mut mapped = signal.map(|f| f * f);
-    // ///
-    // ///     assert_eq!(mapped.next(), Some(0));
-    // ///     assert_eq!(mapped.next(), Some(1));
-    // ///     assert_eq!(mapped.next(), Some(4));
-    // ///     assert_eq!(mapped.next(), Some(9));
-    // ///     assert_eq!(mapped.next(), None);
-    // /// }
-    // /// ```
-    // fn map<FO, M, const NO: usize>(self, func: M)
-    //     -> Map<Self, FO, M, N, NO>
-    // where
-    //     Self: Sized,
-    //     FO: Frame<NO>,
-    //     M: FnMut(Self::Frame) -> FO,
-    // {
-    //     let processor = procs::Map::new(func);
-    //     self.process(processor)
-    // }
+    /// Creates a new [`Signal`] that applies a function to each [`Frame`] of
+    /// [`Self`].
+    ///
+    /// ```
+    /// use sampara::{signal, Signal};
+    ///
+    /// fn main() {
+    ///     let signal = signal::from_frames(0i32..=3);
+    ///     let mut mapped = signal.map(|f| f * f);
+    ///
+    ///     assert_eq!(mapped.next(), Some(0));
+    ///     assert_eq!(mapped.next(), Some(1));
+    ///     assert_eq!(mapped.next(), Some(4));
+    ///     assert_eq!(mapped.next(), Some(9));
+    ///     assert_eq!(mapped.next(), None);
+    /// }
+    /// ```
+    fn map<M, FO, const NO: usize>(self, func: M)
+        -> Map<Self, M, FO, N, NO>
+    where
+        Self: Sized,
+        FO: Frame<NO>,
+        M: FnMut(Self::Frame) -> FO,
+    {
+        let processed = self.process(procs::Map::new(func));
+        let wrapped = Map(processed);
+        wrapped
+    }
 
     // /// Creates a new [`Signal`] that applies a function to each pair of
     // /// [`Frame`]s from [`Self`] and another input [`Signal`], in lockstep.
