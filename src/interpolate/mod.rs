@@ -1,10 +1,12 @@
 pub mod floor;
 pub mod linear;
 pub mod sinc;
+pub mod interpolant;
 
 pub use floor::*;
 pub use linear::*;
 pub use sinc::*;
+pub use interpolant::*;
 
 use crate::{Frame, Signal};
 
