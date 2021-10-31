@@ -89,59 +89,25 @@ impl<X: FloatSample> Interpolant for ResampleRational<X> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn resample_rational() {
-        // No resampling, passthrough.
-        let mut rr = ResampleRational::<f32>::new(0, 0);
+    use proptest::prelude::*;
 
-        for _ in 0..=9 {
-            assert_eq!(rr.step(), (0.0, 1));
-        }
+    const MAX_FACTOR: usize = 16;
+    const NUM_STEPS: usize = 1000;
 
-        // Upsample by 2, i.e. add 1 extra sampling point between each existing
-        // sample.
-        let mut rr = ResampleRational::<f32>::new(1, 0);
+    proptest! {
+        #[test]
+        fn resample_rational(to_add in 0usize..=MAX_FACTOR, to_rem in 0usize..=MAX_FACTOR) {
+            let mut rr = ResampleRational::<f32>::new(to_add, to_rem);
 
-        for i in 0..=9 {
-            if i % 2 == 0 {
-                assert_eq!(rr.step(), (0.0, 0));
+            for t in (0..NUM_STEPS).into_iter().step_by(to_rem + 1) {
+                let i = t % (to_add + 1);
+
+                let x = i as f32 / (to_add + 1) as f32;
+
+                let frames_to_advance = (i + to_rem + 1) / (to_add + 1);
+
+                assert_eq!(rr.step(), (x, frames_to_advance));
             }
-            else {
-                assert_eq!(rr.step(), (0.5, 1));
-            }
-        }
-
-        // Upsample by 4, i.e. add 3 extra sampling points between each existing
-        // sample.
-        let mut rr = ResampleRational::<f32>::new(3, 0);
-
-        for i in 0..=9 {
-            if i % 4 == 0 {
-                assert_eq!(rr.step(), (0.00, 0));
-            }
-            else if i % 4 == 1 {
-                assert_eq!(rr.step(), (0.25, 0));
-            }
-            else if i % 4 == 2 {
-                assert_eq!(rr.step(), (0.50, 0));
-            }
-            else {
-                assert_eq!(rr.step(), (0.75, 1));
-            }
-        }
-
-        // Downsample by 2, i.e. drop 1 sample between each kept sample.
-        let mut rr = ResampleRational::<f32>::new(0, 1);
-
-        for _ in 0..=9 {
-            assert_eq!(rr.step(), (0.0, 2));
-        }
-
-        // Downsample by 4, i.e. drop 3 samples between each kept sample.
-        let mut rr = ResampleRational::<f32>::new(0, 3);
-
-        for _ in 0..=9 {
-            assert_eq!(rr.step(), (0.0, 4));
         }
     }
 }
