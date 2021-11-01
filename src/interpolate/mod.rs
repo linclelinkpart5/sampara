@@ -15,7 +15,7 @@ use crate::{Frame, Signal};
 /// Implementations should keep track of any necessary data both before and
 /// after the current [`Frame`].
 pub trait Interpolator<const N: usize> {
-    /// The type of frame over which to iterpolate.
+    /// The type of frame over which to interpolate.
     type Frame: Frame<N>;
 
     /// Given a value in the interval [0.0, 1.0) representing the fractional
