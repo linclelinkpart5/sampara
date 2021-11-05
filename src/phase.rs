@@ -235,13 +235,13 @@ mod tests {
     proptest! {
         #[test]
         fn simplify_is_symmetric(to_add in any::<usize>(), to_rem in any::<usize>()) {
-            let original = simplify(to_add, to_rem);
-            let inverted = {
+            let produced = {
                 let (a, b) = simplify(to_rem, to_add);
                 (b, a)
             };
+            let expected = simplify(to_add, to_rem);
 
-            assert_eq!(original, inverted);
+            assert_eq!(produced, expected);
         }
 
         #[test]
@@ -267,13 +267,13 @@ mod tests {
 
             let factor = 2usize.pow(exp);
 
-            let to_add = max;
-            let to_rem = min;
-            assert_eq!(simplify(to_add, to_rem), (factor - 1, 0));
+            let produced = simplify(max, min);
+            let expected = (factor - 1, 0);
+            assert_eq!(produced, expected);
 
-            let to_add = min;
-            let to_rem = max;
-            assert_eq!(simplify(to_add, to_rem), (0, factor - 1));
+            let produced = simplify(min, max);
+            let expected = (0, factor - 1);
+            assert_eq!(produced, expected);
         }
 
         #[test]
@@ -281,7 +281,7 @@ mod tests {
             let delta = MAX_DELTA - inv_delta;
             let mut accum = 0.0;
 
-            let mut fixed = Fixed::new(delta);
+            let mut phase = Fixed::new(delta);
 
             for _ in 0..NUM_STEPS {
                 let x = accum;
@@ -293,22 +293,26 @@ mod tests {
                     adv += 1;
                 }
 
-                assert_eq!(fixed.step_advance(), (x, adv));
+                let produced = phase.step_advance();
+                let expected = (x, adv);
+                assert_eq!(produced, expected);
             }
         }
 
         #[test]
         fn rational(to_add in 0usize..=MAX_TO_ADD, to_rem in 0usize..=MAX_TO_REM) {
-            let mut rr = Rational::<f32>::add_rem(to_add, to_rem);
+            let mut phase = Rational::<f32>::add_rem(to_add, to_rem);
 
-            for t in (0..NUM_STEPS).into_iter().step_by(to_rem + 1) {
+            for t in (0..).into_iter().step_by(to_rem + 1).take(NUM_STEPS) {
                 let i = t % (to_add + 1);
 
                 let x = i as f32 / (to_add + 1) as f32;
 
                 let adv = (i + to_rem + 1) / (to_add + 1);
 
-                assert_eq!(rr.step_advance(), (x, adv));
+                let produced = phase.step_advance();
+                let expected = (x, adv);
+                assert_eq!(produced, expected);
             }
         }
     }
