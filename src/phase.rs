@@ -277,7 +277,7 @@ mod tests {
         }
 
         #[test]
-        fn fixed(inv_delta in 0.0..MAX_DELTA) {
+        fn fixed_happy_path(inv_delta in 0.0..MAX_DELTA) {
             let delta = MAX_DELTA - inv_delta;
             let mut accum = 0.0;
 
@@ -300,7 +300,7 @@ mod tests {
         }
 
         #[test]
-        fn rational(to_add in 0usize..=MAX_TO_ADD, to_rem in 0usize..=MAX_TO_REM) {
+        fn rational_happy_path(to_add in 0usize..=MAX_TO_ADD, to_rem in 0usize..=MAX_TO_REM) {
             let mut phase = Rational::<f32>::add_rem(to_add, to_rem);
 
             for t in (0..).into_iter().step_by(to_rem + 1).take(NUM_STEPS) {
@@ -312,6 +312,21 @@ mod tests {
 
                 let produced = phase.step_advance();
                 let expected = (x, adv);
+                assert_eq!(produced, expected);
+            }
+        }
+
+        #[test]
+        fn rational_handles_max_add(to_rem in 0usize..=MAX_TO_REM) {
+            let mut phase = Rational::<f32>::add_rem(usize::MAX, to_rem);
+
+            assert!(NUM_STEPS < usize::MAX);
+
+            for i in (0..).into_iter().step_by(to_rem + 1).take(NUM_STEPS) {
+                let x = i as f32 / (usize::MAX as f32 + 1.0);
+
+                let produced = phase.step_advance();
+                let expected = (x, 0);
                 assert_eq!(produced, expected);
             }
         }
