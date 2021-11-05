@@ -9,6 +9,7 @@ pub mod components;
 pub mod frame;
 pub mod generator;
 pub mod interpolate;
+pub mod phase;
 pub mod sample;
 pub mod signal;
 pub mod wavegen;

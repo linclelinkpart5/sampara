@@ -1,0 +1,268 @@
+use gcd::Gcd;
+use thiserror::Error;
+
+use crate::sample::FloatSample;
+
+/// A bounded floating point value that cycles in the interval [0.0, 1.0).
+pub trait Phase {
+    type Step: FloatSample;
+
+    /// Advances the phase to the next value, while also keeping track of how
+    /// many times the phase wrapped around from the interval end. Returns the
+    /// pre-advanced phase value, along with how many wraps were performed
+    /// during this phase advancement.
+    fn step_advance(&mut self) -> (Self::Step, usize);
+
+    fn step(&mut self) -> Self::Step {
+        let (x, _) = self.step_advance();
+        x
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum FixedError {
+    #[error("step must be finite")]
+    NotFinite,
+    #[error("step must be strictly greater than zero")]
+    NotPositive,
+}
+
+/// A fixed-step phase, that increments by a constant amount each iteration.
+pub struct Fixed<X: FloatSample> {
+    accum: X,
+    delta: X,
+}
+
+impl<X: FloatSample> Fixed<X> {
+    pub fn new(delta: X) -> Self {
+        Self::try_new(delta).unwrap()
+    }
+
+    pub fn try_new(delta: X) -> Result<Self, FixedError> {
+        if !delta.is_finite() {
+            return Err(FixedError::NotFinite);
+        }
+
+        if !(delta > X::zero()) {
+            return Err(FixedError::NotPositive);
+        }
+
+        Ok(Self {
+            accum: X::zero(),
+            delta,
+        })
+    }
+}
+
+impl<X: FloatSample> Phase for Fixed<X> {
+    type Step = X;
+
+    fn step_advance(&mut self) -> (Self::Step, usize) {
+        debug_assert!(self.delta > X::zero());
+        debug_assert!(self.accum >= X::zero());
+        debug_assert!(self.accum < X::one());
+
+        let t = self.accum;
+
+        self.accum = self.accum + self.delta;
+
+        let mut frames_to_adv = 0;
+
+        while self.accum >= X::one() {
+            self.accum = self.accum - X::one();
+            frames_to_adv += 1;
+        }
+
+        (t, frames_to_adv)
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum RationalError {
+    #[error("denominator must be greater than zero")]
+    ZeroDenominator,
+    #[error("numerator must be greater than zero")]
+    ZeroNumerator,
+}
+
+fn simplify(to_add: usize, to_rem: usize) -> (usize, usize) {
+    let (overflow_is_num, normal) = {
+        if to_add == to_rem {
+            return (0, 0);
+        }
+        else if to_add == usize::MAX {
+            (true, to_rem + 1)
+        }
+        else if to_rem == usize::MAX {
+            (false, to_add + 1)
+        }
+        else {
+            let num = to_add + 1;
+            let den = to_rem + 1;
+
+            let div = num.gcd(den);
+
+            let s_num = num / div;
+            let s_den = den / div;
+
+            debug_assert!(s_num > 0);
+            debug_assert!(s_den > 0);
+
+            return (s_num - 1, s_den - 1);
+        }
+    };
+
+    // At this point, we would have an overflow of exactly one of the numerator
+    // or the denominator. The "scalar" value of this *-ator would be equal to
+    // `usize::MAX + 1`. We assume that this value is a perfect power of 2,
+    // which means it is only divisible by smaller powers of 2. Thus, find
+    // the largest power of 2 that divides the non-overflowed *-ator, that will
+    // be the GCD for this simplification.
+    let div_pow_2 = normal.trailing_zeros();
+
+    if div_pow_2 == 0 {
+        // There is no way to simplify, so this is in lowest terms already.
+        return (to_add, to_rem);
+    }
+
+    // Use the GCD and the fact that it is a power of 2 to simplify the *-ators.
+    let shl_n = usize::BITS - div_pow_2;
+    let simp_overflow = 1usize << shl_n;
+    let simp_normal = normal >> div_pow_2;
+
+    if overflow_is_num {
+        (simp_overflow - 1, simp_normal - 1)
+    }
+    else {
+        (simp_normal - 1, simp_overflow - 1)
+    }
+}
+
+pub struct Rational<X: FloatSample> {
+    inter_pts_add: usize,
+    after_pts_rem: usize,
+    i: usize,
+    _marker: std::marker::PhantomData<X>
+}
+
+impl<X: FloatSample> Rational<X> {
+    pub fn try_new(num: usize, den: usize) -> Result<Self, RationalError> {
+        if den == 0 {
+            return Err(RationalError::ZeroDenominator);
+        }
+        if num == 0 {
+            return Err(RationalError::ZeroNumerator);
+        }
+
+        // Reduce the fraction.
+        let div = num.gcd(den);
+
+        let num = num / div;
+        let den = den / div;
+
+        // SAFETY: The simplified numerator and denominator should both be
+        //         greater than zero at this point.
+        debug_assert!(num > 0);
+        debug_assert!(den > 0);
+        let to_add = num - 1;
+        let to_rem = den - 1;
+
+        Ok(Self {
+            inter_pts_add: to_add,
+            after_pts_rem: to_rem,
+            i: 0,
+            _marker: Default::default(),
+        })
+    }
+
+    pub fn add_rem(to_add: usize, to_rem: usize) -> Self {
+        let (to_add, to_rem) = simplify(to_add, to_rem);
+
+        Self {
+            inter_pts_add: to_add,
+            after_pts_rem: to_rem,
+            i: 0,
+            _marker: Default::default(),
+        }
+    }
+}
+
+impl<X: FloatSample> Phase for Rational<X> {
+    type Step = X;
+
+    fn step_advance(&mut self) -> (Self::Step, usize) {
+        debug_assert!(self.i <= self.inter_pts_add);
+
+        let mut frames_to_adv = 0;
+
+        let x = if self.i == 0 {
+            X::zero()
+        }
+        else {
+            X::from(self.i).unwrap() / (X::one() + X::from(self.inter_pts_add).unwrap())
+        };
+
+        // NOTE: This is an inclusive end bound, so this runs (N+1) times!
+        for _ in 0..=self.after_pts_rem {
+            if self.i >= self.inter_pts_add {
+                self.i = 0;
+                frames_to_adv += 1;
+            }
+            else {
+                self.i += 1;
+            }
+        }
+
+        (x, frames_to_adv)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use proptest::prelude::*;
+
+    const MAX_DELTA: f32 = 16.0;
+    const MAX_TO_ADD: usize = 16;
+    const MAX_TO_REM: usize = MAX_TO_ADD;
+    const NUM_STEPS: usize = 1000;
+
+    proptest! {
+        #[test]
+        fn fixed(inv_delta in 0.0..MAX_DELTA) {
+            let delta = MAX_DELTA - inv_delta;
+            let mut accum = 0.0;
+
+            let mut fixed = Fixed::new(delta);
+
+            for _ in 0..NUM_STEPS {
+                let x = accum;
+
+                let mut adv = 0;
+                accum += delta;
+                while accum >= 1.0 {
+                    accum -= 1.0;
+                    adv += 1;
+                }
+
+                assert_eq!(fixed.step_advance(), (x, adv));
+            }
+        }
+
+        #[test]
+        fn rational(to_add in 0usize..=MAX_TO_ADD, to_rem in 0usize..=MAX_TO_REM) {
+            let mut rr = Rational::<f32>::add_rem(to_add, to_rem);
+
+            for t in (0..NUM_STEPS).into_iter().step_by(to_rem + 1) {
+                let i = t % (to_add + 1);
+
+                let x = i as f32 / (to_add + 1) as f32;
+
+                let adv = (i + to_rem + 1) / (to_add + 1);
+
+                assert_eq!(rr.step_advance(), (x, adv));
+            }
+        }
+    }
+}
