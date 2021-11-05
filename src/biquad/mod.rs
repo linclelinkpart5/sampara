@@ -1,5 +1,5 @@
-use crate::{Frame, Processor};
 use crate::sample::FloatSample;
+use crate::{Frame, Processor};
 
 trait Inner: FloatSample {
     fn a_cap(self) -> Self;
@@ -57,7 +57,7 @@ where
                 a0 = one + alpha;
                 a1 = -two * omega_c;
                 a2 = one - alpha;
-            },
+            }
             Self::Lowpass => {
                 b0 = (one - omega_c) * half;
                 b1 = one - omega_c;
@@ -65,7 +65,7 @@ where
                 a0 = one + alpha;
                 a1 = -two * omega_c;
                 a2 = one - alpha;
-            },
+            }
             Self::Highpass => {
                 b0 = (one + omega_c) * half;
                 b1 = -(one + omega_c);
@@ -73,7 +73,7 @@ where
                 a0 = one + alpha;
                 a1 = -two * omega_c;
                 a2 = one - alpha;
-            },
+            }
             Self::Bandpass => {
                 b0 = omega_s * half;
                 b1 = P::zero();
@@ -81,7 +81,7 @@ where
                 a0 = one + alpha;
                 a1 = -two * omega_c;
                 a2 = one - alpha;
-            },
+            }
             Self::Notch => {
                 b0 = one;
                 b1 = -two * omega_c;
@@ -89,7 +89,7 @@ where
                 a0 = one + alpha;
                 a1 = -two * omega_c;
                 a2 = one - alpha;
-            },
+            }
             Self::Peak(db_gain) => {
                 let a = db_gain.a_cap();
 
@@ -99,7 +99,7 @@ where
                 a0 = one + alpha / a;
                 a1 = -two * omega_c;
                 a2 = one - alpha / a;
-            },
+            }
             Self::Lowshelf(db_gain) => {
                 let a = db_gain.a_cap();
                 let a_p1 = a + one;
@@ -112,7 +112,7 @@ where
                 a0 = a_p1 + a_m1 * omega_c + two * alpha * sqrt_a;
                 a1 = -two * (a_m1 + a_p1 * omega_c);
                 a2 = a_p1 + a_m1 * omega_c - two * alpha * sqrt_a;
-            },
+            }
             Self::Highshelf(db_gain) => {
                 let a = db_gain.a_cap();
                 let a_p1 = a + one;
@@ -125,7 +125,7 @@ where
                 a0 = a_p1 - a_m1 * omega_c + two * alpha * sqrt_a;
                 a1 = two * (a_m1 - a_p1 * omega_c);
                 a2 = a_p1 - a_m1 * omega_c - two * alpha * sqrt_a;
-            },
+            }
         };
 
         let norm = a0.recip();

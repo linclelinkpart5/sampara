@@ -501,5 +501,14 @@ where
 }
 
 /// [`Sample`]s that can be converted into and from another [`Sample`] type.
-pub trait Duplex<S>: ConvertFrom<S> + ConvertInto<S> where S: Sample {}
-impl<S, T> Duplex<S> for T where S: Sample, T: ConvertFrom<S> + ConvertInto<S> {}
+pub trait Duplex<S>: ConvertFrom<S> + ConvertInto<S>
+where
+    S: Sample,
+{
+}
+impl<S, T> Duplex<S> for T
+where
+    S: Sample,
+    T: ConvertFrom<S> + ConvertInto<S>,
+{
+}

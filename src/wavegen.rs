@@ -1,7 +1,7 @@
 use num_traits::Float;
 
-use crate::{Frame, Signal};
 use crate::sample::FloatSample;
+use crate::{Frame, Signal};
 
 // LEARN: Good example of the difference between type generics and associated
 //        types.
@@ -57,12 +57,8 @@ where
 
     fn step(&mut self) -> Option<Self::Step> {
         match self {
-            Self::Hzs(hz_signal, rate) => {
-                hz_signal.next().map(|f| f.mul_amp(rate.recip()))
-            },
-            Self::Steps(steps_signal) => {
-                steps_signal.next()
-            },
+            Self::Hzs(hz_signal, rate) => hz_signal.next().map(|f| f.mul_amp(rate.recip())),
+            Self::Steps(steps_signal) => steps_signal.next(),
         }
     }
 }
@@ -100,7 +96,10 @@ where
     S: Step<X, N>,
 {
     pub fn gen_wave<W: WaveFunc<X>>(self, wave_func: W) -> WaveGen<W, S, X, N> {
-        WaveGen { wave_func, phase: self }
+        WaveGen {
+            wave_func,
+            phase: self,
+        }
     }
 }
 
@@ -110,7 +109,11 @@ where
     S: Step<X, N>,
 {
     fn from(stepper: S) -> Self {
-        Self { stepper, accum: Frame::EQUILIBRIUM, is_first: true }
+        Self {
+            stepper,
+            accum: Frame::EQUILIBRIUM,
+            is_first: true,
+        }
     }
 }
 
@@ -124,9 +127,9 @@ where
     fn next(&mut self) -> Option<Self::Frame> {
         if self.is_first {
             self.is_first = false;
-        }
-        else {
-            self.accum = self.accum
+        } else {
+            self.accum = self
+                .accum
                 .add_frame(self.stepper.step()?.into_signed_frame())
                 .apply(|x| x % X::one());
         }
@@ -284,7 +287,11 @@ where
         self.with_phase(Phase::fixed_step(step))
     }
 
-    fn variable_hz<S, const N: usize>(self, rate: X, hz_signal: S) -> WaveGen<Self, Variable<S, N>, X, N>
+    fn variable_hz<S, const N: usize>(
+        self,
+        rate: X,
+        hz_signal: S,
+    ) -> WaveGen<Self, Variable<S, N>, X, N>
     where
         Self: Sized,
         S: Signal<N>,
@@ -410,8 +417,7 @@ where
     fn calculate(&self, x_phase: X) -> X {
         if x_phase < X::from(0.5).unwrap() {
             X::one()
-        }
-        else {
+        } else {
             -X::one()
         }
     }
@@ -449,8 +455,7 @@ where
     fn calculate(&self, x_phase: X) -> X {
         if x_phase < self.0 {
             X::one()
-        }
-        else {
+        } else {
             -X::one()
         }
     }
@@ -475,8 +480,8 @@ where
     type Frame = S::Step;
 
     fn next(&mut self) -> Option<Self::Frame> {
-        self.phase.next().map(|x_phases| {
-            x_phases.apply(|x_phase| self.wave_func.calculate(x_phase))
-        })
+        self.phase
+            .next()
+            .map(|x_phases| x_phases.apply(|x_phase| self.wave_func.calculate(x_phase)))
     }
 }

@@ -6,9 +6,9 @@ use super::*;
 
 use num_traits::{Float, NumCast};
 
-use crate::{Frame, Sample, Processor};
 use crate::processors::StatefulProcessor;
 use crate::sample::FloatSample;
+use crate::{Frame, Processor, Sample};
 
 #[derive(Clone)]
 struct SummageInner<F, const N: usize, const SQRT: bool, const POW2: bool>
@@ -37,8 +37,7 @@ where
         if self.count == 0 {
             self.avg = input;
             self.count = 1;
-        }
-        else {
+        } else {
             self.count += 1;
             let c = <F::Sample as NumCast>::from(self.count).unwrap();
             self.avg.zip_transform(input, |a, x| {
@@ -55,8 +54,11 @@ where
     #[inline(always)]
     fn __current_unchecked(&self) -> F {
         // No unsafe behavior here, but need to keep the interface the same.
-        if SQRT { self.avg.apply(Float::sqrt) }
-        else { self.avg }
+        if SQRT {
+            self.avg.apply(Float::sqrt)
+        } else {
+            self.avg
+        }
     }
 
     #[inline]
@@ -90,12 +92,14 @@ where
         if self.count == 0 {
             self.extrema = input;
             self.count = 1;
-        }
-        else {
+        } else {
             self.count += 1;
             self.extrema.zip_transform(input, |e, x| {
-                if crate::stats::surpasses::<_, MAX>(&x, &e) { x }
-                else { e }
+                if crate::stats::surpasses::<_, MAX>(&x, &e) {
+                    x
+                } else {
+                    e
+                }
             });
         }
     }
@@ -521,8 +525,8 @@ master! {
 mod tests {
     use super::*;
 
-    use proptest::prelude::*;
     use approx::assert_relative_eq;
+    use proptest::prelude::*;
 
     const N: usize = 16;
 

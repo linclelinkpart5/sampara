@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
-use crate::{Frame, Sample};
 use crate::signal::Signal;
+use crate::{Frame, Sample};
 
 pub use phase::*;
 
@@ -10,8 +10,7 @@ pub use phase::*;
 pub struct FromFn<F, G, const N: usize>(pub(super) G)
 where
     F: Frame<N>,
-    G: FnMut() -> Option<F>,
-;
+    G: FnMut() -> Option<F>;
 
 impl<F, G, const N: usize> Signal<N> for FromFn<F, G, N>
 where
@@ -29,8 +28,7 @@ where
 /// A [`Signal`] that yields a given [`Frame`] repeatedly forever.
 pub struct Constant<F, const N: usize>(pub(super) F)
 where
-    F: Frame<N>,
-;
+    F: Frame<N>;
 
 impl<F, const N: usize> Signal<N> for Constant<F, N>
 where
@@ -47,8 +45,7 @@ where
 /// A [`Signal`] that yields [`Frame::EQUILIBRIUM`] forever.
 pub struct Equilibrium<F, const N: usize>(pub(super) PhantomData<F>)
 where
-    F: Frame<N>,
-;
+    F: Frame<N>;
 
 impl<F, const N: usize> Signal<N> for Equilibrium<F, N>
 where
@@ -66,8 +63,7 @@ where
 /// other [`Signal`]s.
 pub struct Empty<F, const N: usize>(pub(super) PhantomData<F>)
 where
-    F: Frame<N>,
-;
+    F: Frame<N>;
 
 impl<F, const N: usize> Signal<N> for Empty<F, N>
 where
@@ -86,8 +82,7 @@ where
 pub struct FromFrames<I, const N: usize>(pub(super) I)
 where
     I: Iterator,
-    I::Item: Frame<N>,
-;
+    I::Item: Frame<N>;
 
 impl<I, const N: usize> Signal<N> for FromFrames<I, N>
 where
@@ -104,15 +99,11 @@ where
 
 /// A [`Signal`] that is powered by an underlying [`Iterator`] that yields
 /// [`Sample`]s.
-pub struct FromSamples<F, I, const N: usize>(
-    pub(super) I,
-    pub(super) PhantomData<F>,
-)
+pub struct FromSamples<F, I, const N: usize>(pub(super) I, pub(super) PhantomData<F>)
 where
     F: Frame<N, Sample = I::Item>,
     I: Iterator,
-    I::Item: Sample,
-;
+    I::Item: Sample;
 
 impl<F, I, const N: usize> Signal<N> for FromSamples<F, I, N>
 where
@@ -153,8 +144,7 @@ mod phase {
 
     pub struct Fixed<F, const N: usize>(F)
     where
-        F: Frame<N, Sample = f64>,
-    ;
+        F: Frame<N, Sample = f64>;
 
     impl<F, const N: usize> Delta<N> for Fixed<F, N>
     where
@@ -185,12 +175,8 @@ mod phase {
 
         fn delta(&mut self) -> Option<Self::Delta> {
             match self {
-                Self::Hzs(hz_signal, rate) => {
-                    hz_signal.next().map(|f| f.mul_amp(1.0 / *rate))
-                },
-                Self::Deltas(delta_signal) => {
-                    delta_signal.next()
-                },
+                Self::Hzs(hz_signal, rate) => hz_signal.next().map(|f| f.mul_amp(1.0 / *rate)),
+                Self::Deltas(delta_signal) => delta_signal.next(),
             }
         }
     }
@@ -198,8 +184,7 @@ mod phase {
     pub struct Variable<S, const N: usize>(VarInner<S, N>)
     where
         S: Signal<N>,
-        S::Frame: Frame<N, Sample = f64>,
-    ;
+        S::Frame: Frame<N, Sample = f64>;
 
     impl<S, const N: usize> Delta<N> for Variable<S, N>
     where
@@ -249,7 +234,8 @@ mod phase {
         type Frame = D::Delta;
 
         fn next(&mut self) -> Option<Self::Frame> {
-            let phase = self.accum
+            let phase = self
+                .accum
                 .add_frame(self.stepper.delta()?.into_signed_frame())
                 .apply(|x| x % 1.0);
 
@@ -430,10 +416,7 @@ mod phase {
 
         fn next(&mut self) -> Option<Self::Frame> {
             self.phase.next().map(|mut phase| {
-                phase.transform(|p| {
-                    if p < 0.5 { 1.0 }
-                    else { -1.0 }
-                });
+                phase.transform(|p| if p < 0.5 { 1.0 } else { -1.0 });
                 phase
             })
         }

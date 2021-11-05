@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
-use crate::sample::Sample;
 use crate::sample::conv::{ConvertFrom, ConvertInto};
+use crate::sample::Sample;
 
 /// A trait for working generically across `N`-sized blocks of [`Sample`]s,
 /// representing sampling values across `N` channels at a single point in time.

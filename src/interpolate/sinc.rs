@@ -2,9 +2,9 @@ use core::f64::consts::PI;
 
 use num_traits::Float;
 
-use crate::{Duplex, Frame, Sample, Signal};
 use crate::buffer::{Buffer, Fixed};
 use crate::interpolate::Interpolator;
+use crate::{Duplex, Frame, Sample, Signal};
 
 trait SincOp {
     fn sinc(self) -> Self;
@@ -180,7 +180,7 @@ where
 
     fn initialize<S>(&mut self, signal: &mut S) -> Option<()>
     where
-        S: Signal<N, Frame = F>
+        S: Signal<N, Frame = F>,
     {
         for b in self.buffer.iter_mut() {
             *b = signal.next()?;

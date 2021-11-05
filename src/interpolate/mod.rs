@@ -1,12 +1,12 @@
 pub mod floor;
+pub mod interpolant;
 pub mod linear;
 pub mod sinc;
-pub mod interpolant;
 
 pub use floor::*;
+pub use interpolant::*;
 pub use linear::*;
 pub use sinc::*;
-pub use interpolant::*;
 
 use crate::{Frame, Signal};
 
@@ -29,5 +29,6 @@ pub trait Interpolator<const N: usize> {
     /// Fills this [`Interpolator`] with the needed [`Frame`]s from a
     /// [`Signal`] to begin processing.
     fn initialize<S>(&mut self, signal: &mut S) -> Option<()>
-    where S: Signal<N, Frame = Self::Frame>;
+    where
+        S: Signal<N, Frame = Self::Frame>;
 }

@@ -260,21 +260,15 @@ where
     fn advance<const BACK: bool>(&mut self) -> Option<<Self as Iterator>::Item> {
         match self {
             Self::ZeroOne(it) => {
-                let opt = if BACK {
-                    it.next_back()
-                }
-                else {
-                    it.next()
-                };
+                let opt = if BACK { it.next_back() } else { it.next() };
 
                 opt.map(|_| X::one())
-            },
+            }
 
             Self::Normal(range, factor, wf) => {
                 let i = if BACK {
                     range.next_back()?
-                }
-                else {
+                } else {
                     range.next()?
                 };
 
@@ -282,7 +276,7 @@ where
                 let y = wf.calc(x);
 
                 Some(y)
-            },
+            }
         }
     }
 }
@@ -334,8 +328,7 @@ where
 pub struct Iter<W, X>(IterImpl<W, X, DO_SYMM>)
 where
     W: Window<X>,
-    X: Float,
-;
+    X: Float;
 
 impl<W, X> Iterator for Iter<W, X>
 where
@@ -381,8 +374,7 @@ where
 pub struct IterPeriodic<W, X>(IterImpl<W, X, NO_SYMM>)
 where
     W: Window<X>,
-    X: Float,
-;
+    X: Float;
 
 impl<W, X> Iterator for IterPeriodic<W, X>
 where

@@ -1,5 +1,5 @@
-use crate::{Duplex, Frame, Signal};
 use crate::interpolate::Interpolator;
+use crate::{Duplex, Frame, Signal};
 
 /// An [`Interpolator`] that rounds down to the previous source [`Frame`].
 ///
@@ -48,7 +48,7 @@ where
 
     fn initialize<S>(&mut self, signal: &mut S) -> Option<()>
     where
-        S: Signal<N, Frame = F>
+        S: Signal<N, Frame = F>,
     {
         *self = Self {
             left: signal.next()?,

@@ -73,4 +73,3 @@ where
         (self.func)()
     }
 }
-

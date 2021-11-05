@@ -231,10 +231,7 @@ impl_sample! {
 ///
 /// [`Sample`]s often need to be converted to some mutual [`SignedSample`] type
 /// for addition.
-pub trait SignedSample:
-    Sample<Signed = Self>
-    + Signed
-{}
+pub trait SignedSample: Sample<Signed = Self> + Signed {}
 
 macro_rules! impl_signed_sample { ($($T:ty)*) => { $( impl SignedSample for $T {} )* } }
 impl_signed_sample!(i8 i16 i32 i64 f32 f64);
@@ -245,13 +242,9 @@ impl_signed_sample!(i8 i16 i32 i64 f32 f64);
 /// [`Sample`]s often need to be converted to some mutual [`FloatSample`] type
 /// for scaling.
 pub trait FloatSample:
-    Sample<Signed = Self, Float = Self>
-    + SignedSample
-    + Duplex<f32>
-    + Duplex<f64>
-    + Float
-    + FloatConst
-{}
+    Sample<Signed = Self, Float = Self> + SignedSample + Duplex<f32> + Duplex<f64> + Float + FloatConst
+{
+}
 
 impl FloatSample for f32 {}
 

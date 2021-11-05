@@ -134,9 +134,8 @@ where
         }
 
         // SAFETY: Bounds checking can be skipped since the length is constant.
-        let old_item = unsafe {
-            std::mem::replace(self.buffer.as_mut().get_unchecked_mut(self.head), item)
-        };
+        let old_item =
+            unsafe { std::mem::replace(self.buffer.as_mut().get_unchecked_mut(self.head), item) };
         self.head = next_head;
         (old_item, was_reset)
     }
@@ -165,11 +164,13 @@ where
     fn lookup(&self, index: usize, wrap: bool) -> Option<usize> {
         if !wrap && index >= self.capacity() {
             None
-        }
-        else {
+        } else {
             let c = self.capacity();
-            if c == 0 { None }
-            else { Some((self.head + (index % c)) % c) }
+            if c == 0 {
+                None
+            } else {
+                Some((self.head + (index % c)) % c)
+            }
         }
     }
 
@@ -525,11 +526,9 @@ impl<'a, I> Iterator for Iter<'a, I> {
     fn advance_by(&mut self, n: usize) -> Result<(), usize> {
         match self.head.advance_by(n) {
             Ok(()) => Ok(()),
-            Err(h_amt) => {
-                match self.tail.advance_by(n - h_amt) {
-                    Ok(()) => Ok(()),
-                    Err(t_amt) => Err(h_amt + t_amt),
-                }
+            Err(h_amt) => match self.tail.advance_by(n - h_amt) {
+                Ok(()) => Ok(()),
+                Err(t_amt) => Err(h_amt + t_amt),
             },
         }
     }
@@ -549,11 +548,9 @@ impl<'a, I> DoubleEndedIterator for Iter<'a, I> {
     fn advance_back_by(&mut self, n: usize) -> Result<(), usize> {
         match self.tail.advance_back_by(n) {
             Ok(()) => Ok(()),
-            Err(t_amt) => {
-                match self.head.advance_back_by(n - t_amt) {
-                    Ok(()) => Ok(()),
-                    Err(h_amt) => Err(h_amt + t_amt),
-                }
+            Err(t_amt) => match self.head.advance_back_by(n - t_amt) {
+                Ok(()) => Ok(()),
+                Err(h_amt) => Err(h_amt + t_amt),
             },
         }
     }
@@ -581,11 +578,9 @@ impl<'a, I> Iterator for IterMut<'a, I> {
     fn advance_by(&mut self, n: usize) -> Result<(), usize> {
         match self.head.advance_by(n) {
             Ok(()) => Ok(()),
-            Err(h_amt) => {
-                match self.tail.advance_by(n - h_amt) {
-                    Ok(()) => Ok(()),
-                    Err(t_amt) => Err(h_amt + t_amt),
-                }
+            Err(h_amt) => match self.tail.advance_by(n - h_amt) {
+                Ok(()) => Ok(()),
+                Err(t_amt) => Err(h_amt + t_amt),
             },
         }
     }
@@ -605,11 +600,9 @@ impl<'a, I> DoubleEndedIterator for IterMut<'a, I> {
     fn advance_back_by(&mut self, n: usize) -> Result<(), usize> {
         match self.tail.advance_back_by(n) {
             Ok(()) => Ok(()),
-            Err(t_amt) => {
-                match self.head.advance_back_by(n - t_amt) {
-                    Ok(()) => Ok(()),
-                    Err(h_amt) => Err(h_amt + t_amt),
-                }
+            Err(t_amt) => match self.head.advance_back_by(n - t_amt) {
+                Ok(()) => Ok(()),
+                Err(h_amt) => Err(h_amt + t_amt),
             },
         }
     }
@@ -715,11 +708,17 @@ mod tests {
 
         let iter = fixed.iter_mut();
 
-        assert_eq!(iter.collect::<Vec<_>>(), vec![&mut 1, &mut 2, &mut 3, &mut 4, &mut 5, &mut 6]);
+        assert_eq!(
+            iter.collect::<Vec<_>>(),
+            vec![&mut 1, &mut 2, &mut 3, &mut 4, &mut 5, &mut 6]
+        );
 
         let iter_rev = fixed.iter_mut().rev();
 
-        assert_eq!(iter_rev.collect::<Vec<_>>(), vec![&mut 6, &mut 5, &mut 4, &mut 3, &mut 2, &mut 1]);
+        assert_eq!(
+            iter_rev.collect::<Vec<_>>(),
+            vec![&mut 6, &mut 5, &mut 4, &mut 3, &mut 2, &mut 1]
+        );
 
         let mut iter = fixed.iter_mut();
 
@@ -744,12 +743,18 @@ mod tests {
         let mut iter = fixed.iter_mut();
 
         assert_eq!(iter.advance_by(0), Ok(()));
-        assert_eq!(iter.collect::<Vec<_>>(), vec![&mut 1, &mut 2, &mut 3, &mut 4, &mut 5, &mut 6]);
+        assert_eq!(
+            iter.collect::<Vec<_>>(),
+            vec![&mut 1, &mut 2, &mut 3, &mut 4, &mut 5, &mut 6]
+        );
 
         let mut iter = fixed.iter_mut();
 
         assert_eq!(iter.advance_by(2), Ok(()));
-        assert_eq!(iter.collect::<Vec<_>>(), vec![&mut 3, &mut 4, &mut 5, &mut 6]);
+        assert_eq!(
+            iter.collect::<Vec<_>>(),
+            vec![&mut 3, &mut 4, &mut 5, &mut 6]
+        );
 
         let mut iter = fixed.iter_mut();
 
@@ -774,12 +779,18 @@ mod tests {
         let mut iter = fixed.iter_mut();
 
         assert_eq!(iter.advance_back_by(0), Ok(()));
-        assert_eq!(iter.collect::<Vec<_>>(), vec![&mut 1, &mut 2, &mut 3, &mut 4, &mut 5, &mut 6]);
+        assert_eq!(
+            iter.collect::<Vec<_>>(),
+            vec![&mut 1, &mut 2, &mut 3, &mut 4, &mut 5, &mut 6]
+        );
 
         let mut iter = fixed.iter_mut();
 
         assert_eq!(iter.advance_back_by(2), Ok(()));
-        assert_eq!(iter.collect::<Vec<_>>(), vec![&mut 1, &mut 2, &mut 3, &mut 4]);
+        assert_eq!(
+            iter.collect::<Vec<_>>(),
+            vec![&mut 1, &mut 2, &mut 3, &mut 4]
+        );
 
         let mut iter = fixed.iter_mut();
 

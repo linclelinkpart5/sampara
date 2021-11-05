@@ -50,7 +50,7 @@ pub struct ResampleRational<X: FloatSample> {
     inter_pts_add: usize,
     after_pts_rem: usize,
     i: usize,
-    _marker: std::marker::PhantomData<X>
+    _marker: std::marker::PhantomData<X>,
 }
 
 impl<X: FloatSample> ResampleRational<X> {
@@ -81,8 +81,7 @@ impl<X: FloatSample> Interpolant for ResampleRational<X> {
 
         let x = if self.i == 0 {
             X::zero()
-        }
-        else {
+        } else {
             X::from(self.i).unwrap() / (X::one() + X::from(self.inter_pts_add).unwrap())
         };
 
@@ -91,8 +90,7 @@ impl<X: FloatSample> Interpolant for ResampleRational<X> {
             if self.i >= self.inter_pts_add {
                 self.i = 0;
                 frames_to_adv += 1;
-            }
-            else {
+            } else {
                 self.i += 1;
             }
         }

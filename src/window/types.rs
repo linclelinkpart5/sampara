@@ -142,16 +142,14 @@ impl<F: FloatSample> Window<F> for BlackmanHarris {
 mod tests {
     use super::*;
 
-    use std::f64::consts::{PI, TAU, FRAC_1_PI};
+    use std::f64::consts::{FRAC_1_PI, PI, TAU};
 
     use proptest::prelude::*;
 
     fn arb_delta() -> impl Strategy<Value = f64> {
         (1u64..)
-        .prop_flat_map(|len| {
-            (Just(len), 0..=len)
-        })
-        .prop_map(|(len, idx)| idx as f64 / len as f64)
+            .prop_flat_map(|len| (Just(len), 0..=len))
+            .prop_map(|(len, idx)| idx as f64 / len as f64)
     }
 
     proptest! {

@@ -1,8 +1,4 @@
-#![feature(
-    array_methods,
-    array_zip,
-    iter_advance_by,
-)]
+#![feature(array_methods, array_zip, iter_advance_by)]
 
 // These are defined first, as they contain macros used by later classes.
 pub mod stats;
@@ -21,5 +17,5 @@ pub mod window;
 
 pub use components::*;
 pub use frame::{Frame, Mono, Stereo};
-pub use sample::{Sample, ConvertFrom, ConvertInto, Duplex};
+pub use sample::{ConvertFrom, ConvertInto, Duplex, Sample};
 pub use signal::Signal;

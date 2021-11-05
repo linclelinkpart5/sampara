@@ -1,5 +1,5 @@
-pub mod combinators;
 pub mod calculators;
+pub mod combinators;
 pub mod generators;
 pub mod processors;
 

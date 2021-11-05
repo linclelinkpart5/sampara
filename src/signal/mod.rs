@@ -2,12 +2,12 @@ mod adaptors;
 mod generators;
 mod iterators;
 
-use crate::{Frame, Sample, Duplex};
 use crate::biquad::Params;
 use crate::buffer::Buffer;
-use crate::components::{Processor, Combinator, Calculator};
-use crate::sample::FloatSample;
+use crate::components::{Calculator, Combinator, Processor};
 use crate::interpolate::Interpolator;
+use crate::sample::FloatSample;
+use crate::{Duplex, Frame, Sample};
 
 // use crate::combinators as combs;
 use crate::processors as procs;
@@ -118,8 +118,7 @@ pub trait Signal<const N: usize> {
     ///     assert_eq!(mapped.next(), None);
     /// }
     /// ```
-    fn map<M, FO, const NO: usize>(self, func: M)
-        -> Map<Self, M, FO, N, NO>
+    fn map<M, FO, const NO: usize>(self, func: M) -> Map<Self, M, FO, N, NO>
     where
         Self: Sized,
         FO: Frame<NO>,
@@ -294,10 +293,7 @@ pub trait Signal<const N: usize> {
         <Self::Frame as Frame<N>>::Sample: Sample<Signed = X>,
         X: Sample,
     {
-        AddAmp {
-            signal: self,
-            amp,
-        }
+        AddAmp { signal: self, amp }
     }
 
     /// Creates a new [`Signal`] that yields each [`Frame`] of a [`Signal`]
@@ -309,10 +305,7 @@ pub trait Signal<const N: usize> {
         <Self::Frame as Frame<N>>::Sample: Sample<Float = X>,
         X: Sample,
     {
-        MulAmp {
-            signal: self,
-            amp,
-        }
+        MulAmp { signal: self, amp }
     }
 
     /// Delays [`Self`] by a given number of frames. The delay is performed by
@@ -357,10 +350,7 @@ pub trait Signal<const N: usize> {
         Self: Sized,
         F: FnMut(&Self::Frame),
     {
-        Inspect {
-            signal: self,
-            func,
-        }
+        Inspect { signal: self, func }
     }
 
     /// Returns a new [`Signal`] that yields only the first N [`Frame`]s of
@@ -383,10 +373,7 @@ pub trait Signal<const N: usize> {
     where
         Self: Sized,
     {
-        Take {
-            signal: self,
-            n,
-        }
+        Take { signal: self, n }
     }
 
     /// Returns a new [`Signal`] that yields all the [`Frame`]s of [`Self`],
@@ -421,10 +408,7 @@ pub trait Signal<const N: usize> {
     where
         Self: Sized,
     {
-        Pad {
-            signal: self,
-            n,
-        }
+        Pad { signal: self, n }
     }
 
     /// Returns a new [`Signal`] that yields every `n`th [`Frame`] from this
@@ -525,9 +509,7 @@ pub trait Signal<const N: usize> {
     where
         Self: Sized,
     {
-        IntoIter {
-            signal: self,
-        }
+        IntoIter { signal: self }
     }
 
     /// Uses the [`Frame`]s of this [`Signal`] to fill a [`Buffer`]. If there
@@ -557,10 +539,10 @@ pub trait Signal<const N: usize> {
             match self.next() {
                 None => {
                     return Err(num_filled);
-                },
+                }
                 Some(frame) => {
                     *c = frame;
-                },
+                }
             }
         }
 
@@ -582,7 +564,10 @@ pub trait Signal<const N: usize> {
         }
     }
 
-    fn process_lazy<P, F, const NO: usize>(self, lazy_processor: P) -> ProcessLazy<Self, P, F, N, NO>
+    fn process_lazy<P, F, const NO: usize>(
+        self,
+        lazy_processor: P,
+    ) -> ProcessLazy<Self, P, F, N, NO>
     where
         Self: Sized,
         P: Processor<Input = Self::Frame, Output = Option<F>>,
@@ -600,7 +585,11 @@ pub trait Signal<const N: usize> {
     ///
     /// If one of the input [`Signal`]s finishes before the other, this new
     /// [`Signal`] will finish as well.
-    fn combine<S, C, const NB: usize, const NO: usize>(self, other: S, combinator: C) -> Combine<Self, S, C, N, NB, NO>
+    fn combine<S, C, const NB: usize, const NO: usize>(
+        self,
+        other: S,
+        combinator: C,
+    ) -> Combine<Self, S, C, N, NB, NO>
     where
         Self: Sized,
         S: Signal<NB>,
@@ -614,7 +603,11 @@ pub trait Signal<const N: usize> {
         }
     }
 
-    fn combine_lazy<S, C, F, const NB: usize, const NO: usize>(self, other: S, lazy_combinator: C) -> CombineLazy<Self, S, C, F, N, NB, NO>
+    fn combine_lazy<S, C, F, const NB: usize, const NO: usize>(
+        self,
+        other: S,
+        lazy_combinator: C,
+    ) -> CombineLazy<Self, S, C, F, N, NB, NO>
     where
         Self: Sized,
         S: Signal<NB>,

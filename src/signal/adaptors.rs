@@ -1,9 +1,9 @@
-use crate::{Frame, Sample, Duplex, Processor, Combinator};
+use crate::biquad::Biquad as BQFilter;
 use crate::buffer::Buffer;
+use crate::interpolate::Interpolator;
 use crate::sample::FloatSample;
 use crate::signal::Signal;
-use crate::biquad::Biquad as BQFilter;
-use crate::interpolate::Interpolator;
+use crate::{Combinator, Duplex, Frame, Processor, Sample};
 
 use crate::processors as procs;
 
@@ -44,11 +44,9 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Self::Frame> {
-        zm_helper(
-            &mut self.signal_a,
-            &mut self.signal_b,
-            |a, b| a.add_frame(b.into_signed_frame()),
-        )
+        zm_helper(&mut self.signal_a, &mut self.signal_b, |a, b| {
+            a.add_frame(b.into_signed_frame())
+        })
     }
 }
 
@@ -75,11 +73,9 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Self::Frame> {
-        zm_helper(
-            &mut self.signal_a,
-            &mut self.signal_b,
-            |a, b| a.mul_frame(b.into_float_frame()),
-        )
+        zm_helper(&mut self.signal_a, &mut self.signal_b, |a, b| {
+            a.mul_frame(b.into_float_frame())
+        })
     }
 }
 
@@ -272,8 +268,7 @@ where
         if self.n > 0 {
             self.n -= 1;
             self.signal.next()
-        }
-        else {
+        } else {
             None
         }
     }
@@ -348,8 +343,7 @@ where
         if !self.started {
             self.started = true;
             self.signal.next()
-        }
-        else {
+        } else {
             self.signal.nth(self.n)
         }
     }
@@ -384,8 +378,7 @@ where
     }
 }
 
-impl<S, P, const NI: usize, const NO: usize> Signal<NO>
-for Process<S, P, NI, NO>
+impl<S, P, const NI: usize, const NO: usize> Signal<NO> for Process<S, P, NI, NO>
 where
     S: Signal<NI>,
     P: Processor<Input = S::Frame>,
@@ -430,8 +423,7 @@ where
     }
 }
 
-impl<S, P, F, const NI: usize, const NO: usize> Signal<NO>
-for ProcessLazy<S, P, F, NI, NO>
+impl<S, P, F, const NI: usize, const NO: usize> Signal<NO> for ProcessLazy<S, P, F, NI, NO>
 where
     S: Signal<NI>,
     P: Processor<Input = S::Frame, Output = Option<F>>,
@@ -484,7 +476,7 @@ where
 }
 
 impl<SL, SR, C, const NL: usize, const NR: usize, const NO: usize> Signal<NO>
-for Combine<SL, SR, C, NL, NR, NO>
+    for Combine<SL, SR, C, NL, NR, NO>
 where
     SL: Signal<NL>,
     SR: Signal<NR>,
@@ -514,7 +506,8 @@ where
     pub(super) lazy_combinator: C,
 }
 
-impl<SL, SR, C, F, const NL: usize, const NR: usize, const NO: usize> CombineLazy<SL, SR, C, F, NL, NR, NO>
+impl<SL, SR, C, F, const NL: usize, const NR: usize, const NO: usize>
+    CombineLazy<SL, SR, C, F, NL, NR, NO>
 where
     SL: Signal<NL>,
     SR: Signal<NR>,
@@ -533,7 +526,7 @@ where
 }
 
 impl<SL, SR, C, F, const NL: usize, const NR: usize, const NO: usize> Signal<NO>
-for CombineLazy<SL, SR, C, F, NL, NR, NO>
+    for CombineLazy<SL, SR, C, F, NL, NR, NO>
 where
     SL: Signal<NL>,
     SR: Signal<NR>,
@@ -620,13 +613,14 @@ where
     }
 }
 
-pub struct Map<S, M, FO, const NI: usize, const NO: usize>(pub(super) Process<S, procs::Map<S::Frame, FO, M>, NI, NO>)
+pub struct Map<S, M, FO, const NI: usize, const NO: usize>(
+    pub(super) Process<S, procs::Map<S::Frame, FO, M>, NI, NO>,
+)
 where
     S: Signal<NI>,
     S::Frame: Frame<NI>,
     M: FnMut(S::Frame) -> FO,
-    FO: Frame<NO>,
-;
+    FO: Frame<NO>;
 
 impl<S, M, FO, const NI: usize, const NO: usize> Signal<NO> for Map<S, M, FO, NI, NO>
 where

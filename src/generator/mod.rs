@@ -22,8 +22,7 @@ pub trait Delta<const N: usize>: Sized {
 
 pub struct Fixed<F, const N: usize>(F)
 where
-    F: Frame<N, Sample = f64>,
-;
+    F: Frame<N, Sample = f64>;
 
 impl<F, const N: usize> Delta<N> for Fixed<F, N>
 where
@@ -54,12 +53,8 @@ where
 
     fn delta(&mut self) -> Option<Self::Delta> {
         match self {
-            Self::Hzs(hz_signal, rate) => {
-                hz_signal.next().map(|f| f.mul_amp(1.0 / *rate))
-            },
-            Self::Deltas(delta_signal) => {
-                delta_signal.next()
-            },
+            Self::Hzs(hz_signal, rate) => hz_signal.next().map(|f| f.mul_amp(1.0 / *rate)),
+            Self::Deltas(delta_signal) => delta_signal.next(),
         }
     }
 }
@@ -67,8 +62,7 @@ where
 pub struct Variable<S, const N: usize>(VarInner<S, N>)
 where
     S: Signal<N>,
-    S::Frame: Frame<N, Sample = f64>,
-;
+    S::Frame: Frame<N, Sample = f64>;
 
 impl<S, const N: usize> Delta<N> for Variable<S, N>
 where
@@ -119,7 +113,8 @@ where
     type Frame = D::Delta;
 
     fn next(&mut self) -> Option<Self::Frame> {
-        let phase = self.accum
+        let phase = self
+            .accum
             .add_frame(self.stepper.delta()?.into_signed_frame())
             .apply(|x| x % 1.0);
 
@@ -304,10 +299,7 @@ where
 
     fn next(&mut self) -> Option<Self::Frame> {
         self.phase.next().map(|mut phase| {
-            phase.transform(|p| {
-                if p < 0.5 { 1.0 }
-                else { -1.0 }
-            });
+            phase.transform(|p| if p < 0.5 { 1.0 } else { -1.0 });
             phase
         })
     }

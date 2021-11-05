@@ -89,14 +89,11 @@ fn simplify(to_add: usize, to_rem: usize) -> (usize, usize) {
     let (overflow_is_num, normal) = {
         if to_add == to_rem {
             return (0, 0);
-        }
-        else if to_add == usize::MAX {
+        } else if to_add == usize::MAX {
             (true, to_rem + 1)
-        }
-        else if to_rem == usize::MAX {
+        } else if to_rem == usize::MAX {
             (false, to_add + 1)
-        }
-        else {
+        } else {
             let num = to_add + 1;
             let den = to_rem + 1;
 
@@ -132,8 +129,7 @@ fn simplify(to_add: usize, to_rem: usize) -> (usize, usize) {
 
     if overflow_is_num {
         (simp_overflow - 1, simp_normal - 1)
-    }
-    else {
+    } else {
         (simp_normal - 1, simp_overflow - 1)
     }
 }
@@ -142,7 +138,7 @@ pub struct Rational<X: FloatSample> {
     inter_pts_add: usize,
     after_pts_rem: usize,
     i: usize,
-    _marker: std::marker::PhantomData<X>
+    _marker: std::marker::PhantomData<X>,
 }
 
 impl<X: FloatSample> Rational<X> {
@@ -201,8 +197,7 @@ impl<X: FloatSample> Phase for Rational<X> {
 
         let x = if self.i == 0 {
             X::zero()
-        }
-        else {
+        } else {
             X::from(self.i).unwrap() / (X::one() + X::from(self.inter_pts_add).unwrap())
         };
 
@@ -211,8 +206,7 @@ impl<X: FloatSample> Phase for Rational<X> {
             if self.i >= self.inter_pts_add {
                 self.i = 0;
                 frames_to_adv += 1;
-            }
-            else {
+            } else {
                 self.i += 1;
             }
         }

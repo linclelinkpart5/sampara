@@ -1,5 +1,5 @@
-use crate::{Duplex, Frame, Sample, Signal};
 use crate::interpolate::Interpolator;
+use crate::{Duplex, Frame, Sample, Signal};
 
 /// An [`Interpolator`] that linearly combines a left and a right [`Frame`].
 ///
@@ -55,7 +55,7 @@ where
 
     fn initialize<S>(&mut self, signal: &mut S) -> Option<()>
     where
-        S: Signal<N, Frame = F>
+        S: Signal<N, Frame = F>,
     {
         *self = Self {
             left: signal.next()?,

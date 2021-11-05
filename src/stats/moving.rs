@@ -6,9 +6,9 @@ use super::*;
 
 use num_traits::Float;
 
-use crate::{Frame, Sample, Processor, StatefulProcessor};
-use crate::buffer::{Fixed, Buffer};
+use crate::buffer::{Buffer, Fixed};
 use crate::sample::FloatSample;
+use crate::{Frame, Processor, Sample, StatefulProcessor};
 
 #[derive(Clone)]
 struct SummageInner<B, const N: usize, const SQRT: bool, const POW2: bool>
@@ -185,8 +185,7 @@ fn set_frontier<S: Sample>(
     opt_horizon: &mut Option<(S, usize)>,
     contender: S,
     cursor_pos: usize,
-) -> Diff
-{
+) -> Diff {
     // Set the new frontier extrema and position to the contender value and the
     // cursor position, respectively.
     *frontier = (contender, cursor_pos);
@@ -202,8 +201,7 @@ fn set_horizon<S: Sample>(
     contender: S,
     frontier_pos: usize,
     cursor_pos: usize,
-) -> Diff
-{
+) -> Diff {
     // Set the new horizon extrema and position to the contender value and
     // the current frontier offset, respectively.
     *horizon = (contender, cursor_pos - frontier_pos - 1);
@@ -217,8 +215,7 @@ fn set_horizon_init<S: Sample>(
     frontier_pos: usize,
     cursor_pos: usize,
     expect_zero: bool,
-) -> Diff
-{
+) -> Diff {
     let frontier_offset = cursor_pos - frontier_pos - 1;
     if expect_zero {
         assert_eq!(frontier_offset, 0);
@@ -280,20 +277,17 @@ where
             if surpasses::<_, MAX>(&x, f_ext) {
                 // Case [EF].
                 set_frontier(f, opt_h, x, cursor_pos)
-            }
-            else if let Some(h) = opt_h {
+            } else if let Some(h) = opt_h {
                 let (h_ext, _h_pos) = h;
 
                 if surpasses::<_, MAX>(&x, h_ext) {
                     // Case [EH].
                     set_horizon(h, x, *f_pos, cursor_pos)
-                }
-                else {
+                } else {
                     // Case [EN].
                     Diff::NoChange
                 }
-            }
-            else {
+            } else {
                 // Case [EI].
                 set_horizon_init(opt_h, x, *f_pos, cursor_pos, true)
             }
@@ -372,20 +366,19 @@ where
                 // Case [PFF].
                 // Case [PNF].
                 set_frontier(f, opt_h, x, cursor_pos)
-            }
-            else if let Some(h) = opt_h {
+            } else if let Some(h) = opt_h {
                 let (h_ext, h_pos) = h;
 
                 match (is_f_pop, surpasses::<_, MAX>(&x, h_ext)) {
                     (false, false) => {
                         // Case [PNN].
                         Diff::NoChange
-                    },
+                    }
 
                     (false, true) => {
                         // Case [PNH].
                         set_horizon(h, x, *f_pos, cursor_pos)
-                    },
+                    }
 
                     (true, false) => {
                         // Case [PFN].
@@ -407,20 +400,27 @@ where
 
                         // Skip all of the items up to and including the new
                         // frontier postion.
-                        w.nth(*f_pos).expect("frontier pos should always be [0, WIN_LEN).");
+                        w.nth(*f_pos)
+                            .expect("frontier pos should always be [0, WIN_LEN).");
 
                         // Map the window iterator to extract only the current
                         // channel.
-                        let w = w.map(|frame| frame.channel(ch).expect("ch index should always be [0, N)."));
+                        let w = w.map(|frame| {
+                            frame
+                                .channel(ch)
+                                .expect("ch index should always be [0, N).")
+                        });
 
                         for (horizon_offset, y) in w.enumerate() {
                             if let Some((disc_h_ext, _)) = disc_h.as_mut() {
                                 if surpasses::<S, MAX>(y, disc_h_ext) {
                                     disc_h = Some((*y, horizon_offset))
                                 }
-                            }
-                            else {
-                                assert_eq!(horizon_offset, 0, "discovery horizon should only be `None` on first loop");
+                            } else {
+                                assert_eq!(
+                                    horizon_offset, 0,
+                                    "discovery horizon should only be `None` on first loop"
+                                );
                                 disc_h = Some((*y, horizon_offset))
                             }
                         }
@@ -430,7 +430,7 @@ where
                         *opt_h = disc_h;
 
                         Diff::Promoted
-                    },
+                    }
 
                     (true, true) => {
                         // Case [PFH].
@@ -440,15 +440,13 @@ where
                         // current horizon and snipe the promotion to
                         // frontier.
                         set_frontier(f, opt_h, x, cursor_pos)
-                    },
+                    }
                 }
-            }
-            else {
+            } else {
                 if is_f_pop {
                     // Case [PFI].
                     set_frontier(f, opt_h, x, cursor_pos)
-                }
-                else {
+                } else {
                     // Case [PNI].
                     set_horizon_init(opt_h, x, *f_pos, cursor_pos, true)
                 }
@@ -573,8 +571,7 @@ where
 
             if let Some(ext_state) = opt_ext_state.as_mut() {
                 ext_state.push(f.into_array());
-            }
-            else {
+            } else {
                 opt_ext_state = Some(ExtremaState::from(f.into_array()));
             }
 
@@ -597,7 +594,10 @@ where
 
     #[inline]
     fn __current(&self) -> B::Frame {
-        self.ext_state.frontiers.map(|(f_ext, _f_pos)| f_ext).into_frame()
+        self.ext_state
+            .frontiers
+            .map(|(f_ext, _f_pos)| f_ext)
+            .into_frame()
     }
 
     #[inline]
@@ -1553,12 +1553,12 @@ mod tests {
     where
         I: IntoIterator<Item = [f32; 16]>,
     {
-        iter.into_iter().reduce(|sa, sb| {
-            sa.zip(sb).map(|(a, b)| {
-                if surpasses::<_, MAX>(&a, &b) { a }
-                else { b }
+        iter.into_iter()
+            .reduce(|sa, sb| {
+                sa.zip(sb)
+                    .map(|(a, b)| if surpasses::<_, MAX>(&a, &b) { a } else { b })
             })
-        }).unwrap()
+            .unwrap()
     }
 
     proptest! {
@@ -1651,4 +1651,3 @@ mod tests {
         }
     }
 }
-
