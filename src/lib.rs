@@ -1,6 +1,10 @@
-#![feature(array_methods, array_zip, iter_advance_by, option_result_unwrap_unchecked)]
+#![feature(
+    array_methods,
+    array_zip,
+    iter_advance_by,
+)]
 
-// These are defined first, as the contain macros used by later classes.
+// These are defined first, as they contain macros used by later classes.
 pub mod stats;
 
 pub mod biquad;
