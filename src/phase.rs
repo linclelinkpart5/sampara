@@ -146,6 +146,10 @@ pub struct Rational<X: FloatSample> {
 }
 
 impl<X: FloatSample> Rational<X> {
+    pub fn new(num: usize, den: usize) -> Self {
+        Self::try_new(num, den).unwrap()
+    }
+
     pub fn try_new(num: usize, den: usize) -> Result<Self, RationalError> {
         if den == 0 {
             return Err(RationalError::ZeroDenominator);
@@ -229,6 +233,49 @@ mod tests {
     const NUM_STEPS: usize = 1000;
 
     proptest! {
+        #[test]
+        fn simplify_is_symmetric(to_add in any::<usize>(), to_rem in any::<usize>()) {
+            let original = simplify(to_add, to_rem);
+            let inverted = {
+                let (a, b) = simplify(to_rem, to_add);
+                (b, a)
+            };
+
+            assert_eq!(original, inverted);
+        }
+
+        #[test]
+        fn simplify_simplifies(to_add in any::<usize>(), to_rem in any::<usize>()) {
+            let produced = {
+                let (simp_to_add, simp_to_rem) = simplify(to_add, to_rem);
+                (simp_to_add as u128, simp_to_rem as u128)
+            };
+
+            let (num, den) = (to_add as u128 + 1, to_rem as u128 + 1);
+            let div = num.gcd(den);
+
+            let (simp_num, simp_den) = (num / div, den / div);
+            let expected = (simp_num - 1, simp_den - 1);
+
+            assert_eq!(produced, expected);
+        }
+
+        #[test]
+        fn simplify_handles_max(exp in 0..usize::BITS) {
+            let max = usize::MAX;
+            let min = usize::MAX >> exp;
+
+            let factor = 2usize.pow(exp);
+
+            let to_add = max;
+            let to_rem = min;
+            assert_eq!(simplify(to_add, to_rem), (factor - 1, 0));
+
+            let to_add = min;
+            let to_rem = max;
+            assert_eq!(simplify(to_add, to_rem), (0, factor - 1));
+        }
+
         #[test]
         fn fixed(inv_delta in 0.0..MAX_DELTA) {
             let delta = MAX_DELTA - inv_delta;
