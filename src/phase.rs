@@ -8,15 +8,17 @@ pub trait Phase {
     type Step: FloatSample;
 
     /// Advances the phase to the next value, while also keeping track of how
-    /// many times the phase wrapped around from the interval end. Returns the
-    /// pre-advanced phase value, along with how many wraps were performed
-    /// during this phase advancement.
-    fn step_advance(&mut self) -> (Self::Step, usize);
+    /// many times the phase was wrapped back to 0.0 due to it being >= 1.0.
+    /// Returns the number of wraps that were performed.
+    fn advance_count(&mut self) -> usize;
 
-    fn step(&mut self) -> Self::Step {
-        let (x, _) = self.step_advance();
-        x
+    /// Advances the phase to the next value.
+    fn advance(&mut self) {
+        self.advance_count();
     }
+
+    /// Returns the current phase value.
+    fn current(&self) -> Self::Step;
 }
 
 #[derive(Debug, Error)]
@@ -57,12 +59,10 @@ impl<X: FloatSample> Fixed<X> {
 impl<X: FloatSample> Phase for Fixed<X> {
     type Step = X;
 
-    fn step_advance(&mut self) -> (Self::Step, usize) {
+    fn advance_count(&mut self) -> usize {
         debug_assert!(self.delta > X::zero());
         debug_assert!(self.accum >= X::zero());
         debug_assert!(self.accum < X::one());
-
-        let t = self.accum;
 
         self.accum = self.accum + self.delta;
 
@@ -73,7 +73,11 @@ impl<X: FloatSample> Phase for Fixed<X> {
             frames_to_adv += 1;
         }
 
-        (t, frames_to_adv)
+        frames_to_adv
+    }
+
+    fn current(&self) -> Self::Step {
+        self.accum
     }
 }
 
@@ -190,16 +194,10 @@ impl<X: FloatSample> Rational<X> {
 impl<X: FloatSample> Phase for Rational<X> {
     type Step = X;
 
-    fn step_advance(&mut self) -> (Self::Step, usize) {
+    fn advance_count(&mut self) -> usize {
         debug_assert!(self.i <= self.inter_pts_add);
 
         let mut frames_to_adv = 0;
-
-        let x = if self.i == 0 {
-            X::zero()
-        } else {
-            X::from(self.i).unwrap() / (X::one() + X::from(self.inter_pts_add).unwrap())
-        };
 
         // NOTE: This is an inclusive end bound, so this runs (N+1) times!
         for _ in 0..=self.after_pts_rem {
@@ -211,7 +209,15 @@ impl<X: FloatSample> Phase for Rational<X> {
             }
         }
 
-        (x, frames_to_adv)
+        frames_to_adv
+    }
+
+    fn current(&self) -> Self::Step {
+        if self.i == 0 {
+            X::zero()
+        } else {
+            X::from(self.i).unwrap() / (X::one() + X::from(self.inter_pts_add).unwrap())
+        }
     }
 }
 
@@ -287,9 +293,8 @@ mod tests {
                     adv += 1;
                 }
 
-                let produced = phase.step_advance();
-                let expected = (x, adv);
-                assert_eq!(produced, expected);
+                assert_eq!(phase.current(), x);
+                assert_eq!(phase.advance_count(), adv);
             }
         }
 
@@ -304,9 +309,8 @@ mod tests {
 
                 let adv = (i + to_rem + 1) / (to_add + 1);
 
-                let produced = phase.step_advance();
-                let expected = (x, adv);
-                assert_eq!(produced, expected);
+                assert_eq!(phase.current(), x);
+                assert_eq!(phase.advance_count(), adv);
             }
         }
 
@@ -319,9 +323,8 @@ mod tests {
             for i in (0..).into_iter().step_by(to_rem + 1).take(NUM_STEPS) {
                 let x = i as f32 / (usize::MAX as f32 + 1.0);
 
-                let produced = phase.step_advance();
-                let expected = (x, 0);
-                assert_eq!(produced, expected);
+                assert_eq!(phase.current(), x);
+                assert_eq!(phase.advance_count(), 0);
             }
         }
     }
