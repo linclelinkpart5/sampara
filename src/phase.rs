@@ -10,7 +10,7 @@ pub trait Phase {
     /// Advances the phase to the next value, while also keeping track of how
     /// many times the phase was wrapped back to 0.0 due to it being >= 1.0.
     /// Returns the number of wraps that were performed.
-    fn advance_count(&mut self) -> usize;
+    fn advance_count(&mut self) -> u32;
 
     /// Advances the phase to the next value.
     fn advance(&mut self) {
@@ -59,7 +59,7 @@ impl<X: FloatSample> Fixed<X> {
 impl<X: FloatSample> Phase for Fixed<X> {
     type Step = X;
 
-    fn advance_count(&mut self) -> usize {
+    fn advance_count(&mut self) -> u32 {
         debug_assert!(self.delta > X::zero());
         debug_assert!(self.accum >= X::zero());
         debug_assert!(self.accum < X::one());
@@ -89,15 +89,80 @@ pub enum RationalError {
     ZeroNumerator,
 }
 
-fn simplify(to_add: usize, to_rem: usize) -> (usize, usize) {
-    let (overflow_is_num, normal) = {
+// struct NumLooper {
+//     // NOTE: If there existed a `u33` type, that could be used instead.
+//     i: u64,
+//     max_value: u32,
+//     skip_extra: u32,
+// }
+
+// impl NumLooper {
+//     fn new(max_value: u32, skip_extra: u32) -> Self {
+//         // TODO: Pretty up this panic message.
+//         Self::try_new(max_value, skip_extra).unwrap()
+//     }
+
+//     fn try_new(max_value: u32, skip_extra: u32) -> Option<Self> {
+//         if max_value == 0 && skip_extra == u32::MAX {
+//             None
+//         } else {
+//             Some(Self {
+//                 i: 0,
+//                 max_value,
+//                 skip_extra,
+//             })
+//         }
+//     }
+
+//     fn advance(&mut self) -> u32 {
+//         debug_assert!(self.i <= self.max_value as u64);
+
+//         let adv_i = self.i + self.skip_extra as u64 + 1;
+//         let div = self.max_value as u64 + 1;
+
+//         self.i = adv_i % div;
+//         let num_loops = adv_i / div;
+
+//         assert!(num_loops <= u32::MAX as u64);
+
+//         num_loops as u32
+//     }
+
+//     fn as_phase<X: FloatSample>(&self) -> X {
+//         debug_assert!(self.i <= self.max_value as u64);
+
+//         if self.i == 0 {
+//             X::zero()
+//         } else {
+//             X::from(self.i).unwrap() / X::from(self.max_value as u64 + 1).unwrap()
+//         }
+//     }
+// }
+
+enum Maxed {
+    Num,
+    Den,
+}
+
+/// Helper method to co-reduce two "add" and "rem" factors.
+fn simplify(to_add: u32, to_rem: u32) -> (u32, u32) {
+    let (maxed, normal) = {
+        // If the factors are equal, reduce to no-op.
+        // NOTE: This also handles the case of both factors equalling `MAX`.
         if to_add == to_rem {
             return (0, 0);
-        } else if to_add == usize::MAX {
-            (true, to_rem + 1)
-        } else if to_rem == usize::MAX {
-            (false, to_add + 1)
-        } else {
+        }
+        // Check if the add factor is `MAX`.
+        else if to_add == u32::MAX {
+            (Maxed::Num, to_rem + 1)
+        }
+        // Check if the rem factor is `MAX`.
+        else if to_rem == u32::MAX {
+            (Maxed::Den, to_add + 1)
+        }
+        // Simple case, convert the factors to *-ators by adding 1, simplify by
+        // using the GCD, and convert back to factors by subtracting 1.
+        else {
             let num = to_add + 1;
             let den = to_rem + 1;
 
@@ -115,10 +180,11 @@ fn simplify(to_add: usize, to_rem: usize) -> (usize, usize) {
 
     // At this point, we would have an overflow of exactly one of the numerator
     // or the denominator. The "scalar" value of this *-ator would be equal to
-    // `usize::MAX + 1`. We assume that this value is a perfect power of 2,
-    // which means it is only divisible by smaller powers of 2. Thus, find
-    // the largest power of 2 that divides the non-overflowed *-ator, that will
-    // be the GCD for this simplification.
+    // `MAX + 1`. We assume that this value is a perfect power of 2, meaning it
+    // is only divisible by smaller powers of 2. Thus, find the largest power
+    // of 2 that divides the non-overflowed *-ator, which will be the GCD for
+    // this simplification.
+    debug_assert!(normal > 0);
     let div_pow_2 = normal.trailing_zeros();
 
     if div_pow_2 == 0 {
@@ -127,65 +193,68 @@ fn simplify(to_add: usize, to_rem: usize) -> (usize, usize) {
     }
 
     // Use the GCD and the fact that it is a power of 2 to simplify the *-ators.
-    let shl_n = usize::BITS - div_pow_2;
-    let simp_overflow = 1usize << shl_n;
+    let shl_n = u32::BITS - div_pow_2;
+    let simp_overflow = 1u32 << shl_n;
     let simp_normal = normal >> div_pow_2;
 
-    if overflow_is_num {
-        (simp_overflow - 1, simp_normal - 1)
-    } else {
-        (simp_normal - 1, simp_overflow - 1)
+    debug_assert!(simp_normal > 0);
+    debug_assert!(simp_overflow > 0);
+
+    match maxed {
+        Maxed::Num => (simp_overflow - 1, simp_normal - 1),
+        Maxed::Den => (simp_normal - 1, simp_overflow - 1),
     }
 }
 
 pub struct Rational<X: FloatSample> {
-    inter_pts_add: usize,
-    after_pts_rem: usize,
-    i: usize,
+    // NOTE: If there existed a `u33` type, that could be used instead.
+    i: u64,
+    max_value: u32,
+    skip_extra: u32,
     _marker: std::marker::PhantomData<X>,
 }
 
 impl<X: FloatSample> Rational<X> {
-    pub fn new(num: usize, den: usize) -> Self {
-        Self::try_new(num, den).unwrap()
-    }
+    // pub fn new(num: u32, den: u32) -> Self {
+    //     Self::try_new(num, den).unwrap()
+    // }
 
-    pub fn try_new(num: usize, den: usize) -> Result<Self, RationalError> {
-        if den == 0 {
-            return Err(RationalError::ZeroDenominator);
-        }
-        if num == 0 {
-            return Err(RationalError::ZeroNumerator);
-        }
+    // pub fn try_new(num: u32, den: u32) -> Result<Self, RationalError> {
+    //     if den == 0 {
+    //         return Err(RationalError::ZeroDenominator);
+    //     }
+    //     if num == 0 {
+    //         return Err(RationalError::ZeroNumerator);
+    //     }
 
-        // Reduce the fraction.
-        let div = num.gcd(den);
+    //     // Reduce the fraction.
+    //     let div = num.gcd(den);
 
-        let num = num / div;
-        let den = den / div;
+    //     let num = num / div;
+    //     let den = den / div;
 
-        // SAFETY: The simplified numerator and denominator should both be
-        //         greater than zero at this point.
-        debug_assert!(num > 0);
-        debug_assert!(den > 0);
-        let to_add = num - 1;
-        let to_rem = den - 1;
+    //     // SAFETY: The simplified numerator and denominator should both be
+    //     //         greater than zero at this point.
+    //     debug_assert!(num > 0);
+    //     debug_assert!(den > 0);
+    //     let to_add = num - 1;
+    //     let to_rem = den - 1;
 
-        Ok(Self {
-            inter_pts_add: to_add,
-            after_pts_rem: to_rem,
-            i: 0,
-            _marker: Default::default(),
-        })
-    }
+    //     let num_looper = NumLooper::new(to_add, to_rem);
 
-    pub fn add_rem(to_add: usize, to_rem: usize) -> Self {
+    //     Ok(Self {
+    //         num_looper,
+    //         _marker: Default::default(),
+    //     })
+    // }
+
+    pub fn new(to_add: u32, to_rem: u32) -> Self {
         let (to_add, to_rem) = simplify(to_add, to_rem);
 
         Self {
-            inter_pts_add: to_add,
-            after_pts_rem: to_rem,
             i: 0,
+            max_value: to_add,
+            skip_extra: to_rem,
             _marker: Default::default(),
         }
     }
@@ -194,29 +263,27 @@ impl<X: FloatSample> Rational<X> {
 impl<X: FloatSample> Phase for Rational<X> {
     type Step = X;
 
-    fn advance_count(&mut self) -> usize {
-        debug_assert!(self.i <= self.inter_pts_add);
+    fn advance_count(&mut self) -> u32 {
+        debug_assert!(self.i <= self.max_value as u64);
 
-        let mut frames_to_adv = 0;
+        let adv_i = self.i + self.skip_extra as u64 + 1;
+        let div = self.max_value as u64 + 1;
 
-        // NOTE: This is an inclusive end bound, so this runs (N+1) times!
-        for _ in 0..=self.after_pts_rem {
-            if self.i >= self.inter_pts_add {
-                self.i = 0;
-                frames_to_adv += 1;
-            } else {
-                self.i += 1;
-            }
-        }
+        self.i = adv_i % div;
+        let num_loops = adv_i / div;
 
-        frames_to_adv
+        assert!(num_loops <= u32::MAX as u64);
+
+        num_loops as u32
     }
 
     fn current(&self) -> Self::Step {
+        debug_assert!(self.i <= self.max_value as u64);
+
         if self.i == 0 {
             X::zero()
         } else {
-            X::from(self.i).unwrap() / (X::one() + X::from(self.inter_pts_add).unwrap())
+            X::from(self.i).unwrap() / X::from(self.max_value as u64 + 1).unwrap()
         }
     }
 }
@@ -228,13 +295,13 @@ mod tests {
     use proptest::prelude::*;
 
     const MAX_DELTA: f32 = 16.0;
-    const MAX_TO_ADD: usize = 16;
-    const MAX_TO_REM: usize = MAX_TO_ADD;
-    const NUM_STEPS: usize = 1000;
+    const MAX_TO_ADD: u32 = 16;
+    const MAX_TO_REM: u32 = MAX_TO_ADD;
+    const NUM_STEPS: u32 = 1000;
 
     proptest! {
         #[test]
-        fn simplify_is_symmetric(to_add in any::<usize>(), to_rem in any::<usize>()) {
+        fn simplify_is_symmetric(to_add in any::<u32>(), to_rem in any::<u32>()) {
             let produced = {
                 let (a, b) = simplify(to_rem, to_add);
                 (b, a)
@@ -245,13 +312,13 @@ mod tests {
         }
 
         #[test]
-        fn simplify_simplifies(to_add in any::<usize>(), to_rem in any::<usize>()) {
+        fn simplify_simplifies(to_add in any::<u32>(), to_rem in any::<u32>()) {
             let produced = {
                 let (simp_to_add, simp_to_rem) = simplify(to_add, to_rem);
-                (simp_to_add as u128, simp_to_rem as u128)
+                (simp_to_add as u64, simp_to_rem as u64)
             };
 
-            let (num, den) = (to_add as u128 + 1, to_rem as u128 + 1);
+            let (num, den) = (to_add as u64 + 1, to_rem as u64 + 1);
             let div = num.gcd(den);
 
             let (simp_num, simp_den) = (num / div, den / div);
@@ -261,11 +328,11 @@ mod tests {
         }
 
         #[test]
-        fn simplify_handles_max(exp in 0..usize::BITS) {
-            let max = usize::MAX;
-            let min = usize::MAX >> exp;
+        fn simplify_handles_max(exp in 0..u32::BITS) {
+            let max = u32::MAX;
+            let min = u32::MAX >> exp;
 
-            let factor = 2usize.pow(exp);
+            let factor = 2u32.pow(exp);
 
             let produced = simplify(max, min);
             let expected = (factor - 1, 0);
@@ -299,33 +366,112 @@ mod tests {
         }
 
         #[test]
-        fn rational_happy_path(to_add in 0usize..=MAX_TO_ADD, to_rem in 0usize..=MAX_TO_REM) {
-            let mut phase = Rational::<f32>::add_rem(to_add, to_rem);
+        fn rational_happy_path(to_add in any::<u32>(), to_rem in any::<u32>()) {
+            let mut phase = Rational::<f32>::new(to_add, to_rem);
 
-            for t in (0..).into_iter().step_by(to_rem + 1).take(NUM_STEPS) {
-                let i = t % (to_add + 1);
+            let (simp_to_add, simp_to_rem) = simplify(to_add, to_rem);
 
-                let x = i as f32 / (to_add + 1) as f32;
+            let mut i = 0;
+            for _ in 0..NUM_STEPS {
+                let adv_i = i + simp_to_rem as u64 + 1;
+                let div = simp_to_add as u64 + 1;
 
-                let adv = (i + to_rem + 1) / (to_add + 1);
+                let next_i = adv_i % div;
+                let num_loops = (adv_i / div) as u32;
+
+                let x = i as f32 / (simp_to_add as u64 + 1) as f32;
 
                 assert_eq!(phase.current(), x);
-                assert_eq!(phase.advance_count(), adv);
+                assert_eq!(phase.advance_count(), num_loops);
+                assert_eq!(phase.i, next_i);
+
+                i = next_i;
             }
+
+            // for t in (0..).into_iter().step_by(to_rem as usize + 1).take(NUM_STEPS as usize) {
+            //     let i = t % (to_add + 1);
+
+            //     let x = i as f32 / (to_add + 1) as f32;
+
+            //     let adv = (i + to_rem + 1) / (to_add + 1);
+
+            //     assert_eq!(phase.current(), x);
+            //     assert_eq!(phase.advance_count(), adv);
+            // }
         }
 
         #[test]
-        fn rational_handles_max_add(to_rem in 0usize..=MAX_TO_REM) {
-            let mut phase = Rational::<f32>::add_rem(usize::MAX, to_rem);
+        fn rational_handles_max_add(to_rem in 0u32..=MAX_TO_REM) {
+            let mut phase = Rational::<f32>::new(u32::MAX, to_rem);
 
-            assert!(NUM_STEPS < usize::MAX);
+            assert!(NUM_STEPS < u32::MAX);
 
-            for i in (0..).into_iter().step_by(to_rem + 1).take(NUM_STEPS) {
-                let x = i as f32 / (usize::MAX as f32 + 1.0);
+            for i in (0..).into_iter().step_by(to_rem as usize + 1).take(NUM_STEPS as usize) {
+                let x = i as f32 / (u32::MAX as f32 + 1.0);
 
                 assert_eq!(phase.current(), x);
                 assert_eq!(phase.advance_count(), 0);
             }
         }
+
+        // #[test]
+        // fn rational_handles_max_rem(to_add in 1u32..=MAX_TO_ADD) {
+        //     let mut phase = Rational::<f32>::new(to_add, u32::MAX);
+
+        //     assert!(NUM_STEPS < u32::MAX);
+
+        //     let div = to_add + 1;
+
+        //     let mut q = 0;
+        //     for _ in 0..NUM_STEPS {
+        //         let x = q as f32 / (u32::MAX as f32 + 1.0);
+
+        //         let adv = (i + to_rem + 1) / (to_add + 1);
+
+        //         assert_eq!(phase.current(), x);
+        //         assert_eq!(phase.advance_count(), c);
+
+        //         q += u32::MAX as u64 + 1;
+        //     }
+        // }
+
+        // #[test]
+        // fn looper_happy_path(max in any::<u32>(), skip_extra in any::<u32>()) {
+        //     // We know that this is an edge case.
+        //     prop_assume!(max != 0 || skip_extra != u32::MAX);
+
+        //     let mut looper = NumLooper::new(max, skip_extra);
+
+        //     let mut expected_i = 0u128;
+        //     let div = max as u128 + 1;
+
+        //     for _ in 0..NUM_STEPS {
+        //         expected_i += skip_extra as u128 + 1;
+        //         let expected_num_loops = expected_i / div;
+        //         expected_i %= div;
+
+        //         assert_eq!(looper.advance() as u128, expected_num_loops);
+        //         assert_eq!(looper.i as u128, expected_i);
+        //     }
+        // }
     }
+
+    // #[test]
+    // #[should_panic]
+    // fn looper_min_max_fails() {
+    //     // Try to create a `NumLooper` with the smallest possible period and
+    //     // largest possible skip.
+    //     NumLooper::new(0, u32::MAX);
+    // }
+
+    // #[test]
+    // fn looper_simple() {
+    //     let mut looper = NumLooper::new(7, 13);
+
+    //     assert_eq!((looper.advance(), looper.i), (1, 6));
+    //     assert_eq!((looper.advance(), looper.i), (2, 4));
+    //     assert_eq!((looper.advance(), looper.i), (2, 2));
+    //     assert_eq!((looper.advance(), looper.i), (2, 0));
+    //     assert_eq!((looper.advance(), looper.i), (1, 6));
+    // }
 }
