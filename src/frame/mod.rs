@@ -715,9 +715,7 @@ where
 
     #[inline]
     fn into_channels(self) -> IntoChannels<Self::Sample, N> {
-        // TODO: Temporary use of `new` method while this is still unstable.
-        //       Replace with more ergonomic method once it lands in rustc.
-        IntoChannels(std::array::IntoIter::new(self))
+        IntoChannels(self.into_iter())
     }
 
     #[inline]
@@ -779,9 +777,7 @@ where
 
     #[inline]
     fn into_channels(self) -> IntoChannels<Self::Sample, 1> {
-        // TODO: Temporary use of `new` method while this is still unstable.
-        //       Replace with more ergonomic method once it lands in rustc.
-        IntoChannels(std::array::IntoIter::new([self]))
+        IntoChannels([self].into_iter())
     }
 
     #[inline]
