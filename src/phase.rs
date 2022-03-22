@@ -89,56 +89,6 @@ pub enum RationalError {
     ZeroNumerator,
 }
 
-// struct NumLooper {
-//     // NOTE: If there existed a `u33` type, that could be used instead.
-//     i: u64,
-//     max_value: u32,
-//     skip_extra: u32,
-// }
-
-// impl NumLooper {
-//     fn new(max_value: u32, skip_extra: u32) -> Self {
-//         // TODO: Pretty up this panic message.
-//         Self::try_new(max_value, skip_extra).unwrap()
-//     }
-
-//     fn try_new(max_value: u32, skip_extra: u32) -> Option<Self> {
-//         if max_value == 0 && skip_extra == u32::MAX {
-//             None
-//         } else {
-//             Some(Self {
-//                 i: 0,
-//                 max_value,
-//                 skip_extra,
-//             })
-//         }
-//     }
-
-//     fn advance(&mut self) -> u32 {
-//         debug_assert!(self.i <= self.max_value as u64);
-
-//         let adv_i = self.i + self.skip_extra as u64 + 1;
-//         let div = self.max_value as u64 + 1;
-
-//         self.i = adv_i % div;
-//         let num_loops = adv_i / div;
-
-//         assert!(num_loops <= u32::MAX as u64);
-
-//         num_loops as u32
-//     }
-
-//     fn as_phase<X: FloatSample>(&self) -> X {
-//         debug_assert!(self.i <= self.max_value as u64);
-
-//         if self.i == 0 {
-//             X::zero()
-//         } else {
-//             X::from(self.i).unwrap() / X::from(self.max_value as u64 + 1).unwrap()
-//         }
-//     }
-// }
-
 enum Maxed {
     Num,
     Den,
@@ -215,39 +165,6 @@ pub struct Rational<X: FloatSample> {
 }
 
 impl<X: FloatSample> Rational<X> {
-    // pub fn new(num: u32, den: u32) -> Self {
-    //     Self::try_new(num, den).unwrap()
-    // }
-
-    // pub fn try_new(num: u32, den: u32) -> Result<Self, RationalError> {
-    //     if den == 0 {
-    //         return Err(RationalError::ZeroDenominator);
-    //     }
-    //     if num == 0 {
-    //         return Err(RationalError::ZeroNumerator);
-    //     }
-
-    //     // Reduce the fraction.
-    //     let div = num.gcd(den);
-
-    //     let num = num / div;
-    //     let den = den / div;
-
-    //     // SAFETY: The simplified numerator and denominator should both be
-    //     //         greater than zero at this point.
-    //     debug_assert!(num > 0);
-    //     debug_assert!(den > 0);
-    //     let to_add = num - 1;
-    //     let to_rem = den - 1;
-
-    //     let num_looper = NumLooper::new(to_add, to_rem);
-
-    //     Ok(Self {
-    //         num_looper,
-    //         _marker: Default::default(),
-    //     })
-    // }
-
     pub fn new(to_add: u32, to_rem: u32) -> Self {
         let (to_add, to_rem) = simplify(to_add, to_rem);
 
@@ -295,8 +212,6 @@ mod tests {
     use proptest::prelude::*;
 
     const MAX_DELTA: f32 = 16.0;
-    const MAX_TO_ADD: u32 = 16;
-    const MAX_TO_REM: u32 = MAX_TO_ADD;
     const NUM_STEPS: u32 = 1000;
 
     proptest! {
@@ -344,6 +259,8 @@ mod tests {
         }
 
         #[test]
+        // TODO: Replace range with `(Bound::Excluded, Bound::Included)` when
+        //       available in `proptest`.
         fn fixed_happy_path(inv_delta in 0.0..MAX_DELTA) {
             let delta = MAX_DELTA - inv_delta;
             let mut accum = 0.0;
@@ -387,91 +304,6 @@ mod tests {
 
                 i = next_i;
             }
-
-            // for t in (0..).into_iter().step_by(to_rem as usize + 1).take(NUM_STEPS as usize) {
-            //     let i = t % (to_add + 1);
-
-            //     let x = i as f32 / (to_add + 1) as f32;
-
-            //     let adv = (i + to_rem + 1) / (to_add + 1);
-
-            //     assert_eq!(phase.current(), x);
-            //     assert_eq!(phase.advance_count(), adv);
-            // }
         }
-
-        #[test]
-        fn rational_handles_max_add(to_rem in 0u32..=MAX_TO_REM) {
-            let mut phase = Rational::<f32>::new(u32::MAX, to_rem);
-
-            assert!(NUM_STEPS < u32::MAX);
-
-            for i in (0..).into_iter().step_by(to_rem as usize + 1).take(NUM_STEPS as usize) {
-                let x = i as f32 / (u32::MAX as f32 + 1.0);
-
-                assert_eq!(phase.current(), x);
-                assert_eq!(phase.advance_count(), 0);
-            }
-        }
-
-        // #[test]
-        // fn rational_handles_max_rem(to_add in 1u32..=MAX_TO_ADD) {
-        //     let mut phase = Rational::<f32>::new(to_add, u32::MAX);
-
-        //     assert!(NUM_STEPS < u32::MAX);
-
-        //     let div = to_add + 1;
-
-        //     let mut q = 0;
-        //     for _ in 0..NUM_STEPS {
-        //         let x = q as f32 / (u32::MAX as f32 + 1.0);
-
-        //         let adv = (i + to_rem + 1) / (to_add + 1);
-
-        //         assert_eq!(phase.current(), x);
-        //         assert_eq!(phase.advance_count(), c);
-
-        //         q += u32::MAX as u64 + 1;
-        //     }
-        // }
-
-        // #[test]
-        // fn looper_happy_path(max in any::<u32>(), skip_extra in any::<u32>()) {
-        //     // We know that this is an edge case.
-        //     prop_assume!(max != 0 || skip_extra != u32::MAX);
-
-        //     let mut looper = NumLooper::new(max, skip_extra);
-
-        //     let mut expected_i = 0u128;
-        //     let div = max as u128 + 1;
-
-        //     for _ in 0..NUM_STEPS {
-        //         expected_i += skip_extra as u128 + 1;
-        //         let expected_num_loops = expected_i / div;
-        //         expected_i %= div;
-
-        //         assert_eq!(looper.advance() as u128, expected_num_loops);
-        //         assert_eq!(looper.i as u128, expected_i);
-        //     }
-        // }
     }
-
-    // #[test]
-    // #[should_panic]
-    // fn looper_min_max_fails() {
-    //     // Try to create a `NumLooper` with the smallest possible period and
-    //     // largest possible skip.
-    //     NumLooper::new(0, u32::MAX);
-    // }
-
-    // #[test]
-    // fn looper_simple() {
-    //     let mut looper = NumLooper::new(7, 13);
-
-    //     assert_eq!((looper.advance(), looper.i), (1, 6));
-    //     assert_eq!((looper.advance(), looper.i), (2, 4));
-    //     assert_eq!((looper.advance(), looper.i), (2, 2));
-    //     assert_eq!((looper.advance(), looper.i), (2, 0));
-    //     assert_eq!((looper.advance(), looper.i), (1, 6));
-    // }
 }
