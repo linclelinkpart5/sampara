@@ -55,7 +55,7 @@ where
     fn __current_unchecked(&self) -> F {
         // No unsafe behavior here, but need to keep the interface the same.
         if SQRT {
-            self.avg.apply(Float::sqrt)
+            self.avg.map(Float::sqrt)
         } else {
             self.avg
         }
@@ -567,7 +567,7 @@ mod tests {
                     });
                 }
 
-                exp.apply(Float::sqrt)
+                exp.map(Float::sqrt)
             };
 
             for frame in in_feed {

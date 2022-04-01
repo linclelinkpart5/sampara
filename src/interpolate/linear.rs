@@ -40,7 +40,7 @@ where
     type Frame = F;
 
     fn interpolate(&self, x: f64) -> Self::Frame {
-        self.left.zip_apply(self.right, |l, r| {
+        self.left.zip_map(self.right, |l, r| {
             let l_f = l.into_sample::<f64>();
             let r_f = r.into_sample::<f64>();
             let diff = r_f - l_f;

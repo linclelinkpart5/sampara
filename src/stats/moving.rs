@@ -140,7 +140,7 @@ where
     #[inline]
     fn __current(&self) -> B::Frame {
         let len_f = Sample::from_sample(self.__len() as f32);
-        let mut ret: B::Frame = self.sum.apply(|s| s / len_f);
+        let mut ret: B::Frame = self.sum.map(|s| s / len_f);
 
         if SQRT {
             ret.transform(Float::sqrt);

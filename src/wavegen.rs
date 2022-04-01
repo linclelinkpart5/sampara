@@ -131,7 +131,7 @@ where
             self.accum = self
                 .accum
                 .add_frame(self.stepper.step()?.into_signed_frame())
-                .apply(|x| x % X::one());
+                .map(|x| x % X::one());
         }
 
         Some(self.accum)
@@ -161,7 +161,7 @@ where
     /// }
     /// ```
     pub fn fixed_hz(rate: X, hz: F) -> Self {
-        Fixed(hz.apply(|x| x / rate)).into()
+        Fixed(hz.map(|x| x / rate)).into()
     }
 
     /// Creates a [`Phase`] with a constant [`Frame`] of time steps.
@@ -482,6 +482,6 @@ where
     fn next(&mut self) -> Option<Self::Frame> {
         self.phase
             .next()
-            .map(|x_phases| x_phases.apply(|x_phase| self.wave_func.calculate(x_phase)))
+            .map(|x_phases| x_phases.map(|x_phase| self.wave_func.calculate(x_phase)))
     }
 }

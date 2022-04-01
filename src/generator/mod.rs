@@ -116,7 +116,7 @@ where
         let phase = self
             .accum
             .add_frame(self.stepper.delta()?.into_signed_frame())
-            .apply(|x| x % 1.0);
+            .map(|x| x % 1.0);
 
         self.accum = phase;
         Some(phase)
@@ -143,7 +143,7 @@ pub fn fixed_hz<F, const N: usize>(rate: f64, hz: F) -> Phase<Fixed<F, N>, N>
 where
     F: Frame<N, Sample = f64>,
 {
-    Fixed(hz.apply(|x| x / rate)).phase()
+    Fixed(hz.map(|x| x / rate)).phase()
 }
 
 /// Creates a [`Phase`] with a constant [`Frame`] of deltas.
