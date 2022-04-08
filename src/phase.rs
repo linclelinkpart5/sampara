@@ -1,4 +1,5 @@
 use gcd::Gcd;
+use num_traits::AsPrimitive;
 use thiserror::Error;
 
 use crate::sample::FloatSample;
@@ -56,7 +57,7 @@ impl<X: FloatSample> Fixed<X> {
     }
 }
 
-impl<X: FloatSample> Phase for Fixed<X> {
+impl<X: FloatSample + AsPrimitive<u32>> Phase for Fixed<X> {
     type Step = X;
 
     fn advance_count(&mut self) -> u32 {
@@ -66,13 +67,12 @@ impl<X: FloatSample> Phase for Fixed<X> {
 
         self.accum = self.accum + self.delta;
 
-        let mut frames_to_adv = 0;
+        let trunc = self.accum.trunc();
+        let fract = self.accum.fract();
 
-        while self.accum >= X::one() {
-            self.accum = self.accum - X::one();
-            frames_to_adv += 1;
-        }
+        self.accum = fract;
 
+        let frames_to_adv = trunc.as_();
         frames_to_adv
     }
 
