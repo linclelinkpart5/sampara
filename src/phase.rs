@@ -189,7 +189,7 @@ impl<X: FloatSample> Phase for Rational<X> {
         self.i = adv_i % div;
         let num_loops = adv_i / div;
 
-        assert!(num_loops <= u32::MAX as u64);
+        debug_assert!(num_loops <= u32::MAX as u64);
 
         num_loops as u32
     }
@@ -304,6 +304,25 @@ mod tests {
 
                 i = next_i;
             }
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic]
+    fn rational_extreme_case_debug() {
+        let mut phase = Rational::<f32>::new(0, u32::MAX);
+        phase.advance_count();
+    }
+
+    #[cfg(not(debug_assertions))]
+    #[test]
+    fn rational_extreme_case_release() {
+        let mut phase = Rational::<f32>::new(0, u32::MAX);
+
+        for _ in 0..NUM_STEPS {
+            // Overflows.
+            assert_eq!(phase.advance_count(), 0);
         }
     }
 }
