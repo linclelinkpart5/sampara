@@ -1,5 +1,3 @@
-#![feature(array_methods, array_zip, iter_advance_by)]
-
 // These are defined first, as they contain macros used by later classes.
 pub mod stats;
 

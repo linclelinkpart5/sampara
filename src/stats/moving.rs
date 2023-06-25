@@ -241,9 +241,15 @@ where
     S: Sample,
 {
     fn push(&mut self, xs: [S; N]) -> [Diff; N] {
-        // Convert from mutable array ref to an array of mutable refs.
-        let frontiers = self.frontiers.each_mut();
-        let horizons = self.horizons.each_mut();
+        let mut diffs = [Diff::NoChange; N];
+
+        // Create the zipped iterator.
+        let iter = self
+            .frontiers
+            .iter_mut()
+            .zip(self.horizons.iter_mut())
+            .zip(xs.iter())
+            .zip(diffs.iter_mut());
 
         // Increment the cursor position.
         self.cursor_pos += 1;
@@ -253,7 +259,7 @@ where
         let cursor_pos = self.cursor_pos;
 
         // Process each channel in lockstep.
-        frontiers.zip(horizons).zip(xs).map(|((f, opt_h), x)| {
+        for (((f, opt_h), x), diff) in iter {
             // When pushing, there are four cases to handle:
             //
             // * Finding a new frontier extrema [EF].
@@ -274,24 +280,26 @@ where
 
             let (f_ext, f_pos) = f;
 
-            if surpasses::<_, MAX>(&x, f_ext) {
+            *diff = if surpasses::<_, MAX>(x, &&*f_ext) {
                 // Case [EF].
-                set_frontier(f, opt_h, x, cursor_pos)
+                set_frontier(f, opt_h, *x, cursor_pos)
             } else if let Some(h) = opt_h {
                 let (h_ext, _h_pos) = h;
 
-                if surpasses::<_, MAX>(&x, h_ext) {
+                if surpasses::<_, MAX>(x, &&*h_ext) {
                     // Case [EH].
-                    set_horizon(h, x, *f_pos, cursor_pos)
+                    set_horizon(h, *x, *f_pos, cursor_pos)
                 } else {
                     // Case [EN].
                     Diff::NoChange
                 }
             } else {
                 // Case [EI].
-                set_horizon_init(opt_h, x, *f_pos, cursor_pos, true)
-            }
-        })
+                set_horizon_init(opt_h, *x, *f_pos, cursor_pos, true)
+            };
+        }
+
+        diffs
     }
 
     fn push_pop<B>(&mut self, xs: [S; N], window: &Fixed<B, N>) -> [Diff; N]
@@ -299,9 +307,15 @@ where
         B: Buffer<N>,
         B::Frame: Frame<N, Sample = S>,
     {
-        // Convert from mutable array ref to an array of mutable refs.
-        let frontiers = self.frontiers.each_mut();
-        let horizons = self.horizons.each_mut();
+        let mut diffs = [Diff::NoChange; N];
+
+        // Create the zipped iterator.
+        let iter = self
+            .frontiers
+            .iter_mut()
+            .zip(self.horizons.iter_mut())
+            .zip(xs.iter())
+            .zip(diffs.iter_mut());
 
         // Temp var, since closure captures `self` mutably.
         // TODO: Remove once Rust 2021 lands, which should alleviate this need.
@@ -311,7 +325,7 @@ where
         let mut channel_idx = 0;
 
         // Process each channel in lockstep.
-        frontiers.zip(horizons).zip(xs).map(|((f, opt_h), x)| {
+        for (((f, opt_h), x), diff) in iter {
             // When push-and-popping, there are eight cases to handle:
             //
             // * Popping the frontier, finding a new frontier extrema [PFF].
@@ -362,14 +376,14 @@ where
                 *f_pos -= 1;
             }
 
-            if surpasses::<_, MAX>(&x, f_ext) {
+            *diff = if surpasses::<_, MAX>(x, &&*f_ext) {
                 // Case [PFF].
                 // Case [PNF].
-                set_frontier(f, opt_h, x, cursor_pos)
+                set_frontier(f, opt_h, *x, cursor_pos)
             } else if let Some(h) = opt_h {
                 let (h_ext, h_pos) = h;
 
-                match (is_f_pop, surpasses::<_, MAX>(&x, h_ext)) {
+                match (is_f_pop, surpasses::<_, MAX>(x, h_ext)) {
                     (false, false) => {
                         // Case [PNN].
                         Diff::NoChange
@@ -377,7 +391,7 @@ where
 
                     (false, true) => {
                         // Case [PNH].
-                        set_horizon(h, x, *f_pos, cursor_pos)
+                        set_horizon(h, *x, *f_pos, cursor_pos)
                     }
 
                     (true, false) => {
@@ -439,19 +453,21 @@ where
                         // new value arrives just in time to surpass the
                         // current horizon and snipe the promotion to
                         // frontier.
-                        set_frontier(f, opt_h, x, cursor_pos)
+                        set_frontier(f, opt_h, *x, cursor_pos)
                     }
                 }
             } else {
                 if is_f_pop {
                     // Case [PFI].
-                    set_frontier(f, opt_h, x, cursor_pos)
+                    set_frontier(f, opt_h, *x, cursor_pos)
                 } else {
                     // Case [PNI].
-                    set_horizon_init(opt_h, x, *f_pos, cursor_pos, true)
+                    set_horizon_init(opt_h, *x, *f_pos, cursor_pos, true)
                 }
-            }
-        })
+            };
+        }
+
+        diffs
     }
 }
 
@@ -1555,8 +1571,13 @@ mod tests {
     {
         iter.into_iter()
             .reduce(|sa, sb| {
-                sa.zip(sb)
-                    .map(|(a, b)| if surpasses::<_, MAX>(&a, &b) { a } else { b })
+                let mut ret = [0.0f32; 16];
+
+                for ((a, b), r) in sa.into_iter().zip(sb).zip(ret.iter_mut()) {
+                    *r = if surpasses::<_, MAX>(&a, &b) { a } else { b };
+                }
+
+                ret
             })
             .unwrap()
     }
