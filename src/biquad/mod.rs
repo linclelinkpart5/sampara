@@ -163,8 +163,44 @@ impl<X> Params<X>
 where
     X: FloatSample,
 {
-    pub fn from_kind(kind: Kind<X>, norm_freq: X, q_factor: X) -> Self {
+    fn from_kind(kind: Kind<X>, norm_freq: X, q_factor: X) -> Self {
         kind.into_params(norm_freq, q_factor)
+    }
+
+    pub fn new(a1: X, a2: X, b0: X, b1: X, b2: X) -> Self {
+        Self { a1, a2, b0, b1, b2 }
+    }
+
+    pub fn allpass(norm_freq: X, q_factor: X) -> Self {
+        Self::from_kind(Kind::Allpass, norm_freq, q_factor)
+    }
+
+    pub fn lowpass(norm_freq: X, q_factor: X) -> Self {
+        Self::from_kind(Kind::Lowpass, norm_freq, q_factor)
+    }
+
+    pub fn highpass(norm_freq: X, q_factor: X) -> Self {
+        Self::from_kind(Kind::Highpass, norm_freq, q_factor)
+    }
+
+    pub fn bandpass(norm_freq: X, q_factor: X) -> Self {
+        Self::from_kind(Kind::Bandpass, norm_freq, q_factor)
+    }
+
+    pub fn notch(norm_freq: X, q_factor: X) -> Self {
+        Self::from_kind(Kind::Notch, norm_freq, q_factor)
+    }
+
+    pub fn peak(norm_freq: X, q_factor: X, db_gain: X) -> Self {
+        Self::from_kind(Kind::Peak(db_gain), norm_freq, q_factor)
+    }
+
+    pub fn lowshelf(norm_freq: X, q_factor: X, db_gain: X) -> Self {
+        Self::from_kind(Kind::Lowshelf(db_gain), norm_freq, q_factor)
+    }
+
+    pub fn highshelf(norm_freq: X, q_factor: X, db_gain: X) -> Self {
+        Self::from_kind(Kind::Highshelf(db_gain), norm_freq, q_factor)
     }
 }
 
@@ -173,11 +209,11 @@ where
 ///
 /// ```
 /// use sampara::Processor;
-/// use sampara::biquad::{Kind, Params, Biquad};
+/// use sampara::biquad::{Params, Biquad};
 ///
 /// fn main() {
 ///     // Notch filter.
-///     let params = Params::from_kind(Kind::Notch, 0.25, 0.7071);
+///     let params = Params::notch(0.25, 0.7071);
 ///
 ///     let inputs = &[
 ///          0.00000,  0.97553,  0.29389, -0.79389,

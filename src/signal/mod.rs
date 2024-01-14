@@ -626,11 +626,11 @@ pub trait Signal<const N: usize> {
     ///
     /// ```
     /// use sampara::{signal, Signal};
-    /// use sampara::biquad::{Kind, Params};
+    /// use sampara::biquad::Params;
     ///
     /// fn main() {
     ///     // Notch filter.
-    ///     let params = Params::from_kind(Kind::Notch, 0.25, 0.7071);
+    ///     let params = Params::notch(0.25, 0.7071);
     ///
     ///     let input_signal = signal::from_frames(vec![
     ///          0.00000,  0.97553,  0.29389, -0.79389,
