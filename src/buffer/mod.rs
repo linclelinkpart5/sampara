@@ -8,13 +8,13 @@ pub trait Buffer<const N: usize>: AsRef<[Self::Frame]> + AsMut<[Self::Frame]> {
     type Frame: Frame<N>;
 }
 
-// Would love to be able to do this, but `I` is unconstrained.
-// impl<I, A> Buffer for A
+// Would love to be able to do this, but `F` is unconstrained.
+// impl<A, F, const N: usize> Buffer<N> for A
 // where
-//     I: Copy + PartialEq + Debug,
-//     A: AsRef<[Self::Item]> + AsMut<[Self::Item]>,
+//     F: Frame<N>,
+//     A: AsRef<[Self::Frame]> + AsMut<[Self::Frame]>,
 // {
-//     type Item = I;
+//     type Frame = F;
 // }
 
 impl<'a, F, const N: usize> Buffer<N> for &'a mut [F]
