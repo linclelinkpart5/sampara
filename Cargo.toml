@@ -1,0 +1,8 @@
+cargo-features = ["edition2024"]
+
+[package]
+edition = "2024"
+name = "sampara"
+version = "0.1.0"
+
+[dependencies]
