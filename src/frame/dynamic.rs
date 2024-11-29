@@ -10,14 +10,38 @@ impl<S: Sample> Dynamic<S> {
         self.0
     }
 
-    pub fn extend(&mut self, new_len: usize) {
-        if self.len() < new_len {
+    pub fn resize(&mut self, new_len: usize, s: S) {
+        self.resize_with(new_len, || s);
+    }
+
+    pub fn resize_with<F>(&mut self, new_len: usize, f: F)
+    where
+        F: FnMut() -> S,
+    {
+        if self.len() != new_len {
             let mut contents: Box<[S]> = Box::new([]);
             core::mem::swap(&mut contents, &mut self.0);
 
             let mut v = Vec::from(contents);
 
-            v.resize(new_len, S::EQUILIBRIUM);
+            v.resize_with(new_len, f);
+
+            let mut contents: Box<[S]> = v.into_boxed_slice();
+            core::mem::swap(&mut contents, &mut self.0);
+        }
+    }
+
+    pub fn truncate<F>(&mut self, new_len: usize)
+    where
+        F: FnMut() -> S,
+    {
+        if self.len() > new_len {
+            let mut contents: Box<[S]> = Box::new([]);
+            core::mem::swap(&mut contents, &mut self.0);
+
+            let mut v = Vec::from(contents);
+
+            v.truncate(new_len);
 
             let mut contents: Box<[S]> = v.into_boxed_slice();
             core::mem::swap(&mut contents, &mut self.0);
@@ -116,20 +140,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn extend() {
+    fn resize() {
         let mut f: Dynamic<i8> = Dynamic::from([-30, -10, 10, 30]);
 
         let contents = f.iter().copied().collect::<Vec<_>>();
         assert_eq!(contents, &[-30, -10, 10, 30]);
 
-        f.extend(2);
+        f.resize(2, -128);
 
         let contents = f.iter().copied().collect::<Vec<_>>();
-        assert_eq!(contents, &[-30, -10, 10, 30]);
+        assert_eq!(contents, &[-30, -10]);
 
-        f.extend(8);
+        let mut f: Dynamic<i8> = Dynamic::from([-30, -10, 10, 30]);
+
+        f.resize(8, -128);
 
         let contents = f.iter().copied().collect::<Vec<_>>();
-        assert_eq!(contents, &[-30, -10, 10, 30, 0, 0, 0, 0]);
+        assert_eq!(contents, &[-30, -10, 10, 30, -128, -128, -128, -128]);
     }
 }
