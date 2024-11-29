@@ -1,3 +1,7 @@
+mod conv;
+
+pub use self::conv::FromSample;
+
 use core::fmt::Debug;
 
 use num_traits::{Float, FloatConst, Signed};
