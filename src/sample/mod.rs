@@ -1,6 +1,6 @@
 mod conv;
 
-pub use self::conv::FromSample;
+pub use self::conv::{FromSample, IntoSample};
 
 use core::fmt::Debug;
 

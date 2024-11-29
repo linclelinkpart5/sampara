@@ -243,5 +243,43 @@ many_to_many!(conv_f_to_i, [f32, f64] => [i8, i16, i32, i64, i128]);
 // `fX` -> `uY`
 many_to_many!(conv_f_to_u, [f32, f64] => [u8, u16, u32, u64, u128]);
 
+pub trait IntoSample<S>
+where
+    S: Sample,
+{
+    /// Convert [`Self`] into another [`Sample`] type. This is analogous
+    /// to [`std::convert::Into`], but is intended for preserving the same
+    /// represented amplitude between sample types.
+    ///
+    /// This trait has a blanket implementation for all types that implement
+    /// [`FromSample`].
+    ///
+    /// ```
+    /// use sampara::{Sample, IntoSample};
+    ///
+    /// fn main() {
+    ///     let s: i8 = 0.0f32.into_sample();
+    ///     assert_eq!(s, 0);
+    ///
+    ///     let s: u8 = 0.0f32.into_sample();
+    ///     assert_eq!(s, 128);
+    ///
+    ///     let s: f32 = 255u8.into_sample();
+    ///     assert_eq!(s, 0.9921875);
+    /// }
+    /// ```
+    fn into_sample(self) -> S;
+}
+
+impl<T, U> IntoSample<U> for T
+where
+    T: Sample,
+    U: FromSample<T> + Sample,
+{
+    fn into_sample(self) -> U {
+        U::from_sample(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {}
