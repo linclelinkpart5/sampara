@@ -1,6 +1,9 @@
 mod dynamic;
 mod fixed;
 
+pub use self::dynamic::Dynamic;
+pub use self::fixed::Fixed;
+
 use std::fmt::Debug;
 
 use crate::sample::Sample;
