@@ -1,3 +1,6 @@
+mod dynamic;
+mod fixed;
+
 use std::fmt::Debug;
 
 use crate::sample::Sample;
