@@ -216,32 +216,42 @@ macro_rules! many_to_many {
     };
 }
 
-// `iX` -> `iY`
-many_to_many!(conv_i_to_i, [i8, i16, i32, i64, i128] => [i8, i16, i32, i64, i128]);
+macro_rules! define_conversions {
+    (i: [$($Ix:ty),+], u: [$($Ux:ty),+], f: [$($Fx:ty),+]) => {
+        // `iX` -> `iY`
+        many_to_many!(conv_i_to_i, [$($Ix),+] => [$($Ix),+]);
 
-// `iX` -> `uY`
-many_to_many!(conv_i_to_u, [i8, i16, i32, i64, i128] => [u8, u16, u32, u64, u128]);
+        // `iX` -> `uY`
+        many_to_many!(conv_i_to_u, [$($Ix),+] => [$($Ux),+]);
 
-// `uX` -> `iY`
-many_to_many!(conv_u_to_i, [u8, u16, u32, u64, u128] => [i8, i16, i32, i64, i128]);
+        // `uX` -> `iY`
+        many_to_many!(conv_u_to_i, [$($Ux),+] => [$($Ix),+]);
 
-// `uX` -> `uY`
-many_to_many!(conv_u_to_u, [u8, u16, u32, u64, u128] => [u8, u16, u32, u64, u128]);
+        // `uX` -> `uY`
+        many_to_many!(conv_u_to_u, [$($Ux),+] => [$($Ux),+]);
 
-// `fX` -> `fY`
-many_to_many!(conv_f_to_f, [f32, f64] => [f32, f64]);
+        // `fX` -> `fY`
+        many_to_many!(conv_f_to_f, [$($Fx),+] => [$($Fx),+]);
 
-// `iX` -> `fY`
-many_to_many!(conv_i_to_f, [i8, i16, i32, i64, i128] => [f32, f64]);
+        // `iX` -> `fY`
+        many_to_many!(conv_i_to_f, [$($Ix),+] => [$($Fx),+]);
 
-// `uX` -> `fY`
-many_to_many!(conv_u_to_f, [u8, u16, u32, u64, u128] => [f32, f64]);
+        // `uX` -> `fY`
+        many_to_many!(conv_u_to_f, [$($Ux),+] => [$($Fx),+]);
 
-// `fX` -> `iY`
-many_to_many!(conv_f_to_i, [f32, f64] => [i8, i16, i32, i64, i128]);
+        // `fX` -> `iY`
+        many_to_many!(conv_f_to_i, [$($Fx),+] => [$($Ix),+]);
 
-// `fX` -> `uY`
-many_to_many!(conv_f_to_u, [f32, f64] => [u8, u16, u32, u64, u128]);
+        // `fX` -> `uY`
+        many_to_many!(conv_f_to_u, [$($Fx),+] => [$($Ux),+]);
+    };
+}
+
+define_conversions!(
+    i: [i8, i16, i32, i64, i128],
+    u: [u8, u16, u32, u64, u128],
+    f: [f32, f64]
+);
 
 pub trait IntoSample<S>
 where
