@@ -35,6 +35,9 @@ where
     ///
     ///     let s: f32 = FromSample::from_sample(255u8);
     ///     assert_eq!(s, 0.9921875);
+    ///
+    ///     let s: f64 = FromSample::from_sample(1i128);
+    ///     assert_eq!(s, 5.877471754111438e-39);
     /// }
     /// ```
     fn from_sample(s: S) -> Self;
@@ -124,18 +127,16 @@ macro_rules! conv_u_to_i {
                 const N: u32 = <$U_N>::BITS;
                 const M: u32 = <$I_M>::BITS;
 
-                const ORIGIN: $U_N = (1 as $U_N).rotate_right(1);
-
                 if N > M {
                     <$I_M>::from_sample(<$I_M as Unsigned>::Unsigned::from_sample(s))
                 } else if N == M {
-                    if s < ORIGIN {
+                    if s < <$U_N>::EQUILIBRIUM {
                         (s as $I_M) - <$I_M>::MAX - 1
                     } else {
-                        (s - ORIGIN) as $I_M
+                        (s - <$U_N>::EQUILIBRIUM) as $I_M
                     }
                 } else {
-                    ((s as $I_M) - (ORIGIN as $I_M)) << (M - N)
+                    ((s as $I_M) - (<$U_N>::EQUILIBRIUM as $I_M)) << (M - N)
                 }
             }
         }
@@ -276,6 +277,9 @@ where
     ///
     ///     let s: f32 = 255u8.into_sample();
     ///     assert_eq!(s, 0.9921875);
+    ///
+    ///     let s: f64 = 1i128.into_sample();
+    ///     assert_eq!(s, 5.877471754111438e-39);
     /// }
     /// ```
     fn into_sample(self) -> S;
