@@ -9,11 +9,43 @@ impl<S: Sample> Dynamic<S> {
     pub fn into_boxed_slice(self) -> Box<[S]> {
         self.0
     }
+
+    pub fn extend(&mut self, new_len: usize) {
+        if self.len() < new_len {
+            let mut contents: Box<[S]> = Box::new([]);
+            core::mem::swap(&mut contents, &mut self.0);
+
+            let mut v = Vec::from(contents);
+
+            v.resize(new_len, S::EQUILIBRIUM);
+
+            let mut contents: Box<[S]> = v.into_boxed_slice();
+            core::mem::swap(&mut contents, &mut self.0);
+        }
+    }
 }
 
 impl<S: Sample> Default for Dynamic<S> {
     fn default() -> Self {
         Self(Box::new([]))
+    }
+}
+
+impl<S: Sample> From<Vec<S>> for Dynamic<S> {
+    fn from(value: Vec<S>) -> Self {
+        Self(value.into_boxed_slice())
+    }
+}
+
+impl<S: Sample> From<Box<[S]>> for Dynamic<S> {
+    fn from(value: Box<[S]>) -> Self {
+        Self(value)
+    }
+}
+
+impl<S: Sample, const N: usize> From<[S; N]> for Dynamic<S> {
+    fn from(value: [S; N]) -> Self {
+        Self(value.to_vec().into_boxed_slice())
     }
 }
 
