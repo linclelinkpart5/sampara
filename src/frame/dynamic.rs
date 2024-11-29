@@ -110,3 +110,26 @@ impl<S: Sample> DoubleEndedIterator for IntoIter<S> {
         self.0.next_back()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extend() {
+        let mut f: Dynamic<i8> = Dynamic::from([-30, -10, 10, 30]);
+
+        let contents = f.iter().copied().collect::<Vec<_>>();
+        assert_eq!(contents, &[-30, -10, 10, 30]);
+
+        f.extend(2);
+
+        let contents = f.iter().copied().collect::<Vec<_>>();
+        assert_eq!(contents, &[-30, -10, 10, 30]);
+
+        f.extend(8);
+
+        let contents = f.iter().copied().collect::<Vec<_>>();
+        assert_eq!(contents, &[-30, -10, 10, 30, 0, 0, 0, 0]);
+    }
+}
