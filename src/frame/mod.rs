@@ -8,16 +8,16 @@ use std::fmt::Debug;
 
 use crate::sample::Sample;
 
-pub trait Frame<S: Sample>: Clone + PartialEq + Debug + Default + IntoIterator<Item = S> {
-    type Sample: Sample = S;
+pub trait Frame: Clone + PartialEq + Debug + Default + IntoIterator<Item = Self::Sample> {
+    type Sample: Sample;
 
-    fn get(&self, channel: usize) -> Option<&S>;
+    fn get(&self, channel: usize) -> Option<&Self::Sample>;
 
-    fn get_mut(&mut self, channel: usize) -> Option<&mut S>;
+    fn get_mut(&mut self, channel: usize) -> Option<&mut Self::Sample>;
 
-    fn iter(&self) -> Iter<'_, S>;
+    fn iter(&self) -> Iter<'_, Self::Sample>;
 
-    fn iter_mut(&mut self) -> IterMut<'_, S>;
+    fn iter_mut(&mut self) -> IterMut<'_, Self::Sample>;
 
     fn len(&self) -> usize;
 }

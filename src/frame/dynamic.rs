@@ -73,7 +73,9 @@ impl<S: Sample, const N: usize> From<[S; N]> for Dynamic<S> {
     }
 }
 
-impl<S: Sample> Frame<S> for Dynamic<S> {
+impl<S: Sample> Frame for Dynamic<S> {
+    type Sample = S;
+
     fn get(&self, channel: usize) -> Option<&S> {
         self.0.get(channel)
     }

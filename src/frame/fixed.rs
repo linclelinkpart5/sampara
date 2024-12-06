@@ -19,7 +19,9 @@ impl<S: Sample, const N: usize> Default for Fixed<S, N> {
     }
 }
 
-impl<S: Sample, const N: usize> Frame<S> for Fixed<S, N> {
+impl<S: Sample, const N: usize> Frame for Fixed<S, N> {
+    type Sample = S;
+
     fn get(&self, channel: usize) -> Option<&S> {
         self.0.get(channel)
     }
