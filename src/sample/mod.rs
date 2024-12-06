@@ -25,6 +25,90 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq + Debug {
     /// represents the [`Sample`] type to convert to for optimal/lossless
     /// multiplication.
     type Float: FloatSample; // + Duplex<Self>;
+
+    /// Adds/offsets the amplitude of this [`Sample`] by a signed amplitude.
+    ///
+    /// This value will be converted into [`Self::Signed`], then added. The
+    /// result will then be converted back into [`Self`]. This double conversion
+    /// is to correctly handle the addition of unsigned signal formats.
+    ///
+    /// ```
+    /// use sampara::Sample;
+    ///
+    /// fn main() {
+    ///     assert_eq!(192i16.add_amp(-128), 64);
+    ///     assert_eq!(0.25f32.add_amp(0.5), 0.75);
+    /// }
+    /// ```
+    #[inline]
+    fn add_amp(self, amp: Self) -> Self
+    where
+        Self: SignedSample,
+    {
+        self + amp
+    }
+
+    /// Subtracts/offsets the amplitude of this [`Sample`] by a signed amplitude.
+    ///
+    /// This value will be converted into [`Self::Signed`], then subtracted. The
+    /// result will then be converted back into [`Self`]. This double conversion
+    /// is to correctly handle the subtraction of unsigned signal formats.
+    ///
+    /// ```
+    /// use sampara::Sample;
+    ///
+    /// fn main() {
+    ///     assert_eq!(192i16.sub_amp(-128), 320);
+    ///     assert_eq!(0.25f32.sub_amp(0.5), -0.25);
+    /// }
+    /// ```
+    #[inline]
+    fn sub_amp(self, amp: Self) -> Self
+    where
+        Self: SignedSample,
+    {
+        self - amp
+    }
+
+    /// Multiplies/scales the amplitude of this [`Sample`] by a float amplitude.
+    ///
+    /// ```
+    /// use sampara::Sample;
+    ///
+    /// fn main() {
+    ///     assert_eq!(0.4f32.mul_amp(0.5), 0.2);
+    ///     assert_eq!(0.5f64.mul_amp(-2.0), -1.0);
+    ///     assert_eq!(0.5f32.mul_amp(0.0), 0.0);
+    ///     assert_eq!(0.5f32.mul_amp(1.0), 0.5);
+    /// }
+    /// ```
+    #[inline]
+    fn mul_amp(self, amp: Self) -> Self
+    where
+        Self: FloatSample,
+    {
+        self * amp
+    }
+
+    /// Divides/scales the amplitude of this [`Sample`] by a float amplitude.
+    ///
+    /// ```
+    /// use sampara::Sample;
+    ///
+    /// fn main() {
+    ///     assert_eq!(0.4f32.div_amp(0.5), 0.8);
+    ///     assert_eq!(0.5f64.div_amp(-2.0), -0.25);
+    ///     assert!(0.5f32.div_amp(0.0).is_infinite());
+    ///     assert_eq!(0.5f32.div_amp(1.0), 0.5);
+    /// }
+    /// ```
+    #[inline]
+    fn div_amp(self, amp: Self) -> Self
+    where
+        Self: FloatSample,
+    {
+        self / amp
+    }
 }
 
 /// A macro used to simplify the implementation of [`Sample`].
