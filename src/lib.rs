@@ -1,5 +1,6 @@
 #![feature(associated_type_defaults)]
 
+pub mod biquad;
 pub mod frame;
 pub mod sample;
 
