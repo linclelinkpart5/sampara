@@ -64,10 +64,6 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq + Debug {
 
     /// Adds/offsets the amplitude of this [`Sample`] by a signed amplitude.
     ///
-    /// This value will be converted into [`Self::Signed`], then added. The
-    /// result will then be converted back into [`Self`]. This double conversion
-    /// is to correctly handle the addition of unsigned signal formats.
-    ///
     /// ```
     /// use sampara::Sample;
     ///
@@ -85,10 +81,6 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq + Debug {
     }
 
     /// Subtracts/offsets the amplitude of this [`Sample`] by a signed amplitude.
-    ///
-    /// This value will be converted into [`Self::Signed`], then subtracted. The
-    /// result will then be converted back into [`Self`]. This double conversion
-    /// is to correctly handle the subtraction of unsigned signal formats.
     ///
     /// ```
     /// use sampara::Sample;
