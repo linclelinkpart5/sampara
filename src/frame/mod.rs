@@ -4,7 +4,7 @@ mod fixed;
 pub use self::dynamic::Dynamic;
 pub use self::fixed::Fixed;
 
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use crate::sample::Sample;
 
