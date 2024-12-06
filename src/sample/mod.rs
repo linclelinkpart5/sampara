@@ -18,13 +18,13 @@ pub trait Sample: Copy + Clone + PartialOrd + PartialEq + Debug {
     /// both temporarily into some mutual signed format. This associated type
     /// represents the [`Sample`] type to convert to for optimal/lossless
     /// addition.
-    type Signed: SignedSample; // + Duplex<Self>;
+    type Signed: SignedSample + FromSample<Self>;
 
     /// When multiplying two [`Sample`]s together, it is necessary to convert
     /// both temporarily into some mutual float format. This associated type
     /// represents the [`Sample`] type to convert to for optimal/lossless
     /// multiplication.
-    type Float: FloatSample; // + Duplex<Self>;
+    type Float: FloatSample + FromSample<Self>;
 
     /// Adds/offsets the amplitude of this [`Sample`] by a signed amplitude.
     ///
