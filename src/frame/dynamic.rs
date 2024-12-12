@@ -1,3 +1,6 @@
+use std::alloc::Global;
+use std::ptr::NonNull;
+
 use crate::sample::Sample;
 
 use crate::frame::{Frame, Iter, IterMut};
@@ -75,6 +78,13 @@ impl<S: Sample, const N: usize> From<[S; N]> for Dynamic<S> {
 
 impl<S: Sample> Frame for Dynamic<S> {
     type Sample = S;
+
+    const EQUILIBRIUM: Self = unsafe {
+        Self(Box::from_raw_in(
+            NonNull::<[S; 0]>::dangling().as_ptr(),
+            Global,
+        ))
+    };
 
     fn get(&self, channel: usize) -> Option<&S> {
         self.0.get(channel)
@@ -159,5 +169,31 @@ mod tests {
 
         let contents = f.iter().copied().collect::<Vec<_>>();
         assert_eq!(contents, &[-30, -10, 10, 30, -128, -128, -128, -128]);
+    }
+
+    #[test]
+    fn empty_identites() {
+        let fs: Vec<Dynamic<i8>> = vec![
+            Dynamic::EQUILIBRIUM,
+            Dynamic::default(),
+            Dynamic::from(vec![]),
+            Dynamic::from(vec![].into_boxed_slice()),
+            Dynamic::from([]),
+        ];
+
+        let xs = fs.iter();
+        let ys = fs.iter();
+        for (x, y) in ys.flat_map(|y| xs.clone().map(move |x| (x, y))) {
+            assert_eq!(x, y);
+        }
+
+        let mut f: Dynamic<i8> = Dynamic::EQUILIBRIUM;
+
+        f.resize(1, 0);
+
+        assert_eq!(Dynamic::<i8>::EQUILIBRIUM.len(), 0);
+        assert_eq!(f.len(), 1);
+
+        println!("{:?}", Dynamic::<i8>::EQUILIBRIUM);
     }
 }

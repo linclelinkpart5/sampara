@@ -11,6 +11,8 @@ use crate::sample::Sample;
 pub trait Frame: Clone + PartialEq + Debug + Default + IntoIterator<Item = Self::Sample> {
     type Sample: Sample;
 
+    const EQUILIBRIUM: Self;
+
     fn get(&self, channel: usize) -> Option<&Self::Sample>;
 
     fn get_mut(&mut self, channel: usize) -> Option<&mut Self::Sample>;

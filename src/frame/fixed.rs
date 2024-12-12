@@ -6,8 +6,6 @@ use crate::frame::{Frame, Iter, IterMut};
 pub struct Fixed<S: Sample, const N: usize>([S; N]);
 
 impl<S: Sample, const N: usize> Fixed<S, N> {
-    pub const EQUILIBRIUM: Self = Fixed([S::EQUILIBRIUM; N]);
-
     pub fn into_array(self) -> [S; N] {
         self.0
     }
@@ -21,6 +19,8 @@ impl<S: Sample, const N: usize> Default for Fixed<S, N> {
 
 impl<S: Sample, const N: usize> Frame for Fixed<S, N> {
     type Sample = S;
+
+    const EQUILIBRIUM: Self = Fixed([S::EQUILIBRIUM; N]);
 
     fn get(&self, channel: usize) -> Option<&S> {
         self.0.get(channel)
