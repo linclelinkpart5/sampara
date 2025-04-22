@@ -79,12 +79,9 @@ impl<S: Sample, const N: usize> From<[S; N]> for Dynamic<S> {
 impl<S: Sample> Frame for Dynamic<S> {
     type Sample = S;
 
-    const EQUILIBRIUM: Self = unsafe {
-        Self(Box::from_raw_in(
-            NonNull::<[S; 0]>::dangling().as_ptr(),
-            Global,
-        ))
-    };
+    fn equil() -> Self {
+        Self(Box::new([]))
+    }
 
     fn get(&self, channel: usize) -> Option<&S> {
         self.0.get(channel)
@@ -94,11 +91,11 @@ impl<S: Sample> Frame for Dynamic<S> {
         self.0.get_mut(channel)
     }
 
-    fn iter(&self) -> Iter<'_, S> {
+    fn iter(&self) -> impl Iterator<Item = &Self::Sample> {
         Iter(self.0.iter())
     }
 
-    fn iter_mut(&mut self) -> IterMut<'_, S> {
+    fn iter_mut(&mut self) -> impl Iterator<Item = &mut Self::Sample> {
         IterMut(self.0.iter_mut())
     }
 
@@ -174,7 +171,7 @@ mod tests {
     #[test]
     fn empty_identites() {
         let fs: Vec<Dynamic<i8>> = vec![
-            Dynamic::EQUILIBRIUM,
+            Dynamic::equil(),
             Dynamic::default(),
             Dynamic::from(vec![]),
             Dynamic::from(vec![].into_boxed_slice()),
@@ -187,13 +184,13 @@ mod tests {
             assert_eq!(x, y);
         }
 
-        let mut f: Dynamic<i8> = Dynamic::EQUILIBRIUM;
+        let mut f: Dynamic<i8> = Dynamic::equil();
 
         f.resize(1, 0);
 
-        assert_eq!(Dynamic::<i8>::EQUILIBRIUM.len(), 0);
+        assert_eq!(Dynamic::<i8>::equil().len(), 0);
         assert_eq!(f.len(), 1);
 
-        println!("{:?}", Dynamic::<i8>::EQUILIBRIUM);
+        println!("{:?}", Dynamic::<i8>::equil());
     }
 }

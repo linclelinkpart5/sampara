@@ -6,6 +6,8 @@ use crate::frame::{Frame, Iter, IterMut};
 pub struct Fixed<S: Sample, const N: usize>([S; N]);
 
 impl<S: Sample, const N: usize> Fixed<S, N> {
+    const EQUILIBRIUM: Self = Fixed([S::EQUILIBRIUM; N]);
+
     pub fn into_array(self) -> [S; N] {
         self.0
     }
@@ -20,7 +22,9 @@ impl<S: Sample, const N: usize> Default for Fixed<S, N> {
 impl<S: Sample, const N: usize> Frame for Fixed<S, N> {
     type Sample = S;
 
-    const EQUILIBRIUM: Self = Fixed([S::EQUILIBRIUM; N]);
+    fn equil() -> Self {
+        Self::EQUILIBRIUM
+    }
 
     fn get(&self, channel: usize) -> Option<&S> {
         self.0.get(channel)
@@ -30,11 +34,11 @@ impl<S: Sample, const N: usize> Frame for Fixed<S, N> {
         self.0.get_mut(channel)
     }
 
-    fn iter(&self) -> Iter<'_, S> {
+    fn iter(&self) -> impl Iterator<Item = &Self::Sample> {
         Iter(self.0.iter())
     }
 
-    fn iter_mut(&mut self) -> IterMut<'_, S> {
+    fn iter_mut(&mut self) -> impl Iterator<Item = &mut Self::Sample> {
         IterMut(self.0.iter_mut())
     }
 

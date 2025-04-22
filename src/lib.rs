@@ -1,6 +1,5 @@
 #![feature(associated_type_defaults)]
 #![feature(allocator_api)]
-#![feature(const_box)]
 
 pub mod biquad;
 pub mod frame;

@@ -11,15 +11,15 @@ use crate::sample::Sample;
 pub trait Frame: Clone + PartialEq + Debug + Default + IntoIterator<Item = Self::Sample> {
     type Sample: Sample;
 
-    const EQUILIBRIUM: Self;
+    fn equil() -> Self;
 
     fn get(&self, channel: usize) -> Option<&Self::Sample>;
 
     fn get_mut(&mut self, channel: usize) -> Option<&mut Self::Sample>;
 
-    fn iter(&self) -> Iter<'_, Self::Sample>;
+    fn iter(&self) -> impl Iterator<Item = &Self::Sample>;
 
-    fn iter_mut(&mut self) -> IterMut<'_, Self::Sample>;
+    fn iter_mut(&mut self) -> impl Iterator<Item = &mut Self::Sample>;
 
     fn len(&self) -> usize;
 }
