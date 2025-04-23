@@ -1,4 +1,4 @@
-use crate::{frame::Frame, sample::FloatSample};
+use crate::sample::FloatSample;
 
 /// Coefficients for a digital biquad filter.
 ///
@@ -19,47 +19,45 @@ where
     pub a2: X,
 }
 
-pub struct Biquad<F>
+pub struct Biquad<S>
 where
-    F: Frame,
-    F::Sample: FloatSample,
+    S: FloatSample,
 {
-    coeffs: Coefficients<F::Sample>,
+    coeffs: Coefficients<S>,
 
     // Since biquad filters are second-order, we require two historical buffers.
     // This state is updated each time the filter is applied to a frame.
-    t0: F,
-    t1: F,
+    t0: S,
+    t1: S,
 }
 
-impl<F> Biquad<F>
+impl<S> Biquad<S>
 where
-    F: Frame,
-    F::Sample: FloatSample,
+    S: FloatSample,
 {
     pub fn reset(&mut self) {
-        self.t0 = Frame::equil();
-        self.t1 = Frame::equil();
+        self.t0 = S::EQUILIBRIUM;
+        self.t1 = S::EQUILIBRIUM;
     }
 
-    // pub fn process(&mut self, input: F) -> F {
-    //     // Calculate scaled inputs.
-    //     let input_by_b0 = input.mul_amp(self.coeffs.b0).into_signed_frame();
-    //     let input_by_b1 = input.mul_amp(self.coeffs.b1).into_signed_frame();
-    //     let input_by_b2 = input.mul_amp(self.coeffs.b2);
+    pub fn process(&mut self, input: S) -> S {
+        // Calculate scaled inputs.
+        let input_by_b0 = input * self.coeffs.b0;
+        let input_by_b1 = input * self.coeffs.b1;
+        let input_by_b2 = input * self.coeffs.b2;
 
-    //     // This is the new filtered frame.
-    //     let output: F = self.t0.add_frame(input_by_b0);
+        // This is the new filtered frame.
+        let output: S = self.t0 + input_by_b0;
 
-    //     // Calculate scaled outputs.
-    //     // NOTE: Negative signs on the scaling factors for these.
-    //     let output_by_neg_a1 = output.mul_amp(-self.coeffs.a1).into_signed_frame();
-    //     let output_by_neg_a2 = output.mul_amp(-self.coeffs.a2).into_signed_frame();
+        // Calculate scaled outputs.
+        // NOTE: Negative signs on the scaling factors for these.
+        let output_by_neg_a1 = output * -self.coeffs.a1;
+        let output_by_neg_a2 = output * -self.coeffs.a2;
 
-    //     // Update buffers.
-    //     self.t0 = self.t1.add_frame(input_by_b1).add_frame(output_by_neg_a1);
-    //     self.t1 = input_by_b2.add_frame(output_by_neg_a2);
+        // Update buffers.
+        self.t0 = self.t1 + input_by_b1 + output_by_neg_a1;
+        self.t1 = input_by_b2 + output_by_neg_a2;
 
-    //     output
-    // }
+        output
+    }
 }
