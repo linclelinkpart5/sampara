@@ -3,6 +3,7 @@
 pub mod biquad;
 pub mod frame;
 pub mod sample;
+pub mod stats;
 
 pub use sample::{FromSample, IntoSample, Sample};
 
