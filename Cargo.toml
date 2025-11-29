@@ -5,3 +5,7 @@ version = "0.1.0"
 
 [dependencies]
 num-traits = { version = "0.2", features = ["libm"] }
+
+[dev-dependencies]
+approx = "0.5"
+proptest = "1"
