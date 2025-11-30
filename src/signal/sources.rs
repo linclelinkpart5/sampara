@@ -1,4 +1,4 @@
-use crate::{frame::{Fixed, Frame}, sample::Sample, signal::Signal};
+use crate::{frame::{Dynamic, Fixed, Frame}, sample::Sample, signal::Signal};
 
 /// A [`Signal`] that yields [`Frame`]s by calling a closure for each iteration.
 /// This closure should return [`Option<Frame>`].
@@ -57,5 +57,25 @@ where
     #[inline]
     fn next(&mut self) -> Option<Self::Frame> {
         Fixed::from_samples(&mut self.0)
+    }
+}
+
+/// A [`Signal`] that is powered by an underlying [`Iterator`] that yields
+/// [`Sample`]s. This [`Signal`] yields fixed-size [`Frame`]s.
+pub struct FromSamplesDynamic<I>(pub(super) I, pub(super) usize)
+where
+    I: Iterator,
+    I::Item: Sample;
+
+impl<I> Signal for FromSamplesDynamic<I>
+where
+    I: Iterator,
+    I::Item: Sample,
+{
+    type Frame = Dynamic<I::Item>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Frame> {
+        Dynamic::from_samples(&mut self.0, self.1)
     }
 }
