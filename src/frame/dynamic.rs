@@ -47,6 +47,16 @@ impl<S: Sample> Dynamic<S> {
             core::mem::swap(&mut contents, &mut self.0);
         }
     }
+
+    pub fn from_samples<I: Iterator<Item = S>>(iter: &mut I, n: usize) -> Option<Self> {
+        let mut samples = vec![S::EQUILIBRIUM; n];
+
+        for sample in samples.iter_mut() {
+            *sample = iter.next()?;
+        }
+
+        Some(Dynamic(samples.into_boxed_slice()))
+    }
 }
 
 impl<S: Sample> Default for Dynamic<S> {
