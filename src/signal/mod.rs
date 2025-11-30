@@ -1,3 +1,6 @@
+mod adapters;
+mod sources;
+
 use crate::frame::Frame;
 
 /// Types that yield a sequence of [`Frame`]s, representing an audio signal.
