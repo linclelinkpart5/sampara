@@ -11,6 +11,16 @@ impl<S: Sample, const N: usize> Fixed<S, N> {
     pub fn into_array(self) -> [S; N] {
         self.0
     }
+
+    pub fn from_samples<I: Iterator<Item = S>>(iter: &mut I) -> Option<Self> {
+        let mut samples = [S::EQUILIBRIUM; N];
+
+        for sample in samples.iter_mut() {
+            *sample = iter.next()?;
+        }
+
+        Some(Fixed(samples))
+    }
 }
 
 impl<S: Sample, const N: usize> Default for Fixed<S, N> {
