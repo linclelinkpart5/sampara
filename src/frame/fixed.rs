@@ -29,6 +29,12 @@ impl<S: Sample, const N: usize> Default for Fixed<S, N> {
     }
 }
 
+impl<S: Sample, const N: usize> From<[S; N]> for Fixed<S, N> {
+    fn from(array: [S; N]) -> Self {
+        Fixed(array)
+    }
+}
+
 impl<S: Sample, const N: usize> Frame for Fixed<S, N> {
     type Sample = S;
 

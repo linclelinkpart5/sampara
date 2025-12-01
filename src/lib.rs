@@ -7,6 +7,7 @@ pub mod signal;
 pub mod stats;
 
 pub use sample::{FromSample, IntoSample, Sample};
+pub use signal::Signal;
 
 #[cfg(test)]
 mod tests {}

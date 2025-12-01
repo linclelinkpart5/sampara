@@ -1,4 +1,6 @@
-use crate::{frame::{Dynamic, Fixed, Frame}, sample::Sample, signal::Signal};
+use crate::frame::{Dynamic, Fixed, Frame};
+use crate::sample::Sample;
+use crate::signal::Signal;
 
 /// A [`Signal`] that yields [`Frame`]s by calling a closure for each iteration.
 /// This closure should return [`Option<Frame>`].

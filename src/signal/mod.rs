@@ -1,7 +1,7 @@
 mod adapters;
 mod sources;
 
-use crate::frame::Frame;
+use crate::{Sample, frame::Frame, signal::sources::{FromFn, FromFrames, FromSamplesDynamic, FromSamplesFixed}};
 
 /// Types that yield a sequence of [`Frame`]s, representing an audio signal.
 ///
@@ -96,4 +96,165 @@ pub trait Signal {
 
         Ok(())
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/*                            MODULE-LEVEL_METHODS                            */
+////////////////////////////////////////////////////////////////////////////////
+
+/// Creates a new [`Signal`] where each [`Frame`] is yielded by calling a given
+/// closure that produces a [`Option<Frame>`] for each iteration.
+///
+/// ```
+/// use sampara::{signal, Signal};
+///
+/// fn main() {
+///     let mut state = 1;
+///     let mut signal = signal::from_fn(|| {
+///         if state < 4 {
+///             let frame = [state, state * 2, state * 3];
+///             state += 1;
+///             Some(frame)
+///         }
+///         else { None }
+///     });
+///
+///     assert_eq!(signal.next(), Some([1, 2, 3]));
+///     assert_eq!(signal.next(), Some([2, 4, 6]));
+///     assert_eq!(signal.next(), Some([3, 6, 9]));
+///     assert_eq!(signal.next(), None);
+/// }
+/// ```
+pub fn from_fn<F, G>(gen_fn: G) -> FromFn<F, G>
+where
+    F: Frame,
+    G: FnMut() -> Option<F>,
+{
+    FromFn(gen_fn)
+}
+
+// /// Creates a new [`Signal`] where each [`Frame`] is copied from a given
+// /// constant [`Frame`].
+// ///
+// /// ```
+// /// use sampara::{signal, Signal};
+// ///
+// /// fn main() {
+// ///     let mut signal = signal::constant([1, 2, 3, 4]);
+// ///
+// ///     assert_eq!(signal.next(), Some([1, 2, 3, 4]));
+// ///     assert_eq!(signal.next(), Some([1, 2, 3, 4]));
+// ///     assert_eq!(signal.next(), Some([1, 2, 3, 4]));
+// ///     assert_eq!(signal.next(), Some([1, 2, 3, 4]));
+// /// }
+// /// ```
+// pub fn constant<F, const N: usize>(frame: F) -> Constant<F, N>
+// where
+//     F: Frame<N>,
+// {
+//     Constant(frame)
+// }
+
+// /// Creates a new [`Signal`] that always yields [`Frame::EQUILIBRIUM`].
+// ///
+// /// ```
+// /// use sampara::{signal, Signal};
+// ///
+// /// fn main() {
+// ///     let mut signal = signal::equilibrium();
+// ///
+// ///     assert_eq!(signal.next(), Some([0, 0]));
+// ///     assert_eq!(signal.next(), Some([0, 0]));
+// ///     assert_eq!(signal.next(), Some([0, 0]));
+// ///     assert_eq!(signal.next(), Some([0, 0]));
+// /// }
+// /// ```
+// pub fn equilibrium<F, const N: usize>() -> Equilibrium<F, N>
+// where
+//     F: Frame<N>,
+// {
+//     Equilibrium(Default::default())
+// }
+
+// /// Creates an empty [`Signal`] that yields no [`Frame`]s.
+// ///
+// /// ```
+// /// use sampara::{signal, Signal};
+// ///
+// /// fn main() {
+// ///     // Need to have redundant number of channels, until associated consts
+// ///     // can be used as const generics.
+// ///     let mut signal = signal::empty::<[i8; 2], 2>();
+// ///
+// ///     assert_eq!(signal.next(), None);
+// ///     assert_eq!(signal.next(), None);
+// ///     assert_eq!(signal.next(), None);
+// ///     assert_eq!(signal.next(), None);
+// /// }
+// /// ```
+// pub fn empty<F, const N: usize>() -> Empty<F, N>
+// where
+//     F: Frame<N>,
+// {
+//     Empty(Default::default())
+// }
+
+/// Creates a new [`Signal`] by wrapping an iterable that yields [`Frame`]s.
+///
+/// ```
+/// use sampara::{signal, Signal};
+///
+/// fn main() {
+///     let frames = vec![[0, 0], [16, -16], [32, -32]];
+///     let mut signal = signal::from_frames(frames);
+///
+///     assert_eq!(signal.next(), Some([0, 0]));
+///     assert_eq!(signal.next(), Some([16, -16]));
+///     assert_eq!(signal.next(), Some([32, -32]));
+///     assert_eq!(signal.next(), None);
+/// }
+/// ```
+pub fn from_frames<I>(iter: I) -> FromFrames<I::IntoIter>
+where
+    I: IntoIterator,
+    I::Item: Frame,
+{
+    FromFrames(iter.into_iter())
+}
+
+/// Creates a new [`Signal`] by wrapping an iterable that yields [`Sample`]s.
+/// These [`Sample`]s are assumed to be interleaved, and in channel order.
+/// The resulting [`Signal`] will read these [`Sample`]s into [`Frame`]s of the
+/// desired size, and yield them. Any trailing [`Sample`]s that do not fully
+/// complete a [`Frame`] will be discarded.
+///
+/// ```
+/// use sampara::{signal, Signal};
+/// use sampara::frame::Fixed;
+///
+/// fn main() {
+///     let samples = vec![1, 2, 3, 4, 5, 6, 7];
+///     let mut signal = signal::from_samples_fixed(samples);
+///
+///     assert_eq!(signal.next(), Some([1, 2].into()));
+///     assert_eq!(signal.next(), Some([3, 4].into()));
+///     assert_eq!(signal.next(), Some([5, 6].into()));
+///     // Not enough remaining samples for a full frame, so they are discarded.
+///     assert_eq!(signal.next(), None);
+/// }
+/// ```
+pub fn from_samples_fixed<I, const N: usize>(iter: I) -> FromSamplesFixed<I::IntoIter, N>
+where
+    I: IntoIterator,
+    I::Item: Sample,
+{
+    FromSamplesFixed(iter.into_iter())
+}
+
+pub fn from_samples_dynamic<I>(iter: I, n: usize) -> FromSamplesDynamic<I::IntoIter>
+where
+    I: IntoIterator,
+    I::Item: Sample,
+{
+    FromSamplesDynamic(iter.into_iter(), n)
 }
