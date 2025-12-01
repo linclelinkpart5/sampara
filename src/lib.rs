@@ -6,6 +6,7 @@ pub mod sample;
 pub mod signal;
 pub mod stats;
 
+pub use frame::{Dynamic, Fixed, Frame};
 pub use sample::{FromSample, IntoSample, Sample};
 pub use signal::Signal;
 
